@@ -2,8 +2,8 @@ title: AI 工程札记
 description: > # this means to ignore newlines until "baseurl:"
   记录 AI 工程师成长、AI 工程化实践、工具链、模型应用和真实项目经验。
 permalink: ':title/'
-baseurl: "" # the subpath of your site, e.g. /blog
-url: "https://xu111393.github.io" # the base hostname & protocol for your site, e.g. http://example.com
+baseurl: "/xu111393.github.io" # the subpath of your site, e.g. /blog
+url: "https://xu10311737.github.io" # the base hostname & protocol for your site, e.g. http://example.com
 site-twitter: #if your site has a twitter account, enter it here
 
 # Author Settings
@@ -12,7 +12,7 @@ author-img: david-freeman.jpg # add your photo
 about-author: 关注 AI 工程化、智能体应用、模型落地和工程实践。 # add description
 social-twitter: # add your Twitter handle
 social-facebook: # add your Facebook handle
-social-github: xu111393 # add your Github handle
+social-github: xu10311737 # add your Github handle
 social-linkedin: # add your Linkedin handle
 social-email: greatmeow@126.com # add your Email address
 
