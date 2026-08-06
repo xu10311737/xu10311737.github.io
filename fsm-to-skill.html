@@ -1,0 +1,296 @@
+---
+layout: main
+title: FSM to Skill — 把复杂 Skill 交还给状态机
+description: 一个完全本地、基于有限状态机（FSM）的 DAG 工作流编排到 Skill 的导出引擎。让大模型回归推理本职，把流程控制交还给状态机。
+---
+
+<style>
+  .fts{--ink:#263959;--ink-2:#3c4a63;--accent:#2f6feb;--accent-soft:#eaf1fe;--line:#e6e9ee;--bg:#ffffff;--bg-soft:#f7f8fa;--text:#2b2f36;--muted:#5b6472;
+       font-family:"Lato","Helvetica Neue",Arial,sans-serif;color:var(--text);line-height:1.75;font-size:16px;}
+  .fts *{box-sizing:border-box;}
+  .fts .wrap{max-width:920px;margin:0 auto;padding:0 8px;}
+  .fts a{color:var(--accent);text-decoration:none;}
+  .fts a:hover{text-decoration:underline;}
+
+  .fts-nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:saturate(180%) blur(8px);border-bottom:1px solid var(--line);}
+  .fts-nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px;}
+  .fts-nav .brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--ink);letter-spacing:.2px;}
+  .fts-nav .brand .dot{width:11px;height:11px;border-radius:3px;background:var(--accent);}
+  .fts-nav .links{display:flex;gap:26px;font-size:14px;color:var(--ink-2);}
+  .fts-nav .links a{color:inherit;font-weight:600;}
+  .fts-nav .links a:hover{color:var(--accent);text-decoration:none;}
+
+  .fts-hero{padding:56px 0 40px;background:
+     radial-gradient(1000px 480px at 80% -10%, var(--accent-soft), transparent 60%),
+     linear-gradient(180deg,#fbfcfe,var(--bg));}
+  .fts-hero .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);font-weight:700;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;}
+  .fts-hero h1{font-family:"PT Serif",Georgia,serif;font-size:44px;line-height:1.2;color:var(--ink);margin:6px 0 14px;font-weight:700;}
+  .fts-hero h1 em{font-style:normal;color:var(--accent);}
+  .fts-hero .lede{font-size:19px;color:var(--ink-2);max-width:640px;margin:0 0 26px;}
+  .fts-chips{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;}
+  .fts-chips span{font-size:13px;color:var(--ink-2);background:#fff;border:1px solid var(--line);padding:6px 12px;border-radius:8px;display:inline-flex;align-items:center;gap:7px;}
+  .fts-chips i{color:var(--accent);}
+
+  .fts-section{padding:66px 0;border-top:1px solid var(--line);}
+  .fts-section.alt{background:var(--bg-soft);}
+  .fts-kicker{font-size:12.5px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);font-weight:700;}
+  .fts-h2{font-family:"PT Serif",Georgia,serif;font-size:30px;color:var(--ink);margin:8px 0 12px;font-weight:700;}
+  .fts-sub{color:var(--muted);font-size:16.5px;max-width:660px;margin:0 0 30px;}
+
+  .fts-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;}
+  .fts-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:26px;box-shadow:0 6px 18px rgba(38,57,89,.05);}
+  .fts-card .num{font-size:12px;font-weight:700;color:var(--accent);letter-spacing:1px;margin-bottom:8px;}
+  .fts-card h3{font-size:18px;color:var(--ink);margin:0 0 8px;display:flex;align-items:center;gap:10px;}
+  .fts-card h3 i{color:var(--accent);width:20px;text-align:center;}
+  .fts-card p{color:var(--muted);font-size:15px;margin:0;}
+
+  .fts-quote{border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:0 12px 12px 0;padding:22px 26px;font-size:20px;color:var(--ink);font-family:"PT Serif",Georgia,serif;margin:0 0 30px;line-height:1.6;}
+  .fts-list{list-style:none;padding:0;margin:0;display:grid;gap:14px;}
+  .fts-list li{display:flex;gap:14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .fts-list li .ico{flex:0 0 38px;height:38px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:16px;}
+  .fts-list li b{display:block;color:var(--ink);font-size:15.5px;margin-bottom:2px;}
+  .fts-list li span{color:var(--muted);font-size:14.5px;}
+
+  .fts-steps{display:grid;gap:0;margin-top:8px;}
+  .fts-step{display:grid;grid-template-columns:64px 1fr;gap:20px;padding:22px 0;border-top:1px solid var(--line);}
+  .fts-step:first-child{border-top:none;}
+  .fts-step .step-no{font-family:"PT Serif",Georgia,serif;font-size:34px;color:var(--accent);font-weight:700;opacity:.9;}
+  .fts-step h3{font-size:19px;color:var(--ink);margin:0 0 8px;}
+  .fts-step p{color:var(--muted);font-size:15px;margin:0 0 10px;max-width:640px;}
+  .fts-tags{display:flex;flex-wrap:wrap;gap:8px;}
+  .fts-tags code{background:var(--bg-soft);border:1px solid var(--line);color:var(--ink-2);font-size:12.5px;padding:3px 9px;border-radius:6px;font-family:"SFMono-Regular",Consolas,monospace;}
+
+  .fts-flow{background:#fff;border:1px solid var(--line);border-radius:14px;padding:26px;margin-top:10px;}
+  .fts-flow .nodes{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  .fts-node{border:1px solid var(--line);border-radius:9px;padding:8px 14px;font-size:13.5px;font-weight:600;color:var(--ink);background:#fff;display:flex;align-items:center;gap:8px;}
+  .fts-node .k{width:8px;height:8px;border-radius:50%;}
+  .fts-node.start .k{background:#2f9e6e;} .fts-node.code .k{background:#2f6feb;}
+  .fts-node.llm .k{background:#b7791f;} .fts-node.if .k{background:#9b5cf6;}
+  .fts-node.for .k{background:#0ea5e9;} .fts-node.end .k{background:#e2525a;}
+  .fts-arrow{color:#9aa4b2;font-size:14px;}
+  .fts-cmd{background:#1f2430;color:#d8e1ee;border-radius:12px;padding:16px 20px;font-family:"SFMono-Regular",Consolas,monospace;font-size:13.5px;overflow-x:auto;margin-top:18px;line-height:1.7;}
+  .fts-cmd .c{color:#7fd1a8;} .fts-cmd .f{color:#8ab4f8;} .fts-cmd .s{color:#e6c07b;}
+
+  .fts-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:#fff;}
+  .fts-table{width:100%;border-collapse:collapse;min-width:640px;font-size:14.5px;}
+  .fts-table th,.fts-table td{text-align:left;padding:15px 18px;border-bottom:1px solid var(--line);vertical-align:top;}
+  .fts-table thead th{background:var(--bg-soft);color:var(--ink);font-weight:700;font-size:13px;letter-spacing:.3px;}
+  .fts-table tr:last-child td{border-bottom:none;}
+  .fts-table td.dim{color:var(--muted);}
+  .fts-label{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:6px;margin-bottom:4px;}
+  .fts-label.fsm{background:var(--accent-soft);color:var(--accent);}
+
+  .fts-callout{background:linear-gradient(135deg,var(--ink),#33507a);color:#fff;border-radius:16px;padding:34px 36px;}
+  .fts-callout h3{font-family:"PT Serif",Georgia,serif;font-size:24px;margin:0 0 12px;color:#fff;}
+  .fts-callout p{margin:0 0 16px;color:#cfd9ea;font-size:15.5px;}
+  .fts-callout p:last-child{margin-bottom:0;}
+  .fts-callout a{color:#a9c4ff;}
+
+  .fts-foot{margin-top:56px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+
+  @media (max-width:720px){
+    .fts-grid{grid-template-columns:1fr;}
+    .fts-hero h1{font-size:33px;}
+    .fts-nav .links{display:none;}
+    .fts-step{grid-template-columns:1fr;gap:8px;}
+  }
+</style>
+
+<div class="fts">
+  <nav class="fts-nav">
+    <div class="wrap">
+      <div class="brand"><span class="dot"></span>FSM to Skill</div>
+      <div class="links">
+        <a href="#pain">痛点</a>
+        <a href="#idea">思路</a>
+        <a href="#how">实现</a>
+        <a href="#compare">对比</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="fts-hero">
+    <div class="wrap">
+      <h1>把复杂 Skill，<em>交还给状态机</em></h1>
+      <p class="lede">当 Agent Skill 越来越大、分支越来越多，手写 Prompt 再也撑不住确定性流程时——一个叫 <strong>fsm-to-skill</strong> 的项目给出了另一条路：让大模型回归「推理」本职，把「流程控制」交还给经典而严谨的有限状态机（FSM）。</p>
+      <div class="fts-chips">
+        <span><i class="fa fa-server" aria-hidden="true"></i> 完全本地</span>
+        <span><i class="fa fa-th-large" aria-hidden="true"></i> 7 种节点</span>
+        <span><i class="fa fa-flask" aria-hidden="true"></i> 真实 LLM 调试</span>
+        <span><i class="fa fa-download" aria-hidden="true"></i> 一键导出标准 Skill</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="fts-section" id="pain">
+    <div class="wrap">
+      <div class="fts-kicker">01 · The Problem</div>
+      <h2 class="fts-h2">复杂 Skill 的痛点，出在哪里？</h2>
+      <p class="fts-sub">一个 Skill 一旦从「几句提示词」长成「成百上千行的多步流程」，问题会以四种方式集中爆发。</p>
+      <div class="fts-grid">
+        <div class="fts-card">
+          <div class="num">01</div>
+          <h3><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> 流程失控与幻觉</h3>
+          <p>复杂 Skill 挤满了分支判断和流程约束。冗余与冲突的描述越多，AI 越改越费力——Skill 越庞大，越容易诱发奖励黑客行为与逻辑幻觉。</p>
+        </div>
+        <div class="fts-card">
+          <div class="num">02</div>
+          <h3><i class="fa fa-wrench" aria-hidden="true"></i> 维护成本爆炸</h3>
+          <p>复杂 Skill 没有清晰的逻辑边界。业务一变更，面对上千行 Prompt 无从下手；AI 越改越费力，Skill 越改越庞大，陷入恶性循环。</p>
+        </div>
+        <div class="fts-card">
+          <div class="num">03</div>
+          <h3><i class="fa fa-eye-slash" aria-hidden="true"></i> 关键约束被遗忘</h3>
+          <p>执行链路一长，LLM 注意力就会分散，重要约束被忽略。比如要求逐个执行 100 个相似但复杂的任务时，模型常遗漏约束或跳过步骤。</p>
+        </div>
+        <div class="fts-card">
+          <div class="num">04</div>
+          <h3><i class="fa fa-sticky-note-o" aria-hidden="true"></i> 经验无法沉淀</h3>
+          <p>复杂推理流程散落在多次手写 Prompt 里，难以复用、难以组合，也难以沉淀为可分享、可版本化的 Skill 资产。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="fts-section alt" id="idea">
+    <div class="wrap">
+      <div class="fts-kicker">02 · The Idea</div>
+      <h2 class="fts-h2">思路：让流程是流程，让推理是推理</h2>
+      <div class="fts-quote">核心主张——让大模型回归「推理」本职，把「流程控制」交还给经典而严谨的有限状态机（FSM）。</div>
+      <div class="fts-list">
+        <li>
+          <div class="ico"><i class="fa fa-braces" aria-hidden="true"></i></div>
+          <div><b>用 DAG 显式建模确定性流程</b><span>分支、循环、汇聚、多出口，全部用有向无环图（DAG）画出来，流程即数据，看得见、摸得着。</span></div>
+        </li>
+        <li>
+          <div class="ico"><i class="fa fa-cog" aria-hidden="true"></i></div>
+          <div><b>LLM 只负责「单步推理」</b><span>模型在节点内做判断与产出，而「接下来走哪条边」由状态机决定——确定性握在工程手里。</span></div>
+        </li>
+        <li>
+          <div class="ico"><i class="fa fa-shield" aria-hidden="true"></i></div>
+          <div><b>可校验、可追溯、可版本化</b><span>无环、单开始、变量可追溯、类型匹配、禁嵌套 For……结构问题在导出的第一时间被拦住，而不是运行时才暴露。</span></div>
+        </li>
+      </div>
+    </div>
+  </section>
+
+  <section class="fts-section" id="how">
+    <div class="wrap">
+      <div class="fts-kicker">03 · How It Works</div>
+      <h2 class="fts-h2">如何实现：编排 → 调试 → 导出</h2>
+      <p class="fts-sub">整个工具完全本地运行：纯前端画布 + Python 后端引擎。三步走，把确定性的流程变成可被任意 Agent 加载的标准 Skill。</p>
+
+      <div class="fts-steps">
+        <div class="fts-step">
+          <div class="step-no">1</div>
+          <div>
+            <h3>可视化编排</h3>
+            <p>在画布上拖拽节点、建立连线，构建你的 DAG。7 种节点覆盖编排所需的基本能力：</p>
+            <div class="fts-flow">
+              <div class="nodes">
+                <span class="fts-node start"><span class="k"></span>start</span><span class="fts-arrow">&#8594;</span>
+                <span class="fts-node code"><span class="k"></span>code</span><span class="fts-arrow">&#8594;</span>
+                <span class="fts-node llm"><span class="k"></span>llm</span><span class="fts-arrow">&#8594;</span>
+                <span class="fts-node if"><span class="k"></span>if</span><span class="fts-arrow">&#8594;</span>
+                <span class="fts-node for"><span class="k"></span>for</span><span class="fts-arrow">&#8594;</span>
+                <span class="fts-node end"><span class="k"></span>end</span>
+              </div>
+              <div class="fts-tags" style="margin-top:14px;">
+                <code>start 入口声明变量</code><code>code 子进程执行</code><code>llm 渲染 Prompt</code>
+                <code>if 条件分支</code><code>for 循环迭代</code><code>aggregate 汇聚</code><code>end 终止</code>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fts-step">
+          <div class="step-no">2</div>
+          <div>
+            <h3>真实 LLM 调试</h3>
+            <p>接入真实 Agent 在线运行：流式输出、Token 统计、节点级变量快照、四色状态标识（运行中 / 成功 / 失败 / 跳过），Code 节点还能单独注入参数验证脚本逻辑。调试透明，不再「不知道在哪一步跑偏」。</p>
+          </div>
+        </div>
+
+        <div class="fts-step">
+          <div class="step-no">3</div>
+          <div>
+            <h3>一键导出标准 Skill</h3>
+            <p>校验通过后选择目录导出，得到可被任何支持命令行交互的 Agent 加载的 Skill 目录：</p>
+            <div class="fts-tags">
+              <code>SKILL.md</code><code>agent_interface.json</code><code>workflow.yaml</code>
+              <code>inference/</code><code>scripts/</code>
+            </div>
+            <p style="margin-top:14px;">其中 <code>scripts/main.py</code> 是自包含的状态机入口：每个 <b>Code 节点是 Agent 输入进入 DAG 的入口</b>，每个 <b>Prompt（llm）节点是 DAG 返回 Agent 的出口</b>，任务状态按 task-id 持久化到磁盘——Agent 只需一条命令即可进入流程。</p>
+            <div class="fts-cmd">
+              <span class="c">python</span> main.py <span class="f">--task-id</span> task-001 <span class="f">--step-id</span> code-1 <span class="f">--step-param</span> <span class="s">'{&quot;arg-1&quot;:&quot;hello&quot;}'</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="fts-section alt" id="compare">
+    <div class="wrap">
+      <div class="fts-kicker">04 · Vs. Flow to Skill</div>
+      <h2 class="fts-h2">与 Flow to Skill 的核心区别</h2>
+      <p class="fts-sub"><strong>Flow to Skill</strong> 是一个 VS Code / Cursor 扩展：用可视化流程图编排，保存为 YAML，再交给 Cursor 的 Agent 聊天面板生成 <code>SKILL.md</code> 与配套脚本。两者都试图「把 Skill 创作从手写里解放出来」，但哲学不同。</p>
+
+      <div class="fts-table-wrap">
+        <table class="fts-table">
+          <thead>
+            <tr><th>维度</th><th>Flow to Skill</th><th>fsm-to-skill</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>定位</b></td>
+              <td class="dim">可视化辅助生成工具，偏「编辑 + 导出」</td>
+              <td><span class="fts-label fsm">引擎</span>编排 + 运行时的完整工具链</td>
+            </tr>
+            <tr>
+              <td><b>生成方式</b></td>
+              <td class="dim">把 YAML 交给 LLM 理解后生成脚本（黑盒、非确定）</td>
+              <td>把 DAG/FSM 确定性编译成可执行 Skill（白盒、可预测）</td>
+            </tr>
+            <tr>
+              <td><b>流程控制权</b></td>
+              <td class="dim">执行逻辑由 LLM 临场决定，存在幻觉 / 遗漏风险</td>
+              <td>流程由状态机显式决定，LLM 只做单步推理</td>
+            </tr>
+            <tr>
+              <td><b>运行形态</b></td>
+              <td class="dim">导出依赖宿主（Cursor Chat）与 LLM 生成管线</td>
+              <td>自带可执行状态机运行时，独立可运行，Agent 一条命令即可进入</td>
+            </tr>
+            <tr>
+              <td><b>可信度 / 可调性</b></td>
+              <td class="dim">一次性生成，生成前仅做结构校验</td>
+              <td>29 项结构校验 + 真实 LLM 节点调试 + 变量快照 + 错误定位</td>
+            </tr>
+            <tr>
+              <td><b>资产沉淀</b></td>
+              <td class="dim">流程以 YAML 保存，执行逻辑依赖 LLM 转译</td>
+              <td>流程即数据（DAG），可校验、可追溯、可版本化、可复用组合</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p style="color:var(--muted);font-size:14.5px;margin-top:16px;">一句话：<strong>Flow to Skill</strong> 让 LLM 帮你「写」Skill，<strong>fsm-to-skill</strong> 让状态机替你「保证」流程。</p>
+    </div>
+  </section>
+
+  <section class="fts-section">
+    <div class="wrap">
+      <div class="fts-callout">
+        <h3>流程是流程，推理是推理。</h3>
+        <p>当你的 Agent 需要「多步、可分支、可循环、可计算」的确定性能力，却不想手写状态机、也不想让大模型在关键路径上自由发挥时——fsm-to-skill 把两者都接住了：用可视化把事情画清楚，用状态机把流程跑稳，把大模型的聪明留在该用的地方。</p>
+        <p>完全本地、纯开源（MIT），数据与密钥只留在你的机器上。</p>
+      </div>
+      <div class="fts-foot">
+        <span>FSM to Skill · 第三方视角介绍</span>
+        <span>源项目：<a href="https://github.com/xu10311737/fsm-to-skill" target="_blank" rel="noopener">github.com/xu10311737/fsm-to-skill</a></span>
+      </div>
+    </div>
+  </section>
+</div>
