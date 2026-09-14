@@ -1,10 +1,14 @@
 _site
 .sass-cache
 .jekyll-metadata
+.jekyll-cache
 yarn.lock
 Gemfile.lock
 package-lock.json
 node_modules/
+
+# Local dev server logs
+*.log
 
 ### macOS ###
 *.DS_Store
