@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="面向 AI 工程师的 2026 年 9 月 14 日技术日报：分析 OpenCodeReview v1.12.0 如何用确定性流水线约束代码审查 Agent。">
+  <title>代码审查 Agent 的关键不在提示词：OpenCodeReview v1.12.0 的专用流水线</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --paper: #ffffff;
+      --ink: #17212b;
+      --muted: #596672;
+      --faint: #5f6b75;
+      --line: #dfe4e8;
+      --blue: #155eef;
+      --blue-dark: #0f3f9e;
+      --blue-soft: #edf4ff;
+      --green: #087443;
+      --green-soft: #eaf8f0;
+      --orange: #9a4d00;
+      --orange-soft: #fff4e8;
+      --red: #a62b2b;
+      --red-soft: #fff0f0;
+      --code: #101820;
+      --code-ink: #e6edf3;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.75;
+    }
+    a { color: var(--blue-dark); text-underline-offset: 3px; }
+    a:hover { color: var(--blue); }
+    .page {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 36px 28px 72px;
+    }
+    .masthead {
+      padding: 12px 0 34px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--blue-dark);
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: .08em;
+    }
+    h1, h2, h3 { color: var(--ink); }
+    h1 {
+      max-width: 920px;
+      margin: 0 0 16px;
+      font-size: 46px;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+    .dek {
+      max-width: 820px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 19px;
+      line-height: 1.65;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 22px;
+      margin-top: 22px;
+      color: var(--faint);
+      font-size: 14px;
+    }
+    .meta span { white-space: nowrap; }
+    .toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      margin: 18px 0 0;
+      font-size: 14px;
+    }
+    .toc a { color: var(--muted); }
+    section {
+      margin-top: 38px;
+      padding-top: 30px;
+      border-top: 1px solid var(--line);
+    }
+    section:first-of-type { border-top: 0; }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 29px;
+      line-height: 1.3;
+    }
+    h3 {
+      margin: 24px 0 8px;
+      font-size: 19px;
+      line-height: 1.4;
+    }
+    p { margin: 0 0 14px; }
+    ul, ol { margin: 0 0 16px; padding-left: 23px; }
+    li { margin-bottom: 8px; }
+    .lead-note {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .callout {
+      margin: 18px 0;
+      padding: 18px 20px;
+      border-left: 4px solid var(--blue);
+      background: var(--blue-soft);
+    }
+    .callout strong { color: var(--blue-dark); }
+    .callout.warning {
+      border-color: #d46b08;
+      background: var(--orange-soft);
+    }
+    .callout.security {
+      border-color: var(--green);
+      background: var(--green-soft);
+    }
+    .label {
+      display: inline-block;
+      margin-right: 7px;
+      padding: 2px 7px;
+      border: 1px solid currentColor;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.5;
+      vertical-align: 2px;
+    }
+    .label.fact { color: var(--green); }
+    .label.inference { color: var(--blue-dark); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 20px 0;
+    }
+    .item {
+      padding: 17px 18px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--paper);
+    }
+    .item h3 { margin: 0 0 7px; font-size: 17px; }
+    .item p { margin: 0; color: var(--muted); font-size: 15px; }
+    .stat { border-top: 3px solid var(--blue); }
+    .stat .number {
+      display: block;
+      margin-bottom: 2px;
+      color: var(--blue-dark);
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+    .stat .caption { color: var(--muted); font-size: 14px; }
+    .timeline-wrap, .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--paper);
+    }
+    table {
+      width: 100%;
+      min-width: 680px;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 12px 13px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    th {
+      color: var(--ink);
+      background: #f0f3f6;
+      font-weight: 750;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .timeline th:nth-child(1) { width: 14%; }
+    .timeline th:nth-child(2) { width: 17%; }
+    .timeline th:nth-child(3) { width: 69%; }
+    .compare th:nth-child(1) { width: 14%; }
+    .compare th:nth-child(2),
+    .compare th:nth-child(3),
+    .compare th:nth-child(4),
+    .compare th:nth-child(5) { width: 21.5%; }
+    .bench th:nth-child(1) { width: 27%; }
+    .bench th:nth-child(2),
+    .bench th:nth-child(3),
+    .bench th:nth-child(4),
+    .bench th:nth-child(5),
+    .bench th:nth-child(6) { width: 14.6%; }
+    .audit th:nth-child(1) { width: 24%; }
+    .audit th:nth-child(2) { width: 25%; }
+    .audit th:nth-child(3) { width: 51%; }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(100px, 1fr));
+      gap: 0;
+      margin: 22px 0;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--paper);
+      list-style: none;
+    }
+    .flow-step {
+      position: relative;
+      min-height: 112px;
+      padding: 15px 14px;
+      border-right: 1px solid var(--line);
+    }
+    .flow-step:last-child { border-right: 0; }
+    .flow-step:not(:last-child)::after {
+      content: ">";
+      position: absolute;
+      top: 42px;
+      right: -8px;
+      z-index: 1;
+      width: 16px;
+      color: var(--blue);
+      background: var(--paper);
+      font-weight: 800;
+      text-align: center;
+    }
+    .flow-index {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .flow-step strong { display: block; font-size: 15px; }
+    .flow-step span:last-child { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .code {
+      margin: 16px 0;
+      padding: 16px 18px;
+      overflow-x: auto;
+      border-radius: 6px;
+      background: var(--code);
+      color: var(--code-ink);
+      font: 13px/1.7 Consolas, "SFMono-Regular", Menlo, monospace;
+      white-space: pre;
+    }
+    .code .comment { color: #8da5ba; }
+    .code .command { color: #8dccff; }
+    .code .flag { color: #f4c97a; }
+    .code:focus-visible, .table-wrap:focus-visible, .timeline-wrap:focus-visible {
+      outline: 3px solid #8ab4ff;
+      outline-offset: 3px;
+    }
+    .metric-note {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .source-link { white-space: nowrap; font-size: 13px; }
+    .source-log { margin-top: 14px; }
+    .source-log summary {
+      display: inline-block;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: var(--paper);
+      color: var(--blue-dark);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .source-log summary:focus-visible { outline: 3px solid #8ab4ff; outline-offset: 3px; }
+    .checklist {
+      counter-reset: phase;
+      display: grid;
+      gap: 12px;
+      margin: 18px 0;
+    }
+    .phase {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 14px;
+      padding: 15px 17px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--paper);
+    }
+    .phase::before {
+      counter-increment: phase;
+      content: counter(phase);
+      display: grid;
+      place-items: center;
+      width: 31px;
+      height: 31px;
+      border-radius: 50%;
+      color: var(--blue-dark);
+      background: var(--blue-soft);
+      font-weight: 800;
+    }
+    .phase h3 { margin: 0 0 4px; font-size: 17px; }
+    .phase p { margin: 0; color: var(--muted); font-size: 14px; }
+    .small { color: var(--muted); font-size: 14px; }
+    footer {
+      margin-top: 42px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      color: var(--faint);
+      font-size: 13px;
+    }
+    @media (max-width: 760px) {
+      .page { padding: 24px 17px 48px; }
+      h1 { font-size: 34px; }
+      .dek { font-size: 17px; }
+      h2 { font-size: 25px; }
+      .grid { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr 1fr; }
+      .flow-step { min-height: 106px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+      .flow-step:nth-child(2n) { border-right: 0; }
+      .flow-step:nth-last-child(-n+2) { border-bottom: 0; }
+      .flow-step::after { display: none; }
+      .meta span { white-space: normal; }
+      .toc { gap: 6px 13px; }
+      table { font-size: 13px; }
+    }
+    @media (max-width: 430px) {
+      h1 { font-size: 30px; }
+      .flow { grid-template-columns: 1fr; }
+      .flow-step,
+      .flow-step:nth-child(2n) { border-right: 0; border-bottom: 1px solid var(--line); }
+      .flow-step:last-child { border-bottom: 0; }
+      .phase { grid-template-columns: 33px minmax(0, 1fr); gap: 10px; padding: 13px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <p class="eyebrow">AI 工程日报 / 2026-09-14</p>
+      <h1>代码审查 Agent 的关键不在提示词：OpenCodeReview v1.12.0 的专用流水线</h1>
+      <p class="dek">9 月 12 日发布的 OpenCodeReview v1.12.0 值得关注，不是因为又多了一个代码审查入口，而是因为它把 Agent 最容易失控的环节拆了出来：流程由确定性工程控制，模型只负责需要语义判断的部分。</p>
+      <div class="meta">
+        <span>主题：AICoding / Agent Harness（智能体运行框架）</span>
+        <span>观察窗口：2026-09-07 至 2026-09-14</span>
+        <span>判断：适合非阻断试点，暂不宜直接替代现有质量门禁</span>
+      </div>
+      <nav class="toc" aria-label="文章目录">
+        <a href="#tldr">TL;DR</a>
+        <a href="#background">背景与问题</a>
+        <a href="#principle">核心原理</a>
+        <a href="#innovation">真正的创新</a>
+        <a href="#benchmark">基准与证据</a>
+        <a href="#compare">竞品对比</a>
+        <a href="#production">工程化视角</a>
+        <a href="#security">执行安全</a>
+        <a href="#risk">局限与风险</a>
+        <a href="#future">未来方向</a>
+        <a href="#takeaways">工程师借鉴</a>
+        <a href="#sources">数据源</a>
+      </nav>
+    </header>
+
+    <section id="tldr">
+      <h2>TL;DR</h2>
+      <div class="callout">
+        <strong>工程结论：</strong>值得在 CI（持续集成）中以“建议”模式做小规模试点；不建议仅凭项目方 README 中的基准结果，就让它直接成为合并阻断器，也不建议用它替代 CodeQL、Semgrep 等确定性扫描。
+      </div>
+      <ul>
+        <li><span class="label fact">来源事实</span>OpenCodeReview 是一个 CLI（命令行界面）代码审查工具：读取 Git diff，通过带工具调用能力的 Agent 将变更交给可配置的 LLM（大型语言模型），输出带行级定位的结构化审查意见；它也提供全文件扫描和 JSON（JavaScript Object Notation，JavaScript 对象表示法）输出。[<a href="#source-ocr-readme">README</a>]</li>
+        <li><span class="label fact">来源事实</span>9 月 7-14 日的发布记录和主分支提交显示，项目在补齐 Rego 规则、流式用量、预览一致性、会话比较、输出原子性、分组性能和提交绑定等工程细节，而不只是增加模型名称。[<a href="#source-release-1120">发布记录</a>] [<a href="#source-main-commits">主分支提交</a>]</li>
+        <li><span class="label inference">本文判断</span>真正值得复用的是边界设计：文件选择、规则匹配、上下文分组、评论定位和恢复交给程序；跨文件语义理解、工具检索和缺陷判断交给 Agent。它把“审查结果好不好”转化为可测量的质量、成本、延迟和可靠性问题。</li>
+      </ul>
+    </section>
+
+    <section id="background">
+      <h2>背景与问题：为什么通用 Agent 不够稳定</h2>
+      <p>代码审查不是简单的“把 diff 发给模型”。一个生产审查器至少要同时处理四件事：完整覆盖变更文件，拿到跨文件上下文，判断意见是否真的是缺陷，并把意见准确地落在 Pull Request（拉取请求，PR）的正确行上。任何一项出错，都会转化为漏报、误报或开发者对工具失去信任。</p>
+      <p><span class="label fact">来源事实</span>OpenCodeReview 的 README 将通用 Agent + Skill 的问题概括为覆盖不全、位置漂移和质量不稳定，并把原因归结为纯语言驱动架构缺少对审查流程的硬约束。[<a href="#source-ocr-readme">README</a>]</p>
+      <p><span class="label inference">本文判断</span>这不是说通用 Agent 没有代码理解能力，而是说“让模型同时决定看什么、怎么查、审什么、评论放哪儿”会把太多控制权放进一个概率性循环。提示词再长，也不能替代可验证的状态、范围和输出协议。</p>
+
+      <h3>近期变化为什么值得看</h3>
+      <div class="timeline-wrap" role="region" tabindex="0" aria-label="OpenCodeReview 版本变更时间线">
+        <table class="timeline">
+          <caption class="small">2026-09-07 至 2026-09-14 的版本与主分支变化</caption>
+          <thead>
+            <tr><th scope="col">日期</th><th scope="col">版本</th><th scope="col">可验证的发布内容</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>2026-09-07</td><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.6" target="_blank" rel="noopener">v1.11.6</a></td><td>增加 OCaml / ReasonML 语言支持。</td></tr>
+            <tr><td>2026-09-09</td><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.7" target="_blank" rel="noopener">v1.11.7</a></td><td>发布记录包含原子写报告、限制 MCP（模型上下文协议）关闭阶段、第二次信号立即退出、支持超时配置，以及 Skill 文档调整。</td></tr>
+            <tr><td>2026-09-10</td><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.8" target="_blank" rel="noopener">v1.11.8</a></td><td>增加 Rego 策略审查支持；默认请求流式用量，并保留额外请求体覆盖能力。</td></tr>
+            <tr><td>2026-09-11</td><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.9" target="_blank" rel="noopener">v1.11.9</a></td><td>增加会话比较页面；修复 DeepSeek-Flash 模型和预览选择与实际审查不一致的问题。</td></tr>
+            <tr><td>2026-09-12</td><td><a href="#source-release-1120">v1.12.0</a></td><td>改进分组逻辑，返回文件索引而不是路径；同步 GLM-5.3 到新的智谱 AI API（应用程序接口）配置。</td></tr>
+            <tr><td>2026-09-14</td><td><a href="#source-main-commits">main 分支提交</a></td><td>当天提交继续修复 Git 版本安全校验、嵌入式 BPE（字节对编码）计数加载，以及 GitHub Action 将评论绑定到被审查提交的问题；这些不是 v1.12.0 发布说明中的新增版本内容。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="metric-note">这些是发布说明中的项目事实。“连续修复说明项目在硬化运行链路”是本文判断，不是项目方对成熟度的独立证明。</p>
+    </section>
+
+    <section id="principle">
+      <h2>核心原理：把 Agent loop 拆成控制面和决策面</h2>
+      <p>OpenCodeReview 的核心设计可以理解为一条“有硬边界的 Agent loop（智能体循环）”。它没有试图消灭模型的不确定性，而是把不确定性放在相对合适的位置。</p>
+      <ol class="flow" aria-label="OpenCodeReview 简化工作流">
+        <li class="flow-step"><span class="flow-index">01</span><strong>确定审查范围</strong><span>读取 diff，筛选目标文件</span></li>
+        <li class="flow-step"><span class="flow-index">02</span><strong>规则与分组</strong><span>匹配规则，合并相关上下文</span></li>
+        <li class="flow-step"><span class="flow-index">03</span><strong>Agent 取上下文</strong><span>读完整文件，搜索仓库</span></li>
+        <li class="flow-step"><span class="flow-index">04</span><strong>语义判断</strong><span>模型判断真实缺陷与严重度</span></li>
+        <li class="flow-step"><span class="flow-index">05</span><strong>反思与定位</strong><span>校验内容与评论行位置</span></li>
+        <li class="flow-step"><span class="flow-index">06</span><strong>结构化输出</strong><span>JSON、会话、CI 评论</span></li>
+      </ol>
+
+      <div class="grid">
+        <article class="item">
+          <h3>控制面：必须可重复</h3>
+          <p>文件选择、过滤、相关文件打包、规则匹配和评论定位属于控制面。README 明确将这些职责交给工程逻辑，并说明大变更可按审查单元拆成隔离的子 Agent。</p>
+        </article>
+        <article class="item">
+          <h3>决策面：需要语义理解</h3>
+          <p>Agent 读取完整文件、搜索代码库、查看其他变更文件，再判断某个变化是否构成真实缺陷。这些步骤需要动态选择上下文，适合保留模型能力。</p>
+        </article>
+        <article class="item">
+          <h3>结果面：可恢复、可接入</h3>
+          <p>CLI 支持会话列表和恢复、JSON 文件输出；GitHub Action 还提供超时、Token（模型处理的文本单元）预算、增量评论、摘要评论和检查产物等配置。</p>
+        </article>
+      </div>
+
+      <h3>一个具体的边界例子</h3>
+      <p>假设 PR 同时修改了 Java 服务、配置文件和测试。模型可以判断“配置缺失会不会导致生产错误”，但不应该自行决定“只审服务文件”。前者是语义判断，后者属于审查范围，应由程序根据 Git 状态、路径规则和配置先确定。</p>
+      <pre class="code" tabindex="0" aria-label="OpenCodeReview 命令示例"><code><span class="comment"># OCR 负责范围、规则和输出；Agent 负责语义审查</span>
+<span class="command">ocr</span> review <span class="flag">--from</span> main <span class="flag">--to</span> feature-branch
+<span class="command">ocr</span> review <span class="flag">--format</span> json <span class="flag">--output</span> result.json
+<span class="command">ocr</span> review <span class="flag">--resume</span> &lt;session-id&gt;
+<span class="command">ocr</span> scan <span class="flag">--path</span> internal/agent</code></pre>
+
+      <p><span class="label inference">本文判断</span>这更像“代码审查编译器”的前端加一个受约束的语义执行器：先把输入、规则和边界规整成模型可消费的任务，再把模型输出收敛成可发布的结果。这里的“编译器”是帮助理解的工程类比，不是项目的官方命名。</p>
+    </section>
+
+    <section id="innovation">
+      <h2>真正的创新在哪里</h2>
+      <ol>
+        <li><strong>不是再写一份更长的审查提示词。</strong>项目将“必须正确”的步骤从自然语言中抽出来，形成可观察的程序模块。</li>
+        <li><strong>上下文组装成为一等能力。</strong>相关文件被绑定到一个审查单元中，既避免逐文件审查丢失关系，又可以把超大变更拆分并发执行。上下文窗口不再只是模型参数，而成为需要设计、测试和计费的工程资源。</li>
+        <li><strong>定位与判断分离。</strong>模型负责指出风险，独立模块负责把评论放在正确位置。对于 PR 工具，这比单纯提高回答文采更接近用户真正感知的可靠性。</li>
+        <li><strong>支持两种执行模式。</strong>默认模式由 OCR（OpenCodeReview 的命令行工具名）调用配置好的 LLM；委托模式由宿主编程 Agent 执行模型循环，OCR 负责范围选择、规则解析和上下文收集。[<a href="#source-ocr-readme">README</a>]</li>
+      </ol>
+      <p>9 月 7-14 日的发布和主分支细节也印证了这个方向：输出原子性、MCP 关闭超时、预览与执行一致性、增量评论、会话比较和评论绑定到被审查提交，都属于“让循环可以被恢复和审计”的基础设施，而不是模型能力展示。</p>
+      <p><span class="label fact">来源事实</span>v1.12.0 对分组契约的具体改动是：过去让模型在 JSON 中回写完整路径，大变更时响应体会随路径总长度增长，截断后可能解析失败并退化为逐文件调度；现在由程序给文件编号，模型只返回整数索引，再由程序映射回 diff，并跳过越界和重复索引。会话查看器负责把索引还原为路径，旧会话格式不变。[<a href="https://github.com/alibaba/open-code-review/commit/494bf1c8d7a19196ab166960a06fef38d69a1d16" target="_blank" rel="noopener">分组契约提交</a>]</p>
+    </section>
+
+    <section id="benchmark">
+      <h2>基准与证据：结果有价值，但不能过度外推</h2>
+      <p><span class="label fact">数据集方陈述</span>AACR-Bench 的公开说明称，数据集包含 200 个真实 PR、50 个开源项目、10 种编程语言和 2,145 条审查评论，其中 1,505 条为专家验证的正确评论，640 条为错误评论；项目 README 另称有 80 多名资深工程师参与交叉标注。这些是数据集维护方对样本和标注流程的陈述，不等于本文完成了独立审计。[<a href="#source-aacr">数据集</a>] [<a href="#source-aacr-paper">论文</a>]</p>
+      <div class="grid">
+        <div class="item stat"><span class="number">200</span><span class="caption">真实 Pull Request</span></div>
+        <div class="item stat"><span class="number">50</span><span class="caption">开源项目</span></div>
+        <div class="item stat"><span class="number">10</span><span class="caption">编程语言</span></div>
+        <div class="item stat"><span class="number">2,145</span><span class="caption">审查评论样本</span></div>
+        <div class="item stat"><span class="number">1,505</span><span class="caption">数据集方称：专家验证正确评论</span></div>
+        <div class="item stat"><span class="number">80+</span><span class="caption">项目方称参与标注的资深工程师</span></div>
+      </div>
+      <p><span class="label fact">来源事实</span>README 中展示的基准图包括同一模型家族的两行可比结果：Open Code Review + Claude-4.8-Opus（OCR v1.3.1）与 Claude Code + Claude-4.8-Opus（Claude Code v2.1.169）。数字如下，均来自项目公开图表。[<a href="#source-benchmark-image">基准图</a>]</p>
+      <div class="table-wrap" role="region" tabindex="0" aria-label="AACR-Bench 基准比较表">
+        <table class="bench">
+          <caption class="small">项目公开基准图中的两条 Claude-4.8-Opus 结果</caption>
+          <thead><tr><th scope="col">组合</th><th scope="col">Precision<br>准确率</th><th scope="col">Recall<br>召回率</th><th scope="col">F1<br>调和平均</th><th scope="col">平均耗时</th><th scope="col">平均 Token</th></tr></thead>
+          <tbody>
+            <tr><td>Open Code Review<br><span class="small">OCR v1.3.1 + Claude-4.8-Opus</span></td><td>37.80%<br><span class="small">176 / 465</span></td><td>11.70%<br><span class="small">176 / 1505</span></td><td>17.90%</td><td>1m06s</td><td>352K<br><span class="small">342K + 11K</span></td></tr>
+            <tr><td>Claude Code<br><span class="small">v2.1.169 + Claude-4.8-Opus</span></td><td>15.93%<br><span class="small">191 / 1200</span></td><td>12.70%<br><span class="small">191 / 1505</span></td><td>14.13%</td><td>5m38s</td><td>2,062K<br><span class="small">2,039K + 23K</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="metric-note"><span class="label inference">本文计算</span>按图表这两行计算，OCR 的准确率高 21.87 个百分点，F1 高 3.77 个百分点，平均耗时约低 5.1 倍，平均 Token 约低 5.9 倍；召回率低 1 个百分点。项目 README 的文字摘要写的是“约 1/9 Token”，但图表的这组行是约 1/5.9。页面没有解释两种口径的聚合范围，因此本文不把“1/9”推广到所有模型和 PR。</p>
+      <div class="callout warning">
+        <strong>证据边界：</strong>基准图的最近一次公开提交是 2026-08-05，图中工具版本是 OCR v1.3.1，而 <a href="https://registry.npmjs.org/@alibaba-group%2fopen-code-review" target="_blank" rel="noopener">npm registry 元数据</a>显示当前包版本是 v1.12.0（2026-09-12）。这是项目方公开基准，不是 v1.12.0 的独立复测，也不是跨供应商完全相同配置的对照实验。最稳妥的结论是“专用流水线可能显著降低噪声和成本”，而不是“生产效果必然达到某个比例”。
+      </div>
+      <p><span class="label fact">来源事实</span>公开评测框架把数据加载、审查执行和评估编排成一条管线，支持固定随机种子、每次运行独立目录、路径/侧别/行号/语义四阶段匹配，并允许多轮评估；但公开基准图没有给出本次运行的重复次数、完整配置和波动范围。[<a href="#source-aacr-eval">评测框架说明</a>]</p>
+      <p><span class="label inference">本文判断</span>这个基准最值得借鉴的地方不是排名，而是指标组合：准确率、召回率、F1、平均耗时和平均 Token 同时出现。代码审查产品如果只展示“发现了多少问题”，就无法判断它是在提高质量，还是在制造更多需要人工筛选的噪声。</p>
+    </section>
+
+    <section id="compare">
+      <h2>竞品对比：不同方案解决的是不同层级的问题</h2>
+      <p class="lead-note">下表比较的是工程形态和适用边界。CodeQL、Semgrep 的描述对应其官方文档；“托管式 AI PR 审查”是架构类别，不引用厂商宣传数字。</p>
+      <div class="table-wrap" role="region" tabindex="0" aria-label="代码审查方案对比表">
+        <table class="compare">
+          <caption class="small">四类代码审查方案的工程维度对比</caption>
+          <thead><tr><th scope="col">维度</th><th scope="col">OpenCodeReview</th><th scope="col">通用编程 Agent + Skill</th><th scope="col">CodeQL / Semgrep</th><th scope="col">托管式 AI PR 审查</th></tr></thead>
+          <tbody>
+            <tr><th>真实能力</th><td>Git diff、完整文件和仓库搜索；规则匹配；结构化、行级评论；可做全文件扫描。</td><td>代码理解和工具调用范围广；审查流程、文件选择和评论协议通常由宿主与提示词共同决定。</td><td>以查询或规则执行确定性分析，适合已知的安全、缺陷、模式和数据流问题。</td><td>通常把 PR 事件、模型推理和评论发布封装为服务，细节因供应商而异。</td></tr>
+            <tr><th>适用边界</th><td>需要跨文件语义判断，同时希望控制范围、规则和模型端点的团队。</td><td>探索性分析、修复和综合编码任务；不适合未经额外约束就承担稳定质量门禁。</td><td>可形式化、可复现的规则；对业务语义和新型缺陷需要额外规则或人工判断。</td><td>希望快速接入并接受云端数据边界和供应商运行方式的团队。</td></tr>
+            <tr><th>集成成本</th><td>需要安装 CLI、配置模型端点、管理 Git/CI 运行环境和规则；可用 GitHub Action。</td><td>宿主已有时接入快，但要自行维护提示词、上下文装配、输出解析和重试。</td><td>需要构建数据库或维护规则，并把结果接入 CI；运行行为更容易固定。</td><td>Webhook、权限、组织配置和供应商账号成本较低，但迁移成本和数据出口受平台约束。</td></tr>
+            <tr><th scope="row">可控性与可观测性</th><td>可指定规则、并发、Token 预算、超时、增量和摘要；README 列出会话查看器与 OpenTelemetry（开放遥测）集成。</td><td>取决于宿主的 trace（调用链）、工具调用记录和 Skill 设计；跨版本复现通常更难。</td><td>规则、查询和 SARIF（静态分析结果交换格式）/CI 结果更容易审计；语义覆盖取决于规则资产。</td><td>通常有平台仪表盘，但模型、提示词、上下文和服务端重试的透明度较低。</td></tr>
+            <tr><th>生产成熟度判断</th><td>有 CLI、Action、会话和安全文档，但基准仍是项目自测；适合先做建议模式。</td><td>模型能力成熟不等于审查流程成熟，需要团队自行建控制面。</td><td>适合作为确定性基线，不能替代语义审查。</td><td>上线速度快，长期要评估隐私、锁定效应、价格和故障可控性。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="metric-note">结论不是“哪一个全面胜出”：最可靠的生产组合通常是确定性扫描负责硬门禁，专用 Agent 负责跨文件语义问题，人工负责高风险和争议项。</p>
+    </section>
+
+    <section id="production">
+      <h2>工程化视角：从 Demo 到生产要补哪些环节</h2>
+      <p>接入时应把 OpenCodeReview 看成审查控制面，而不是一个“调用模型并发评论”的黑盒。目标是能回答：审了哪些输入、使用了哪个模型和规则、花了多少 Token、哪里失败、哪些意见被人接受。</p>
+      <div class="checklist">
+        <article class="phase"><div><h3>建立自己的黄金集</h3><p>从真实 PR 中抽取安全、缺陷、性能、可维护性和测试问题，保存 Git SHA（提交对象标识）、模型、规则版本及人工结论。先用 50-100 个代表性 PR 做基线，数字是实施建议，不是项目方门槛。</p></div></article>
+        <article class="phase"><div><h3>固定运行输入</h3><p>明确合并基准（merge-base）、PR head（提交端点）、路径排除、语言和审查规则；固定 <code>ocr_version</code> 与模型端点，避免今天的结果由隐含的分支范围或自动升级造成。</p></div></article>
+        <article class="phase"><div><h3>先接建议模式</h3><p>GitHub Action 提供 <code>review_task_timeout</code>、<code>max_tokens_budget</code>、<code>sticky_summary</code>、<code>incremental</code>、<code>upload_artifacts</code> 等输入。初期让结果进入 PR 摘要或独立报告，不直接阻断合并。</p></div></article>
+        <article class="phase"><div><h3>设计失败路径</h3><p>为模型超时、限流、JSON 无法解析、评论定位失败、GitHub API 失败和部分文件失败分别定义重试、降级、人工接管和退出码。能恢复会话不代表可以静默丢失结果。</p></div></article>
+        <article class="phase"><div><h3>接入遥测与反馈</h3><p>至少记录 PR 标识、两个 Git SHA、规则和模型版本、审查单元、工具调用次数、输入输出 Token、耗时、失败原因、评论状态及人工接受/忽略结果。</p></div></article>
+        <article class="phase"><div><h3>按风险分层启用</h3><p>低风险变更可先给提示，高风险目录可提高审查强度并保留人工复核；只有在自己的召回、误报、延迟和故障数据稳定后，才考虑局部门禁。</p></div></article>
+      </div>
+
+      <h3>它会怎样改变现有 LLM 应用架构</h3>
+      <div class="grid">
+        <article class="item"><h3>原来的最小架构</h3><p>PR 事件进入队列，拼接 diff 和提示词，启动一个通用模型循环，再把文本解析成评论。问题、范围、成本和恢复往往混在一次调用里。</p></article>
+        <article class="item"><h3>增加审查控制面后</h3><p>事件先经过范围与规则解析，再进入分组任务；每个任务拥有隔离上下文和预算，结果经过结构校验、评论定位、发布策略和遥测后才回到 PR。</p></article>
+        <article class="item"><h3>部署边界的变化</h3><p>代码不只经过模型端点，还会经过 CI 日志、缓存、会话文件和评论系统。数据流、密钥、权限和保留周期必须进入架构评审。</p></article>
+      </div>
+
+      <h3>生产评估表</h3>
+      <div class="table-wrap" role="region" tabindex="0" aria-label="生产评估指标表">
+        <table>
+          <caption class="small">接入生产时的评估维度、指标与失败信号</caption>
+          <thead><tr><th scope="col">维度</th><th scope="col">建议指标</th><th scope="col">需要观察的失败信号</th></tr></thead>
+          <tbody>
+            <tr><th>质量</th><td>Precision、Recall、F1、行级定位准确率、人工接受率，以及安全问题的单独召回率。</td><td>评论很多但接受率低；跨文件问题没有增加；严重度排序不稳定。</td></tr>
+            <tr><th>成本</th><td>每 PR 和每审查单元的输入/输出 Token、模型费用、重试费用、缓存命中率。</td><td>大 PR 造成预算失控；规则或分组变化让 Token 突然增长。</td></tr>
+            <tr><th>延迟</th><td>p50/p95（第 50/95 百分位）总耗时、模型等待、工具调用和评论发布耗时；超时率。</td><td>平均值正常但 p95 阻塞开发；并发一高就触发上游限流。</td></tr>
+            <tr><th>可靠性</th><td>文件覆盖率、任务完成率、JSON 解析成功率、评论发布成功率、恢复成功率。</td><td>预览范围和实际执行范围不一致；失败任务没有可见状态。</td></tr>
+            <tr><th>安全</th><td>代码外发范围、密钥暴露检查、恶意 diff 提示注入、PR 权限和 Action token 范围。</td><td>不可信 PR 内容能改变审查指令；日志或产物包含代码和凭据。</td></tr>
+            <tr><th>可观测性</th><td>按 session、PR、Git SHA、模型、规则和审查单元串起完整 trace。</td><td>只能看到最终评论，无法定位是范围、检索、模型还是发布阶段出错。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="security">
+      <h2>执行安全：项目做了什么，团队仍要验证什么</h2>
+      <p><span class="label fact">来源事实</span>项目的 Security Assurance Case 自述了几个安全边界：外部命令限制为 Git 的显式参数；文件路径在仓库根目录内校验；API 通信使用 HTTPS（安全超文本传输协议）；密钥从环境变量读取且不写入输出；模型响应做 JSON 结构和行号范围校验；本地查看器默认限制在回环地址；CI 运行 <code>go vet</code>、<code>govulncheck</code> 和竞争检测。[<a href="#source-assurance">Assurance Case</a>]</p>
+      <div class="callout security"><strong>安全判断：</strong>这是一份项目自述的设计保证，不等同于第三方安全审计。它降低了命令注入、路径穿越和凭据泄露的实现风险，但不能证明模型不会被恶意代码 diff 诱导，也不能替团队完成供应商、网络和 CI 权限审查。</div>
+      <ul>
+        <li>把 PR diff 当作不可信输入。注释、字符串和测试数据都可能包含“请忽略上面规则”的提示注入，模型只能在受控系统指令和工具权限内工作。</li>
+        <li>对外发代码做逐层确认：模型端点、CI 日志、上传产物、会话查看器和 PR 评论都可能成为新的数据出口。</li>
+        <li>使用 fork PR 时验证权限和 checkout 策略。公开的 GitHub Action 文件说明它先 checkout 受信任的 base，再获取 PR head 的 Git 对象，避免把不可信 head 直接物化到工作区；团队仍需在自己的权限策略中复核。</li>
+        <li>把模型评论当作未验证建议。即使行号经过边界检查，评论的事实、严重度和修复建议仍需测试与人工确认。</li>
+      </ul>
+    </section>
+
+    <section id="risk">
+      <h2>局限与风险</h2>
+      <ul>
+        <li><strong>召回率取舍。</strong>项目明确承认其基准中的 Recall 低于通用 Agent，目标是减少噪声。对安全审查或高风险变更，低噪声不是全部目标，需要单独的高召回策略。</li>
+        <li><strong>基准的时间与版本错位。</strong>公开基准图在 8 月 5 日更新，图中 OCR 是 v1.3.1；当前 release 是 v1.12.0。中间的版本变化可能影响结果，不能把图表当作今天版本的性能承诺。</li>
+        <li><strong>项目方数据不能替代复测。</strong>AACR-Bench 有跨语言、仓库级上下文和专家标注等优点，但样本来自开源 PR，不能直接代表企业私有仓库、内部规范或不同 PR 分布。</li>
+        <li><strong>模型端点仍是外部依赖。</strong>项目不捆绑自托管模型；延迟、价格、数据留存和模型升级由端点供应商共同决定。[<a href="#source-roadmap">路线图</a>]</li>
+        <li><strong>静态规则不会消失。</strong>审查 Agent 适合语义和跨文件判断，但确定性扫描更适合做稳定的硬门禁。两者应互补，而不是用 Agent 覆盖所有规则。</li>
+      </ul>
+    </section>
+
+    <section id="future">
+      <h2>未来方向：官方路线图与本文推断</h2>
+      <p><span class="label fact">来源事实</span>路线图将 JetBrains 插件、委托模式和更高召回的 Ultra Mode 列为 2026 年下半年计划，把领域特定长期记忆列为 2027 年上半年计划；同时明确暂不计划自动修复、通用编码助手和捆绑自托管模型。[<a href="#source-roadmap">ROADMAP.md</a>]</p>
+      <p><span class="label inference">本文判断</span>如果这些方向落地，最重要的工程问题会从“模型能不能发现问题”转向“记忆和策略是否可追溯”：每条持久化经验都要有来源、版本、适用范围和撤销机制；Ultra Mode 也应以风险分层启用，而不是全量增加 Token。</p>
+      <p>更长期看，代码审查 Agent 可能会形成三层结构：确定性规则负责硬约束，专用 Agent 负责语义检索和判断，长期记忆负责项目规范与历史决策。能否生产化，取决于三层之间的版本管理和评测闭环，而不是单次演示的评论数量。</p>
+    </section>
+
+    <section id="takeaways">
+      <h2>工程师可以借鉴什么</h2>
+      <ol>
+        <li>把“模型判断”和“流程控制”拆开。凡是需要完整覆盖、固定顺序、权限边界或可恢复的步骤，都不应只写在提示词里。</li>
+        <li>把上下文组装当作产品能力。文件分组、检索范围、上下文隔离和预算控制会直接决定质量和成本。</li>
+        <li>用准确率、召回率、F1、延迟、Token 和人工接受率一起评估。单一榜单或单一“发现数”无法指导生产决策。</li>
+        <li>让结果结构化、可恢复、可审计。模型输出不是最终产品，定位、校验、发布和遥测才是可运维系统的一部分。</li>
+        <li>从非阻断试点开始。先在自己的 PR 分布和安全边界上建立数据，再按目录、风险和置信度逐步扩大权限。</li>
+      </ol>
+      <div class="callout"><strong>最终判断：</strong>OpenCodeReview v1.12.0 当前最值得学习的不是“它比某个 Agent 快多少”，而是它展示了一个通用原则：当概率模型进入确定性工程流程时，应把模型放在语义判断的位置，把范围、协议、预算、恢复和安全交还给程序。</div>
+    </section>
+
+    <section id="sources">
+      <h2>数据源</h2>
+      <p class="lead-note">以下页面于 2026-09-14 检查。文章事实主要来自 OpenCodeReview、AACR-Bench 及竞品官方文档；来源状态表用于记录本次对规定来源的实际访问情况。带“来源事实”的内容是页面明确写出的信息，带“本文判断”的内容是基于来源事实的工程推断。</p>
+
+      <h3>本文直接使用的原始材料</h3>
+      <div class="table-wrap" role="region" tabindex="0" aria-label="直接使用的原始材料表">
+        <table>
+          <caption class="small">本文直接使用的原始材料及其用途</caption>
+          <thead><tr><th scope="col">标题</th><th scope="col">发布方与日期</th><th scope="col">用途</th></tr></thead>
+          <tbody>
+            <tr id="source-ocr-readme"><td><a href="https://github.com/alibaba/open-code-review/blob/78a6978296a3c0cdfbe87d2e9ce911591032da3c/README.zh-CN.md" target="_blank" rel="noopener">OpenCodeReview README（简体中文）</a></td><td>Alibaba / 2026-09-14 主分支提交 78a6978；页面未标发布日期</td><td>工具定位、架构、命令、基准摘要、集成模式。</td></tr>
+            <tr id="source-release-1120"><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.12.0" target="_blank" rel="noopener">v1.12.0 Release</a></td><td>Alibaba / 2026-09-12</td><td>当前版本与分组、GLM-5.3 配置变化。</td></tr>
+            <tr><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.6" target="_blank" rel="noopener">v1.11.6 Release</a></td><td>Alibaba / 2026-09-07</td><td>OCaml / ReasonML 支持。</td></tr>
+            <tr><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.7" target="_blank" rel="noopener">v1.11.7 Release</a></td><td>Alibaba / 2026-09-09</td><td>输出、MCP、信号和超时相关修复。</td></tr>
+            <tr><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.8" target="_blank" rel="noopener">v1.11.8 Release</a></td><td>Alibaba / 2026-09-10</td><td>Rego 规则与流式用量。</td></tr>
+            <tr><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.9" target="_blank" rel="noopener">v1.11.9 Release</a></td><td>Alibaba / 2026-09-11</td><td>会话比较、模型修复、预览一致性。</td></tr>
+            <tr><td><a href="https://github.com/alibaba/open-code-review/blob/78a6978296a3c0cdfbe87d2e9ce911591032da3c/action.yml" target="_blank" rel="noopener">GitHub Action action.yml</a></td><td>Alibaba / 2026-09-14 主分支提交 78a6978；页面未标发布日期</td><td>CI 输入、预算、超时、权限和 fork-safe checkout 行为。</td></tr>
+            <tr id="source-benchmark-image"><td><a href="https://github.com/alibaba/open-code-review/commit/5731fd564416a90cd9600d7d9dff384aa273a271" target="_blank" rel="noopener">基准图更新提交</a> 与 <a href="https://raw.githubusercontent.com/alibaba/open-code-review/5731fd564416a90cd9600d7d9dff384aa273a271/imgs/benchmark-en.png" target="_blank" rel="noopener">benchmark-en.png</a></td><td>Alibaba / 2026-08-05</td><td>图中版本、Precision、Recall、F1、耗时与 Token 数字。</td></tr>
+            <tr id="source-aacr"><td><a href="https://huggingface.co/datasets/Alibaba-Aone/aacr-bench" target="_blank" rel="noopener">AACR-Bench 数据集卡片</a></td><td>Alibaba Aone / 页面未标发布日期</td><td>2,145 条评论、1,505 条正确和 640 条错误样本。</td></tr>
+            <tr id="source-aacr-paper"><td><a href="https://arxiv.org/abs/2601.19494v3" target="_blank" rel="noopener">AACR-Bench: Evaluating Automatic Code Review with Holistic Repository-Level Context</a></td><td>arXiv / v1：2026-01-27；v3：2026-01-30</td><td>数据集设计、跨语言与仓库级上下文的研究说明。</td></tr>
+            <tr id="source-aacr-eval"><td><a href="https://github.com/alibaba/aacr-bench/blob/68a569759289a83654a59d06db2a72910edf0a4a/evaluation/README.md" target="_blank" rel="noopener">AACR-Bench Unified Code Review Evaluation Framework</a></td><td>Alibaba Aone / 2026-08-24 主分支提交 68a5697；页面未标发布日期</td><td>复测流程、固定种子、四阶段匹配、多轮评估和运行隔离。</td></tr>
+            <tr id="source-npm"><td><a href="https://registry.npmjs.org/@alibaba-group%2fopen-code-review" target="_blank" rel="noopener">npm registry package metadata</a></td><td>npm registry / 2026-09-12 14:43:23 UTC</td><td>确认 @alibaba-group/open-code-review 的 latest 为 1.12.0。</td></tr>
+            <tr id="source-main-commits"><td><a href="https://github.com/alibaba/open-code-review/commit/494bf1c8d7a19196ab166960a06fef38d69a1d16" target="_blank" rel="noopener">分组契约提交</a>、<a href="https://github.com/alibaba/open-code-review/commit/b5fe75342cd747bd4910323276b78a1d4a78c0ca" target="_blank" rel="noopener">Action 提交</a>、<a href="https://github.com/alibaba/open-code-review/commit/813d5897cb025f329e29ed49b6e8bb2c2d15814a" target="_blank" rel="noopener">BPE 加载提交</a>、<a href="https://github.com/alibaba/open-code-review/commit/78a6978296a3c0cdfbe87d2e9ce911591032da3c" target="_blank" rel="noopener">Git 安全校验提交</a></td><td>Alibaba / 2026-09-12 至 2026-09-14</td><td>分组索引契约、评论绑定 reviewed commit、嵌入式 Token 计数加载、PATH Git 版本校验，以及当天主分支的可靠性信号。</td></tr>
+            <tr id="source-roadmap"><td><a href="https://raw.githubusercontent.com/alibaba/open-code-review/78a6978296a3c0cdfbe87d2e9ce911591032da3c/ROADMAP.md" target="_blank" rel="noopener">OpenCodeReview ROADMAP.md</a></td><td>Alibaba / 2026-09-14 主分支提交 78a6978；页面未标发布日期</td><td>计划中的插件、委托、Ultra Mode、长期记忆及明确不计划事项。</td></tr>
+            <tr id="source-assurance"><td><a href="https://raw.githubusercontent.com/alibaba/open-code-review/78a6978296a3c0cdfbe87d2e9ce911591032da3c/ASSURANCE_CASE.md" target="_blank" rel="noopener">OpenCodeReview Security Assurance Case</a></td><td>Alibaba / 2026-09-14 主分支提交 78a6978；页面未标发布日期</td><td>威胁模型、路径校验、密钥、HTTPS、响应校验和验证工具；属于项目自述。</td></tr>
+            <tr><td><a href="https://codeql.github.com/docs/" target="_blank" rel="noopener">CodeQL Documentation</a></td><td>GitHub / 官方文档</td><td>查询驱动的确定性代码分析对比。</td></tr>
+            <tr><td><a href="https://semgrep.dev/docs/" target="_blank" rel="noopener">Semgrep Documentation</a></td><td>Semgrep / 官方文档</td><td>规则驱动的静态分析对比。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>20 个每日来源的实际检查记录</h3>
+      <details class="source-log">
+        <summary>展开查看 20 个每日来源的实际访问状态</summary>
+      <div class="table-wrap" role="region" tabindex="0" aria-label="每日来源检查记录表">
+        <table class="audit">
+          <caption class="small">20 个每日来源的实际访问状态与筛选说明</caption>
+          <thead><tr><th scope="col">来源</th><th scope="col">本次访问页面</th><th scope="col">2026-09-14 检查结果</th></tr></thead>
+          <tbody>
+            <tr><td>1. OpenAI Blog / Cookbook</td><td><a href="https://developers.openai.com/cookbook" target="_blank" rel="noopener">OpenAI Cookbook</a></td><td>可访问，200；旧入口重定向到 developers.openai.com/cookbook。本次未发现比选定主题更直接的原始材料。</td></tr>
+            <tr><td>2. Anthropic Engineering / Claude Code Changelog</td><td><a href="https://www.anthropic.com/engineering" target="_blank" rel="noopener">Engineering</a> / <a href="https://code.claude.com/docs/en/changelog" target="_blank" rel="noopener">Changelog</a></td><td>均可访问，200；用于排除同窗口内更强的同类一手变化。</td></tr>
+            <tr><td>3. Google DeepMind / Gemini Docs</td><td><a href="https://deepmind.google/blog/" target="_blank" rel="noopener">DeepMind Blog</a> / <a href="https://ai.google.dev/gemini-api/docs/changelog" target="_blank" rel="noopener">Gemini API Release Notes</a></td><td>均可访问，200；未采用未经交叉验证的榜单或宣传内容。</td></tr>
+            <tr><td>4. Hugging Face Blog / Daily Papers</td><td><a href="https://huggingface.co/blog" target="_blank" rel="noopener">Blog</a> / <a href="https://huggingface.co/papers" target="_blank" rel="noopener">Daily Papers</a></td><td>均可访问，200；AACR-Bench 数据集页作为本文直接来源。</td></tr>
+            <tr><td>5. GitHub Trending</td><td><a href="https://github.com/trending?since=daily&spoken_language_code=en" target="_blank" rel="noopener">Trending repositories today</a></td><td>可访问，200；只作候选发现，不以热度替代技术证据。</td></tr>
+            <tr><td>6. Hacker News</td><td><a href="https://news.ycombinator.com/" target="_blank" rel="noopener">Hacker News</a></td><td>可访问，200；未将讨论帖作为本文事实来源。</td></tr>
+            <tr><td>7. Reddit r/LocalLLaMA</td><td><a href="https://www.reddit.com/r/LocalLLaMA/" target="_blank" rel="noopener">r/LocalLLaMA</a></td><td>访问返回 403；未采用其内容，未用标题猜测事实。</td></tr>
+            <tr><td>8. LMSYS Chatbot Arena</td><td><a href="https://arena.ai/leaderboard" target="_blank" rel="noopener">Arena Leaderboard</a></td><td>可访问，200；原 lmarena.ai/leaderboard 重定向至 arena.ai/leaderboard。</td></tr>
+            <tr><td>9. OpenRouter Model Rankings</td><td><a href="https://openrouter.ai/rankings" target="_blank" rel="noopener">LLM Rankings</a></td><td>可访问，200；未把模型排名当作代码审查结论。</td></tr>
+            <tr><td>10. Papers with Code</td><td><a href="https://paperswithcode.com/" target="_blank" rel="noopener">Papers with Code</a></td><td>可访问，200；当前入口重定向至 Hugging Face trending papers。</td></tr>
+            <tr><td>11. arXiv cs.CL</td><td><a href="https://arxiv.org/list/cs.CL/recent" target="_blank" rel="noopener">Computation and Language</a></td><td>可访问，200；AACR-Bench 论文作为研究背景来源。</td></tr>
+            <tr><td>12. LangChain Blog</td><td><a href="https://blog.langchain.com/" target="_blank" rel="noopener">LangChain Blog</a></td><td>访问返回 403；未采用其不可访问内容。</td></tr>
+            <tr><td>13. LlamaIndex Blog</td><td><a href="https://www.llamaindex.ai/blog" target="_blank" rel="noopener">LlamaIndex Blog</a></td><td>可访问，200；未发现与选定主题证据强度相当的更直接材料。</td></tr>
+            <tr><td>14. vLLM Releases</td><td><a href="https://github.com/vllm-project/vllm/releases.atom" target="_blank" rel="noopener">vLLM release feed</a></td><td>可访问，200；观察到最新条目 v0.29.1rc0，更新时间 2026-09-12。</td></tr>
+            <tr><td>15. Ollama Releases</td><td><a href="https://github.com/ollama/ollama/releases.atom" target="_blank" rel="noopener">Ollama release feed</a></td><td>可访问，200；观察到最新正式版 v0.34.0，更新时间 2026-09-10。</td></tr>
+            <tr><td>16. Mistral Blog</td><td><a href="https://mistral.ai/news/" target="_blank" rel="noopener">Mistral News</a></td><td>可访问，200；未采用没有工程细节的产品宣传。</td></tr>
+            <tr><td>17. Qwen GitHub / Blog</td><td><a href="https://github.com/QwenLM/Qwen3" target="_blank" rel="noopener">Qwen3 GitHub</a></td><td>可访问，200；未选为当日报主题。</td></tr>
+            <tr><td>18. DeepSeek GitHub / Blog</td><td><a href="https://github.com/deepseek-ai" target="_blank" rel="noopener">DeepSeek GitHub</a></td><td>可访问，200；未选为当日报主题。</td></tr>
+            <tr><td>19. 机器之心</td><td><a href="https://www.jiqizhixin.com/" target="_blank" rel="noopener">机器之心</a></td><td>可访问，200；当前返回数据服务入口，未采用二手转述。</td></tr>
+            <tr><td>20. 量子位</td><td><a href="https://www.qbitai.com/" target="_blank" rel="noopener">量子位</a></td><td>可访问，200；未采用缺少一手技术细节的内容。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      </details>
+
+      <h3>本周额外来源检查</h3>
+      <p class="small">以下每周来源于 2026-09-14 检查，均返回 200：<a href="https://simonwillison.net/" target="_blank" rel="noopener">Simon Willison</a>、<a href="https://www.latent.space/" target="_blank" rel="noopener">Latent Space</a>、<a href="https://www.interconnects.ai/" target="_blank" rel="noopener">Interconnects</a>、<a href="https://magazine.sebastianraschka.com/" target="_blank" rel="noopener">Ahead of AI</a>、<a href="https://sebastianraschka.com/blog/" target="_blank" rel="noopener">Sebastian Raschka</a>、<a href="https://huyenchip.com/blog/" target="_blank" rel="noopener">Chip Huyen</a>、<a href="https://eugeneyan.com/" target="_blank" rel="noopener">Eugene Yan</a>、<a href="https://www.aibase.com/" target="_blank" rel="noopener">AIbase</a>、<a href="https://www.infoq.com/ai/" target="_blank" rel="noopener">InfoQ AI</a>、<a href="https://github.com/Hannibal046/Awesome-LLM" target="_blank" rel="noopener">GitHub Awesome-LLM</a>。它们用于补充候选和交叉排除，未作为 OpenCodeReview 核心事实的唯一依据。</p>
+    </section>
+
+    <footer><p>AI 技术日报 · 2026-09-14 · 文章主题：OpenCodeReview v1.12.0</p></footer>
+  </main>
+</body>
+</html>
