@@ -311,6 +311,25 @@ description: Runta 的 FrontierHarness Eval v1.0：钉死模型（Kimi K3）、�
     </div>
 
     <div class="fh-section">
+      <div class="fh-kicker">发现 4</div>
+      <h2 class="fh-h2">钉死模型，测出来的也不是"纯 Harness"</h2>
+      <p class="fh-sub">一个必然的追问：Claude 模型与 Claude Code 同厂咬合演化、GPT 与 Codex 同理——把模型统一成 K3，凭什么就能测出"外壳本身"的差距？答案：测不出，Runta 也没打算测。</p>
+      <p>harness 的表现从来不是 harness 单方面决定的。厂商 harness 与自家模型同厂协同演化：Claude Code 围绕 Anthropic 模型的显式 cache-control 语义设计（发现 2 里那 25% 的出处），Codex 与 GPT 系列同为 OpenAI 出品，Kimi Code 与 K3 同厂。模型一换，同一份 harness 的缓存策略、工具协议、prompt 适配全部重新洗牌。所以"钉死模型"测出的从来不是 harness 的<b>固有质量</b>，而是 harness-model <b>组合在客场的表现</b>——这正是 Runta 全程强调组合属性的原因。</p>
+      <p>它对绑定的处理分三层，没有一层是"抹平"：<b>选型层</b>，把模型选成无主之地——用 Claude 会偏袒 Claude Code、用 GPT 会偏袒 Codex，K3 让所有闭源 CLI 一起下客场（见方法节），这做到的是"公平地不适配"，而不是"适当地适配"；<b>协议层</b>，让每个 harness 说母语（双协议网关），别把适配失真混进 harness 层的差异；<b>归因层</b>，把组合属性写死进结论——$18.34 与 25% 缓存全程带着"Claude Code + K3"的标签，Runta 明言这些差距"不能归因于 harness 本身"。</p>
+      <p>那这份榜对谁仍然有用？两类人。<b>跨厂组合用户</b>：锁第三方模型、走网关、按成本路由的企业部署，用的本来就是"客场组合"，这份榜就是他们的原生场景；<b>选型研究者</b>：交互效应大，不代表主效应不存在——Pi 在 K3 客场仍拿 60.0% + $2.43/任务，它的省 token 工程不依赖某一家模型。反过来，用原生组合（Claude Code + Claude、Codex + GPT）的读者，这份榜的绝对数字参考有限——那是 Terminal-Bench 排行榜（社区提交、原生配置为主）回答的问题。</p>
+      <p>要真正把"harness 本身"与"组合效应"分开，统计学上的答案是因子实验：每个 harness × 每个模型都跑一遍，主效应与交互效应才能分开算。雏形已经存在：Terminal-Bench 论文做了 6 agent × 21 模型的矩阵（结论：模型换挡 +52%、scaffold 换挡 +17%），Harness-Bench 做了 6 harness × 8 模型的部分交叉，The Scaffold Effect 是 2 模型 × 3 harness 的小样本因子设计；FrontierHarness v1.1 计划补上这块。v1.0 不直接做的原因是成本：12 配置 × 1 模型 × 30 任务 = 360 次试验，换成 9 个模型就是 3240 次——先用单模型把评测卫生打磨好再扩矩阵，是合理的工程顺序，不是偷懒。</p>
+      <p>更深一层：矩阵做出来也只是快照。harness 一天能发两版还多（Don't Blame the LLM），模型一年数版，两边每次发版都可能重写一次组合的契合度。这类榜单没有"定论"读法，只有<b>快照 + 归因边界</b>。</p>
+      <div class="fh-callout eng">
+        <div class="ttl">工程化视角：三个口径问题，先问再用</div>
+        <ul>
+          <li><b>先问自己的部署形态。</b>原生组合用户看社区榜（Terminal-Bench 排行榜），跨厂组合用户看钉死模型的受控榜（FrontierHarness）——两个榜回答两个不同的问题，谁也替代不了谁。</li>
+          <li><b>把单模型榜单的排名读成"组合在客场的表现"。</b>读成"harness 固有质量"的那一刻，你就已经踩进交互效应的坑。</li>
+          <li><b>想彻底分离两者只有全矩阵一条路。</b>而全矩阵的成本 = harness 数 × 模型数 × 任务数 × 重复次数，量级上去之前，"单模型受控榜 + 原生组合社区榜"互相校准是性价比最高的读法。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="fh-section">
       <div class="fh-kicker">解剖</div>
       <h2 class="fh-h2">一道题的 12 张账单：pass/fail 看不见钱</h2>
       <p class="fh-sub">榜单里最硬的一道题：python-statemachine 状态机改写（DeepSWE，官方通过率 38%，历史中位 117 步）。12 个配置里 7 个通过——同一份通过，11 种价格、外加一张 n/a 空账。</p>
