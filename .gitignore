@@ -10,6 +10,10 @@ node_modules/
 # Local dev server logs
 *.log
 
+# Local dev artifacts
+serve_local.cmd
+.playwright-mcp/
+
 ### macOS ###
 *.DS_Store
 .AppleDouble

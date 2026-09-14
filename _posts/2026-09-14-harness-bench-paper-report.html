@@ -1,0 +1,398 @@
+---
+layout: main
+title: Harness-Bench 论文解读 — 任务与模型池都钉死，换个"外壳"平均分差 23.8 分
+description: 北京大学团队的 Harness-Bench 基准：固定任务、预算与模型池，只换 Agent 执行层（Harness），平均综合分相差 23.8 分；36.4% 的失败是"会做但交不出"。Agent 的成败，不能只算模型的账。
+---
+
+<style>
+  .hb{--ink:#263959;--ink-2:#3c4a63;--accent:#2f6feb;--accent-soft:#eaf1fe;--line:#e6e9ee;--bg:#ffffff;--bg-soft:#f7f8fa;--text:#2b2f36;--muted:#5b6472;--warn:#b3541e;--warn-soft:#fdf1e7;
+       font-family:"Lato","Helvetica Neue",Arial,sans-serif;color:var(--text);line-height:1.78;font-size:16px;min-width:0;}
+  .hb *{box-sizing:border-box;}
+  .hb .wrap{max-width:860px;margin:0 auto;padding:0 10px;}
+  .hb a{color:var(--accent);text-decoration:none;}
+  .hb a:hover{text-decoration:underline;}
+
+  .hb-hero{padding:48px 0 36px;background:linear-gradient(180deg,#ecf3fe 0%,#fbfdff 90%);border-bottom:1px solid var(--line);}
+  .hb-hero .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;letter-spacing:1.5px;color:var(--accent);font-weight:700;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;}
+  .hb-hero h1{font-family:"PT Serif",Georgia,serif;font-size:38px;line-height:1.25;color:var(--ink);margin:16px 0 12px;font-weight:700;}
+  .hb-hero h1 em{font-style:normal;color:var(--accent);}
+  .hb-hero .lede{font-size:18px;color:var(--ink-2);max-width:660px;}
+  .hb-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;}
+  .hb-meta span{font-size:13px;color:var(--ink-2);background:#fff;border:1px solid var(--line);padding:5px 11px;border-radius:8px;}
+
+  .hb-section{padding:54px 0;border-top:1px solid var(--line);}
+  .hb-section.alt{background:var(--bg-soft);}
+  .hb-kicker{font-size:12.5px;letter-spacing:2px;color:var(--accent);font-weight:700;}
+  .hb-h2{font-family:"PT Serif",Georgia,serif;font-size:28px;color:var(--ink);margin:8px 0 14px;font-weight:700;}
+  .hb-sub{color:var(--muted);font-size:16px;max-width:700px;margin:0 0 28px;}
+  .hb p{margin:0 0 14px;}
+  .hb-section > p{max-width:760px;}
+  .hb h3{font-family:"PT Serif",Georgia,serif;font-size:20px;color:var(--ink);margin:26px 0 10px;}
+
+  .hb-def{display:flex;gap:14px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:18px 20px;margin:20px 0;}
+  .hb-def .sym{font-family:"PT Serif",Georgia,serif;font-size:26px;color:var(--accent);font-weight:700;line-height:1.1;flex:none;}
+  .hb-def .body{font-size:15.5px;color:var(--ink-2);}
+  .hb-def .body b{color:var(--ink);}
+
+  .hb-eq{background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px 24px;margin:22px 0;text-align:center;}
+  .hb-eq .formula{font-family:"PT Serif",Georgia,serif;font-size:22px;color:var(--ink);letter-spacing:.5px;}
+  .hb-eq .formula b{color:var(--accent);}
+  .hb-eq .note{font-size:13.5px;color:var(--muted);margin-top:10px;}
+
+  .hb-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin:22px 0;}
+  .hb-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .hb-card .num{font-family:"PT Serif",Georgia,serif;font-size:30px;font-weight:700;color:var(--accent);}
+  .hb-card .lbl{font-size:13px;color:var(--muted);letter-spacing:1px;margin-top:2px;}
+  .hb-card .expl{font-size:14.5px;color:var(--ink-2);margin-top:10px;line-height:1.6;}
+
+  .hb-bars{display:grid;gap:11px;margin:24px 0;}
+  .hb-bar{display:grid;grid-template-columns:120px 1fr 86px;align-items:center;gap:12px;}
+  .hb-bar .name{font-size:14px;font-weight:700;color:var(--ink);text-align:right;}
+  .hb-bar .name small{display:block;font-weight:400;color:var(--muted);font-size:12px;}
+  .hb-bar .track{background-color:#f7f8fa;
+    background-image:linear-gradient(90deg,transparent calc(50% - 1px),rgba(38,57,89,.16) calc(50% - 1px),rgba(38,57,89,.16) calc(50% + 1px),transparent calc(50% + 1px));
+    border:1px solid var(--line);border-radius:7px;height:26px;overflow:hidden;}
+  .hb-bar .fill{height:100%;background:linear-gradient(90deg,#5c94f5,var(--accent));border-radius:6px 0 0 6px;}
+  .hb-bar .fill.best{background:linear-gradient(90deg,#2f6feb,#1d4fc0);}
+  .hb-bar .fill.worst{background:linear-gradient(90deg,#f0a878,var(--warn));}
+  .hb-bar .val{font-size:14px;font-weight:700;color:var(--ink);}
+  .hb-bar.ref{padding-bottom:10px;border-bottom:2px dashed var(--line);margin-bottom:4px;}
+  .hb-bar.ref .track{background:transparent;border:1px dashed var(--line);}
+  .hb-bar.ref .name small{color:var(--muted);}
+
+  .hb-tablewrap{overflow-x:auto;margin:22px 0;}
+  .hb table{border-collapse:collapse;width:100%;font-size:14px;background:#fff;border:1px solid var(--line);}
+  .hb th,.hb td{border:1px solid var(--line);padding:9px 12px;text-align:center;}
+  .hb th{background:var(--bg-soft);color:var(--ink);font-size:13px;}
+  .hb table tr{background:#fff;}
+  .hb td:first-child,.hb th:first-child{text-align:left;font-weight:700;color:var(--ink);}
+  .hb td{color:var(--ink-2);font-size:14px;}
+  .hb table tr.hl td{background:var(--accent-soft);}
+  .hb .src{font-size:12.5px;color:var(--muted);margin-top:8px;}
+
+  .hb-callout{border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:24px 0;font-size:15px;color:var(--ink-2);}
+  .hb-callout .ttl{font-weight:700;color:var(--ink);margin-bottom:8px;font-size:15.5px;}
+  .hb-callout.eng{background:#fff;border-left:4px solid var(--accent);}
+  .hb-callout.eng .ttl{color:var(--accent);}
+  .hb-callout.warn{background:var(--warn-soft);border-color:#f0d9c4;border-left:4px solid var(--warn);}
+  .hb-callout.warn .ttl{color:var(--warn);}
+  .hb-callout ol,.hb-callout ul{margin:6px 0 0;padding-left:20px;}
+  .hb-callout li{margin:5px 0;}
+
+  .hb-steps{counter-reset:st;margin:22px 0;display:grid;gap:12px;}
+  .hb-step{display:grid;grid-template-columns:34px 1fr;gap:14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 18px;}
+  .hb-step .n{counter-increment:st;width:30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--ink);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .hb-step .n::before{content:counter(st);}
+  .hb-step .t{font-size:15px;color:var(--ink-2);}
+  .hb-step .t b{color:var(--ink);}
+
+  .hb-qa{margin:22px 0;display:grid;gap:14px;}
+  .hb-qa .item{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .hb-qa .q{font-weight:700;color:var(--ink);font-size:15.5px;margin-bottom:8px;}
+  .hb-qa .a{font-size:15px;color:var(--ink-2);}
+  .hb-qa .a ul{margin:8px 0 0;padding-left:20px;}
+  .hb-qa .a li{margin:5px 0;}
+
+  .hb-src{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin:22px 0;}
+  .hb-src ol{margin:8px 0 0;padding-left:20px;}
+  .hb-src li{margin:6px 0;font-size:14.5px;color:var(--ink-2);}
+  .hb-src li b{color:var(--ink);}
+
+  .hb-foot{padding:34px 0 20px;color:var(--muted);font-size:13.5px;text-align:center;}
+
+  @media (max-width:720px){
+    .hb-hero h1{font-size:28px;}
+    .hb-hero{padding:32px 0 24px;}
+    .hb-hero .lede{font-size:16.5px;}
+    .hb-grid{grid-template-columns:1fr;}
+    .hb-bar{grid-template-columns:86px 1fr 60px;}
+    .hb-bar .name{font-size:12.5px;}
+    .hb .wrap{padding:0 6px;}
+  }
+  @media (max-width:480px){
+    .hb table{min-width:620px;}
+    .hb-tablewrap{margin:22px -6px;}
+  }
+</style>
+
+<div class="hb">
+  <div class="hb-hero">
+    <div class="wrap">
+      <span class="kicker">论文解读 · Agent 评测</span>
+      <h1>任务与模型池都钉死，换个<em>"外壳"</em>，Agent 平均分差 23.8 分</h1>
+      <p class="lede">北京大学团队的 Harness-Bench 基准做了一次控制变量实验：固定 106 个任务、同样的预算和模型池，只换 Agent 的执行层，六个系统的平均综合分相差 23.8 分。Agent 系统的成败，不能只算模型的账。</p>
+      <div class="hb-meta">
+        <span>论文：arXiv 2605.27922</span>
+        <span>北京大学 × 奇元科技</span>
+        <span>2026 年 5 月</span>
+        <span>5,194 条执行轨迹</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <div class="hb-section" style="border-top:none;">
+      <div class="hb-kicker">TL;DR</div>
+      <h2 class="hb-h2">先说结论</h2>
+      <p>如果你只记四件事：</p>
+      <div class="hb-grid">
+        <div class="hb-card">
+          <div class="num">23.8<span style="font-size:16px;color:var(--muted)"> 分</span></div>
+          <div class="lbl">同任务同模型池的平均分差</div>
+          <div class="expl">6 个开源 Harness、8 个模型后端跑同一套任务，最高 76.2 分（NanoBot），最低 52.4 分（OpenClaw）。任务、预算、模型池全部钉死，唯一的被操纵变量是执行层配置（论文表 2）。</div>
+        </div>
+        <div class="hb-card">
+          <div class="num">36.4<span style="font-size:16px;color:var(--muted)">%</span></div>
+          <div class="lbl">失败轨迹的第一大死因</div>
+          <div class="expl">不是"不会做"，是"交不出"：JSON 格式错、缺字段、产物不完整——输出契约违规占了失败案例的 36.4%（论文表 3）。</div>
+        </div>
+        <div class="hb-card">
+          <div class="num">1 : 2.5</div>
+          <div class="lbl">分最高与最烧 Token 的开销比</div>
+          <div class="expl">得分最高的 NanoBot 平均每任务只花 68.7K Token；得分倒数第三的 NullClaw 花了 175.1K。烧钱多不出活（论文表 2）。</div>
+        </div>
+        <div class="hb-card">
+          <div class="num">80.4<span style="font-size:16px;color:var(--muted)"> 分</span></div>
+          <div class="lbl">Codex 参考成绩</div>
+          <div class="expl">作为"模型绑定型"编码 Agent 的参照系，Codex（GPT-5.4 后端）跑出全场最高分，但这类系统无法自由换模型，论文将其单独报告（论文 §4.2）。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hb-section">
+      <div class="hb-kicker">背景</div>
+      <h2 class="hb-h2">Harness 到底指什么</h2>
+      <p>写 Agent 应用的人天天在用它，但很少有人把它当独立变量来看。论文给出了一个工程化的定义：</p>
+      <div class="hb-def">
+        <div class="sym">H</div>
+        <div class="body"><b>Harness（执行层）</b>是包裹在模型外、把模型输出变成真实动作的系统层。你熟悉的 Claude Code、OpenAI Codex CLI、各类开源 Agent 框架，本质都是"模型 + 一套 Harness"。它负责：上下文怎么拼、工具怎么暴露和调用、工作区怎么访问、权限边界在哪、报错后怎么恢复、预算怎么控制、执行过程怎么留痕。</div>
+      </div>
+      <div class="hb-eq">
+        <div class="formula">Agent = Model + <b>Harness</b></div>
+        <div class="note">论文 §3 的核心公式：Agent 的能力是"模型 × 执行层"的组合属性，不是模型单独的属性。</div>
+      </div>
+      <p>问题在于：行业里的评测要么只测模型（MMLU、SWE-bench 这类把执行抽象掉或固定死的基准），要么把整套 Agent 系统当黑盒对比。前者看不见执行层，后者分不清功劳算谁的。论文作者认为这是当前 Agent 评测的一个盲区（论文 §1–§2）。</p>
+      <p>Harness-Bench 的做法很直接——做一次严格的控制变量实验：把任务、沙箱初始状态、预算、超时、评估器全部钉死，只换两样东西：模型后端 × Harness 配置。</p>
+    </div>
+
+    <div class="hb-section alt">
+      <div class="hb-kicker">方法</div>
+      <h2 class="hb-h2">这个基准怎么测：钉死一切，只换两样</h2>
+      <p>被测对象是 6 个可配置的开源 Harness：OpenClaw、ZeroClaw、Hermes、Moltis、NullClaw、NanoBot，覆盖从"轻量个人助手"到"自托管系统控制运行时"的不同设计取向（论文附录 B.1）。8 个模型后端横跨开源与闭源：Claude Opus 4.6、Claude Sonnet 4.6、Gemini 3.1 Pro、Qwen 3.6-Plus、GLM-5.1、Kimi K2.5、GPT-5.4、DeepSeek V4-Flash（论文附录 B.2）。</p>
+      <p>任务侧是 106 个沙箱化离线任务，按 8 类真实工作流分布：软件工程 22 个、数据/BI/金融分析 14 个、工作区与工具操作 15 个、知识与证据检索 13 个、办公与商务沟通 12 个、垂直专业工作流 12 个、长程自治 11 个、SRE/DevOps 7 个（论文图 2）。每个任务要求产出可交付的最终产物（文件、报表、代码修复），而不是回答一句话。</p>
+      <p>任务入组要过四道人工审查（论文 §3.2）：</p>
+      <div class="hb-grid">
+        <div class="hb-card"><div class="lbl">真实性</div><div class="expl">任务来自真实的 Agent 使用模式和常见用户请求，不是人造的玩具题。</div></div>
+        <div class="hb-card"><div class="lbl">可解性</div><div class="expl">只允许用沙箱内提供的资源完成，防止"任务本身就做不了"。</div></div>
+        <div class="hb-card"><div class="lbl">可验证性</div><div class="expl">成功与否可以用确定性脚本或明确评分规则自动判定。</div></div>
+        <div class="hb-card"><div class="lbl">防作弊完整性</div><div class="expl">Agent 无法通过读取隐藏答案、篡改受保护文件、绕过约束来骗分。</div></div>
+      </div>
+      <p>评分不是只看"做没做成"。每次运行记录四类证据——最终工作区状态、完整执行轨迹、用量统计、校验器输出（论文 §3.3）——然后按这个公式综合：</p>
+      <div class="hb-eq">
+        <div class="formula">任务分 = 安全(0/1) × 完成度 × 过程分</div>
+        <div class="note">过程分 =（稳健性 + 工具使用 + 一致性）÷ 3，由固定外部评审模型（claude-sonnet-4.6）按轨迹打分。安全项一票否决：越权访问、泄露密钥等违规直接归零（论文 §3.4）。</div>
+      </div>
+      <p>这个乘法设计刻意保守：拿高分要求"做完了、没违规、过程干净"三者同时成立。全部组合跑下来共 <b>5,194 条执行轨迹</b>（6×8×106 = 5,088 条主矩阵，加 Codex 单独的 106 条），这个规模足以支撑配置级的横向对比与失败模式归纳；论文将结果定位为固定协议下的诊断性测量。</p>
+    </div>
+
+    <div class="hb-section">
+      <div class="hb-kicker">发现 1</div>
+      <h2 class="hb-h2">执行层的差距，大到不能忽略</h2>
+      <p>把 6 个可配置 Harness 在全部任务、全部模型上取平均（论文表 2）：</p>
+      <div class="hb-bars">
+        <div class="hb-bar ref"><div class="name">Codex <small>参考系</small></div><div class="track"><div class="fill" style="width:80.4%;opacity:.45"></div></div><div class="val">80.4</div></div>
+        <div class="hb-bar"><div class="name">NanoBot <small>轻量运行时</small></div><div class="track"><div class="fill best" style="width:76.2%"></div></div><div class="val">76.2</div></div>
+        <div class="hb-bar"><div class="name">Hermes <small>记忆/技能型</small></div><div class="track"><div class="fill" style="width:71.2%"></div></div><div class="val">71.2</div></div>
+        <div class="hb-bar"><div class="name">Moltis <small>安全本地运行时</small></div><div class="track"><div class="fill" style="width:68.8%"></div></div><div class="val">68.8</div></div>
+        <div class="hb-bar"><div class="name">NullClaw <small>低占用自托管</small></div><div class="track"><div class="fill" style="width:64.4%"></div></div><div class="val">64.4</div></div>
+        <div class="hb-bar"><div class="name">ZeroClaw <small>系统控制运行时</small></div><div class="track"><div class="fill" style="width:61.4%"></div></div><div class="val">61.4</div></div>
+        <div class="hb-bar"><div class="name">OpenClaw <small>多渠道助手</small></div><div class="track"><div class="fill worst" style="width:52.4%"></div></div><div class="val">52.4</div></div>
+      </div>
+      <div class="src">数据来源：论文表 2。条形按综合分 0–100% 绝对刻度绘制，轨道中线为 50% 参考线；深色 = 可配置 Harness 中的最优。Codex 使用 GPT-5.4 后端、无法换模型，与可配置组不同口径，仅作为参考系单独报告。</div>
+      <p>同一个模型池、同一批任务、同样的预算，仅执行层不同，头尾平均相差 <b>23.8 分</b>。对做技术选型的人来说，这是比任何单一模型跑分都实际的信号：执行层设计与模型选择是同量级的变量。</p>
+      <p>更值得注意的是效率列。论文表 2 的完整数据：</p>
+      <div class="hb-tablewrap">
+        <table>
+          <tr><th>系统</th><th>综合分</th><th>完成度</th><th>安全</th><th>工具使用</th><th>一致性</th><th>稳健性</th><th>Token (K)</th><th>轮次</th></tr>
+          <tr class="hl"><td>Codex*</td><td>80.4</td><td>86.5</td><td>100</td><td>92.4</td><td>93.9</td><td>91.6</td><td>86.1</td><td>5.0</td></tr>
+          <tr class="hl"><td>NanoBot</td><td>76.2</td><td>81.6</td><td>100</td><td>93.8</td><td>93.7</td><td>91.7</td><td><b>68.7</b></td><td>7.3</td></tr>
+          <tr><td>Hermes</td><td>71.2</td><td>80.4</td><td>100</td><td>88.5</td><td>88.4</td><td>85.5</td><td>139.7</td><td><b>22.6</b></td></tr>
+          <tr><td>Moltis</td><td>68.8</td><td>78.4</td><td>100</td><td>86.3</td><td>87.3</td><td>84.1</td><td>134.9</td><td>8.0</td></tr>
+          <tr><td>NullClaw</td><td>64.4</td><td>75.9</td><td>100</td><td>85.3</td><td>81.4</td><td>78.3</td><td><b>175.1</b></td><td>12.1</td></tr>
+          <tr><td>ZeroClaw</td><td>61.4</td><td>69.9</td><td>100</td><td>84.1</td><td>83.2</td><td>79.0</td><td>133.2</td><td>8.6</td></tr>
+          <tr><td>OpenClaw</td><td>52.4</td><td>60.0</td><td>100</td><td>79.5</td><td>74.0</td><td>70.9</td><td>82.1</td><td>5.0</td></tr>
+        </table>
+      </div>
+      <div class="src">数据来源：论文表 2，106 任务 × 8 模型取平均。*Codex 为模型绑定型编码 Agent（GPT-5.4），不在可换模型的因子矩阵内。</div>
+      <p>两个反直觉的观察：</p>
+      <p><b>烧 Token 不等于出活。</b>NullClaw 每任务烧掉 175.1K Token，是 NanoBot（68.7K）的 2.5 倍，分数反而低 11.8 分。Hermes 平均绕 22.6 轮，是 NanoBot 的 3 倍轮次，同样没换来更高分。执行层设计的差距，直接体现在成本效率上。</p>
+      <p><b>快也不等于好。</b>OpenClaw 平均只走 5.0 轮、花 82.1K Token，是全场最省步骤的系统之一，但完成度只有 60%——省下的步骤没有换来交付质量。至于这是"主动收尾"还是"规划不足"，论文未做行为层面的归因，但数据摆在这里：轮次少只是现象，产物合格率才是本质。</p>
+      <div class="hb-callout eng">
+        <div class="ttl">工程化视角：这意味着什么</div>
+        <ol>
+          <li><b>选型不能再只看模型跑分。</b>可配置 Harness 之间的完成度差距达 21.6 个百分点（81.6 vs 60.0，同一批任务与模型池上的平均，论文表 2）。固定任务与模型池时，仅执行层配置不同就造成 23.8 分的跨度——"模型 + 框架"必须当整体来评，而不是先选模型再随手挑个框架。</li>
+          <li><b>成本优化的最大杠杆可能在执行层，不在模型。</b>NanoBot 的成绩说明：一个把"工具暴露、上下文裁剪、恢复策略"设计得干净的执行层，可以同时提升分数并砍掉一半以上 Token。在按 Token 计费的生产环境，这是直接的成本项。</li>
+          <li><b>注意归因陷阱。</b>论文的评分公式里"安全"一票否决——如果只盯完成度做 A/B 测试，你会漏掉越权操作这类生产事故源。评估指标结构本身就是论文的重要贡献：完成度、安全、过程质量三轴缺一不可。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="hb-section alt">
+      <div class="hb-kicker">发现 2</div>
+      <h2 class="hb-h2">失败解剖：Agent 最常见的死法是"会做但交不出"</h2>
+      <p>比排名更有价值的是失败分析。作者基于每条轨迹的 oracle 结果、过程备注与失败备注等结构化字段，把失败归为五类反复出现的症状（论文表 3，同一条轨迹可能命中多项）：</p>
+      <div class="hb-bars">
+        <div class="hb-bar"><div class="name">契约 / 格式 <small>产物不合机器可校验的规格</small></div><div class="track"><div class="fill worst" style="width:36.4%"></div></div><div class="val">36.4%</div></div>
+        <div class="hb-bar"><div class="name">工具 / 恢复 <small>报错后未有效修正方案</small></div><div class="track"><div class="fill" style="width:24.6%"></div></div><div class="val">24.6%</div></div>
+        <div class="hb-bar"><div class="name">证据 / 落地 <small>断言缺来源与验证</small></div><div class="track"><div class="fill" style="width:14.6%"></div></div><div class="val">14.6%</div></div>
+        <div class="hb-bar"><div class="name">产物提交 <small>推理合理但未落盘交付</small></div><div class="track"><div class="fill" style="width:11.1%"></div></div><div class="val">11.1%</div></div>
+        <div class="hb-bar"><div class="name">状态 / 续跑 <small>中断后进度未持久化</small></div><div class="track"><div class="fill" style="width:9.3%"></div></div><div class="val">9.3%</div></div>
+      </div>
+      <div class="src">数据来源：论文表 3。比率 = 出现该症状的失败轨迹 ÷ 全部失败轨迹。两组条形图均按 0–100% 绝对刻度绘制，轨道中线为 50% 参考线，跨图可直接比较。</div>
+      <p>逐条翻译成工程语言：</p>
+      <div class="hb-qa">
+        <div class="item">
+          <div class="q">契约 / 格式（36.4%）</div>
+          <div class="a">模型理解了任务，但最终产物不符合机器可校验的规格：JSON 少个字段、账本缺一行、manifest 不完整。评审器认的是产物契约，不是"差不多做完了"。</div>
+        </div>
+        <div class="item">
+          <div class="q">工具 / 恢复（24.6%）</div>
+          <div class="a">工具调用报错、命令被权限拦截之后，Agent 没有基于报错信息修正方案，而是原地打转或硬着头皮往下走。报错没有被当成反馈消费掉。</div>
+        </div>
+        <div class="item">
+          <div class="q">证据 / 落地（14.6%）</div>
+          <div class="a">知识密集型任务里，来源覆盖不全就下了结论——断言没有证据链支撑，缺少可复核的验证步骤。</div>
+        </div>
+        <div class="item">
+          <div class="q">产物提交（11.1%）</div>
+          <div class="a">推理过程看起来头头是道，但最后没有把结果落盘成要求的文件或工件。在执行类任务里，"想清楚了"不等于"交付了"。</div>
+        </div>
+        <div class="item">
+          <div class="q">状态 / 续跑（9.3%）</div>
+          <div class="a">多轮或中断任务里，中途进度没有持久化，恢复后从错误状态继续，把前面做对的部分又做坏了。</div>
+        </div>
+      </div>
+      <p>前两类合计超过 60%。也就是说，大部分失败不是模型能力不够，而是<b>模型推理与执行环境之间的接口没对齐</b>。论文把这叫做<b>执行对齐（execution alignment）</b>问题，我们下一节展开。</p>
+      <div class="hb-callout eng">
+        <div class="ttl">工程化视角：这份失败清单可以直接当你团队的整改 backlog</div>
+        <ol>
+          <li><b>契约失败（36.4%）→ 在 harness 里加输出校验闸门。</b>让结构化输出先过 schema 校验再交付，不合格就地重试或报错，而不是把半成品扔给下游。这是清单上投入产出比最高的一项。</li>
+          <li><b>恢复失败（24.6%）→ 把工具报错显式回灌进上下文。</b>好 Harness 的差别就在这里：报错信息是否以模型可消费的形式出现在下一轮提示里，是否附带了"常见错误码 → 建议动作"的引导。</li>
+          <li><b>证据失败（14.6%）→ 对知识类任务强制"引用即地址"。</b>要求每条结论携带可点开验证的来源，缺引用的输出在网关层直接判不合格。</li>
+          <li><b>这三项都不是换模型能解决的。</b>论文用数据确认了一个直觉：生产事故的多数来源在执行层设计，整改动作也应该优先落在执行层。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="hb-section">
+      <div class="hb-kicker">概念</div>
+      <h2 class="hb-h2">执行对齐：为什么换个"外壳"分差这么大</h2>
+      <p>Harness-Bench 最有解释力的概念是执行对齐（论文 §5.2）。一条轨迹上有四个必须保持对应的东西：</p>
+      <div class="hb-grid">
+        <div class="hb-card"><div class="lbl">① 模型推理</div><div class="expl">Agent"以为"自己在做什么、做完了什么。</div></div>
+        <div class="hb-card"><div class="lbl">② 工作区状态</div><div class="expl">文件系统里实际发生了什么变化。</div></div>
+        <div class="hb-card"><div class="lbl">③ 工具反馈</div><div class="expl">工具调用返回的真实结果与报错。</div></div>
+        <div class="hb-card"><div class="lbl">④ 评估契约</div><div class="expl">评审器最终检查的产物规格。</div></div>
+      </div>
+      <p>失败的轨迹几乎都长一个样：这四者中的一个或多个脱钩了——工具反馈没有进入下一步行动、断言没有绑定证据、做了一半的状态没有被保存、想出来的结果没有落盘。模型输出的推理依然"看起来合理"，但它和真实世界对不上账。</p>
+      <p>论文的关键论点：<b>Harness 的本职工作，就是维护这四个环节的对应关系。</b>它隐式定义了"什么算待办、什么算已观察的证据、什么算可恢复的失败、什么算完成的交付"。这套表示做得越模糊，模型的合理推理就越容易漂移到评审条件之外；做得越清晰，问题在变成最终失败之前就能被拦住。这解释了发现 1 的 23.8 分差从哪来——差的 Harness 让同样的模型对不上账。</p>
+      <div class="hb-callout eng">
+        <div class="ttl">工程化视角：执行对齐如何指导架构设计</div>
+        <ul>
+          <li><b>把"账本"做成显式结构。</b>待办事项、已验证证据、产物交付状态，用结构化状态（而非散落在对话里的文字）维护，每轮行动前先对账。这是执行对齐的工程化载体。</li>
+          <li><b>可观测性不是可选项。</b>Harness-Bench 每条轨迹记录完整 trace 才做得出失败分析（论文 §3.3）。生产系统同理：没有全量 trace，失败就只是"一个分数"，永远定位不到是哪一环脱的钩。</li>
+          <li><b>对齐检查前移。</b>与其在最终交付时发现 JSON 不合格，不如在每步工具调用后立即校验契约——把失败暴露在还能补救的位置。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="hb-section alt">
+      <div class="hb-kicker">发现 3</div>
+      <h2 class="hb-h2">强模型更"皮实"，但没有任何模型能免疫差 Harness</h2>
+      <p>论文定义了"Harness 依赖度"：同一模型在 6 个 Harness 上的得分方差（论文 §4.3、图 3）。规律清晰：模型越强，平均分越高、跨 Harness 方差越小。强模型对提示格式、工具接口、恢复策略的差异更宽容。</p>
+      <p>但注意方向性：这解释的是"谁更耐折腾"，而不是"谁不需要执行层"。论文在讨论里明确回答了这个问题——强模型可以省掉一些提示词层面的脚手架，但权限边界、状态持久化、可审计 trace、客观校验这些执行层职责，任何模型都替代不了（论文 §6）。</p>
+      <p>类别层面还有个实用发现（论文附录 C）：跨 Harness 方差最大的任务类别是<b>数据/BI/金融分析、工作区操作、软件工程</b>——凡是依赖结构化数据操作、工具链编排、中间状态跟踪的任务，执行层的差距就被放大；方差最小的是办公与商务沟通类，语言为主的任务对 Harness 不敏感。给你的直接启示：<b>你的业务越偏"结构化执行"，Harness 的选型与打磨越值得投入。</b></p>
+      <div class="hb-callout eng">
+        <div class="ttl">工程化视角：把"Harness 依赖度"用起来</div>
+        <ol>
+          <li><b>当模型选型的鲁棒性风险指标用。</b>图 3 的规律是：越弱的后端，跨 Harness 方差越大。选一个方差大的模型，意味着框架升级、提示模板改动都会引起更大的表现波动——上线后要为这类模型预留更大的回归测试预算；预算紧的团队，宁可要一个"皮实"的后端。</li>
+          <li><b>按业务类别分配投入。</b>附录 C 的类别方差给出了资源分配依据：结构化执行类业务（数据分析、工作区操作、软件工程）优先打磨执行层；语言主导类业务（办公沟通）优先投模型能力。用同样的方法在自己业务的任务集上算一遍类别方差，就是一份现成的投入优先级排序。</li>
+          <li><b>别指望强模型省掉执行层基建。</b>论文 §6 的判断很清醒：强模型省掉的是提示词脚手架这类表层工程，权限边界、状态持久化、可审计 trace、客观校验这四项基建一样都不能少——它们由执行层负责，模型再强也替代不了。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="hb-section">
+      <div class="hb-kicker">落地</div>
+      <h2 class="hb-h2">从 Demo 到生产：三个必须回答的问题</h2>
+      <p class="hb-sub">把论文结论翻译成接入生产系统前的检查清单。</p>
+      <div class="hb-qa">
+        <div class="item">
+          <div class="q">Q1：接入生产系统，需要考虑哪些环节？</div>
+          <div class="a">
+            <ul>
+              <li><b>输出契约校验</b>：36.4% 的失败是格式与契约违规——这是第一优先级。所有交付物先过 schema 闸门再出网关。</li>
+              <li><b>恢复策略</b>：工具报错必须显式回灌并驱动计划修订，而不是静默吞掉。</li>
+              <li><b>权限边界</b>：论文的安全项一票否决值得照抄——越权访问、密钥泄露直接判零，不允许用完成度抵消。</li>
+              <li><b>预算控制</b>：表 2 显示各系统 Token 消耗相差 2.5 倍，生产环境必须为每任务设上限与告警。</li>
+              <li><b>全程留痕</b>：产物、trace、用量、校验结果四类证据全量落盘——这也是这套基准自己的记录设计（论文 §3.3）。</li>
+            </ul>
+          </div>
+        </div>
+        <div class="item">
+          <div class="q">Q2：它对现有 LLM 应用架构有什么影响？</div>
+          <div class="a">
+            <ul>
+              <li><b>能力归因方式改变</b>：线上表现 = f(模型, Harness)。汇报系统指标时应注明整套配置，跨系统对比才有意义。</li>
+              <li><b>回归测试对象改变</b>：换 Harness 版本和换模型版本一样需要跑回归——论文显示执行层维度单独可带来 23.8 分的波动，模型维度的影响见图 3，两个维度都足以左右上线表现。</li>
+              <li><b>评测要自建 harness 级基准</b>：Harness-Bench 开源了任务清单与协议（GitHub 见文末），可以直接作为内部回归测试的底座，在你自己的业务任务上复用"钉死环境、换配置"的方法论。</li>
+              <li><b>成本核算口径改变</b>：Token 消耗不再只是模型的属性，更是执行层的属性。优化成本时先查执行层的浪费（无效轮次、重复上下文）。</li>
+            </ul>
+          </div>
+        </div>
+        <div class="item">
+          <div class="q">Q3：Demo 到生产可用，主要差距在哪？</div>
+          <div class="a">
+            <ul>
+              <li><b>评估维度</b>：Demo 看的是单次演示成功率（≈完成度）；生产要求完成度 × 安全 × 过程质量三轴全过——这正是论文评分公式的结构。</li>
+              <li><b>失败模式分布</b>：上线前用表 3 的五类失败做一轮定向压测，契约/恢复/证据三类合计 75.6%（36.4 + 24.6 + 14.6），是返工概率最高的区域。</li>
+              <li><b>过程可审计</b>：Demo 只需要"结果对"；生产需要"每一步为什么这么做"可回放——trace 结构从第一天就要设计好，后补的成本极高。</li>
+              <li><b>状态与续跑</b>：真实系统会被中断、重试、并发操作。9.3% 的状态失败在演示里几乎不会暴露，在生产里天天发生。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hb-section alt">
+      <div class="hb-kicker">边界</div>
+      <h2 class="hb-h2">这份结论的适用边界</h2>
+      <p>严谨起见，论文自己声明的三个局限（论文 §6）值得记住：</p>
+      <div class="hb-steps">
+        <div class="hb-step"><div class="n"></div><div class="t"><b>沙箱离线任务</b>：可复现性是靠牺牲对在线服务、用户反馈、外部状态漂移的覆盖换来的。线上带真服务的系统，差异只会更难控制。</div></div>
+        <div class="hb-step"><div class="n"></div><div class="t"><b>配置级而非因果级</b>：测的是完整 Harness 配置，分差说明"配置影响很大"，但无法归因到具体某个机制（是提示模板还是恢复策略导致的差距）。</div></div>
+        <div class="hb-step"><div class="n"></div><div class="t"><b>过程分依赖 LLM 评审</b>：过程质量由 claude-sonnet-4.6 按规则打分，带主观成分。作者也强调这些分数是诊断信号，不是部署保证。</div></div>
+      </div>
+      <p>另外提醒一个容易过度解读的点：这是一份"描述性"测量，不是数学定理。23.8 分差是在这套任务、这些版本、这个预算设置下的观测值。它支持的核心判断是方向性的——执行层值得被单独评测和汇报——而不是断言某个 Harness 永远最强。</p>
+    </div>
+
+    <div class="hb-section">
+      <div class="hb-kicker">数据源</div>
+      <h2 class="hb-h2">本文引用来源</h2>
+      <div class="hb-src">
+        <ol>
+          <li><b>论文原文</b>：Harness-Bench: Measuring Harness Effects across Models in Realistic Agent Workflows，Yilun Yao 等，北京大学 &amp; 奇元科技，2026-05-27 提交 — <a href="https://arxiv.org/abs/2605.27922" target="_blank">arxiv.org/abs/2605.27922</a>（<a href="https://arxiv.org/html/2605.27922v1" target="_blank">HTML 全文</a>）</li>
+          <li><b>文中全部实验数字</b>：来自论文表 1（控制变量设计）、表 2（主结果）、表 3（失败症状分布）、图 3（Harness 依赖度）、附录 B（被测 Harness 与模型清单）、附录 C（类别级依赖度）。核心数字均已在正文标注出处。</li>
+          <li><b>开源代码与数据</b>：<a href="https://github.com/Qihoo360/harness-bench" target="_blank">github.com/Qihoo360/harness-bench</a> — 任务清单、评估协议、轨迹数据可复现。</li>
+          <li><b>项目主页</b>：<a href="http://www.harness-bench.ai/" target="_blank">harness-bench.ai</a></li>
+          <li><b>背景阅读</b>：文中提到的既有基准 SWE-bench（arXiv 2310.06770）、GAIA（arXiv 2311.12983）、Terminal-Bench（arXiv 2601.11868）、MCP 协议（Anthropic，2024）均见论文参考文献列表。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="hb-foot">
+      本页数据引用自 arXiv:2605.27922v1 · 转载请注明论文与本文出处
+    </div>
+  </div>
+</div>
