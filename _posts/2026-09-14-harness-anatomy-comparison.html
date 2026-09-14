@@ -24,7 +24,7 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
   .ha-section{padding:54px 0;border-top:1px solid var(--line);}
   .ha-section.alt{background:var(--bg-soft);}
   .ha-kicker{font-size:12.5px;letter-spacing:2px;color:var(--accent);font-weight:700;}
-  .ha-h2{font-family:"PT Serif",Georgia,serif;font-size:28px;color:var(--ink);margin:8px 0 14px;font-weight:700;}
+  .ha-h2{font-family:"PT Serif",Georgia,serif;font-size:28px;color:var(--ink);margin:8px 0 14px;font-weight:700;text-wrap:balance;}
   .ha-sub{color:var(--muted);font-size:16px;max-width:720px;margin:0 0 28px;}
   .ha p{margin:0 0 14px;}
   .ha-section > p{max-width:780px;}
@@ -91,7 +91,6 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
     .ha-hero h1{font-size:28px;}
   }
   @media (max-width:720px){
-    .ha-hero h1{font-size:28px;}
     .ha-hero{padding:32px 0 24px;}
     .ha-hero .lede{font-size:16.5px;}
     .ha-grid{grid-template-columns:1fr;}
@@ -570,6 +569,56 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
     </div>
 
     <div class="ha-section alt">
+      <div class="ha-kicker">归因</div>
+      <h2 class="ha-h2">追问 Codex："准确率高"的账怎么算</h2>
+      <p class="ha-sub">本系列前两篇的数据里，Codex 四次出现在头部。这一节把四个数字摆在一起，对着 Harness-Bench 的失败清单做一次对症归因——并明确排除那些看似合理的解释。</p>
+      <h3>先把账摆正：四个方向一致的数据点</h3>
+      <div class="ha-tablewrap">
+        <table>
+          <tr><th>评测</th><th>Codex 的成绩</th><th>读这个数必须带的口径</th></tr>
+          <tr class="hl"><td>FrontierHarness v1.0<br>（Runta · 工业受控）</td><td><b>66.7% 全场第一</b>，$3.47/任务贴近中位，Runta 给的"安全默认"</td><td>钉死 Kimi K3——它在<b>客场</b>拿的第一。但 66.7% 对 63.3%（Claude Code、DSH Creator）只差 1 题，30 题单次样本属"打平档"</td></tr>
+          <tr><td>Terminal-Bench 2.0 排行榜<br>（社区榜）</td><td><b>#4 / 82.2%</b>（同榜 Claude Code #47 / 58.0%、OpenCode #60 / 51.7%）</td><td>原生组合、开放提交——差距里混着模型贡献，不能全记在执行层头上</td></tr>
+          <tr><td>Terminal-Bench 论文<br>（6 agent × 21 模型）</td><td>Codex CLI 最佳 <b>62.9%</b></td><td>受控学术口径下的头部</td></tr>
+          <tr><td>Harness-Bench<br>（北大 · 106 任务）</td><td>参考系 <b>80.4 分</b>；分项：完成度 86.5、稳健性 91.6、<b>轮次 5.0 全场最少之一、token 86.1K 全场第三低</b></td><td>GPT-5.4 后端、模型绑定单列——与 8 模型池不同口径，不能直接横比</td></tr>
+        </table>
+      </div>
+      <div class="src">FrontierHarness 与 Terminal-Bench 数字见本站前两篇（Runta 博客、frontierharness.org、tbench.ai，均 2026-09-14 快照）；Harness-Bench 见 arXiv 2605.27922 表 2（本站前篇）。</div>
+      <p>单个数字各有口径问题，但四份评测、三种出品方（其中两份同属 Terminal-Bench 家族）、四种口径，方向一致——在"inventory claims 以周为单位过期"的领域里，这是最接近可复现的信号。需要克制的是程度表述：真正拉开显著差距的只有 tbench 2.0 的 24.2 个百分点（且含模型贡献）；FrontierHarness 内部其实是打平档。所以诚实的说法是 <b>"Codex 的下限稳"，而不是"显著碾压全场"</b>。</p>
+      <h3>对症归因：两大死因接口上的最严格设计</h3>
+      <p>Harness-Bench 的失败解剖给出了归因坐标系：失败轨迹的 36.4% 死于<b>契约/格式</b>（产物不合机器可校验的规格）、24.6% 死于<b>工具/恢复</b>（报错后未修正方案）——两个接口合计 61%。该论文同时声明结果是"配置级而非因果级"，无法把分差归到具体机制。所以下面做的是<b>对症归因</b>：Codex 恰好在这两个最大死因的接口上，给出了四家里严格端最完整的一套设计。四条机制按证据强度排序：</p>
+      <div class="ha-grid g4">
+        <div class="ha-card">
+          <div class="who">① 编辑契约：文法 + 重试</div>
+          <div class="expl">论文观察 4 把文件编辑策略列为"决定 SWE agent 修改准确率的最重要因素之一"。Codex 的 patch DSL 用 <b>Lark 文法</b>约束（Begin/End Patch 标记）：格式错误的补丁在<b>解析层就被拦下</b>，根本到不了文件系统；失败按 <b>hunk 级重试</b>，单块失败不拖垮整份补丁——正对 36.4% 的头号死因。</div>
+        </div>
+        <div class="ha-card">
+          <div class="who">② 工具面克制 + 按需检索</div>
+          <div class="expl">25–30 个工具（Claude Code 43 个），配 BM25 词法索引的 tool_search 按需调出——选择面小、误用概率低、工具选择精度高。这条与 Claude Code <b>独立收敛</b>（deferred loading 的发明者与复现者互不知情），收敛本身就是"它值钱"的证据。</div>
+        </div>
+        <div class="ha-card">
+          <div class="who">③ 失败显式回灌：fail-closed 全家</div>
+          <div class="expl">24.6% 的死因是"报错没被当反馈消费掉、硬着头皮往下走"。Codex 的解法是一族 fail-closed：<b>Guardian 审批 agent 超时或输出畸形一律拒绝</b>（带拒绝熔断）；Starlark policy 规则携带<b>解析时校验的可执行测试样例</b>。错误要么被显式拒绝、要么带结构化原因回灌——没有静默通过。</div>
+        </div>
+        <div class="ha-card">
+          <div class="who">④ prompt 与模型咬合</div>
+          <div class="expl">行为策略与提示词跟模型版本一起维护：base_instructions 按模型从服务端下发（models.json + ETag）、委派工具分两代按模型元数据选择（multi_agents / multi_agents_v2）、行为规则 feature flag 化（no-commit → codex_git_commit）。FrontierHarness 的 K3 客场第一说明优势<b>不完全是同厂模型咬合</b>带来的。</div>
+        </div>
+      </div>
+      <p>再放一个对照进光谱：编辑契约的<b>宽容度</b>上，OpenCode 站在另一端——9 级回退级联（精确匹配一路回退到 Levenshtein 0.65 模糊匹配），这是"多模型中立"的代价：弱模型也改得上文件，但改错位置的风险也高。论文的建议恰好把这个权衡写死：<b>"前沿模型用精确唯一子串，弱模型配模糊级联"</b>。Codex 站在光谱的严格端——在前沿模型的语境里，严格端就是为准确率选的那一端。</p>
+      <div class="ha-callout warn">
+        <div class="ttl">先排除五个看似合理的解释</div>
+        <ol>
+          <li><b>不是记忆。</b>Codex 的 agent 自维护记忆是语料第一，但 FrontierHarness 每任务从 golden checkpoint 冷启动（环境快照还原，每次试验全新）——记忆在该榜<b>完全不生效</b>。至少在这个口径里，它的优势来自"每一轮的执行质量"，不是跨会话积累。这反而让归因更干净。</li>
+          <li><b>不是缓存。</b>88.0% 的中位缓存命中影响的是 $3.47 的价格，不是 66.7% 的分数——那是成本口径的变量。</li>
+          <li><b>不是"靠磨"。</b>Harness-Bench 里它平均 5.0 轮（全场最少之一）、86.1K token（全场第三低，仅次于 NanoBot 68.7K 与 OpenClaw 82.1K——后者省了 token 却只拿 52.4 分，省与出活是两回事）；FrontierHarness 最难的状态机题上它跑了 187 轮、$5.97 通过（Pi 90 轮、$2.50）。平时不浪费、难题不放弃——<b>韧性本身也有成本</b>，只是花在了刀刃上。</li>
+          <li><b>不是"显著碾压"。</b>单榜内 1–3 题的差距在 30 题单次样本下是噪声档；且本节全部归因是"配置级对症"——Harness-Bench 明言无法因果归因到单一机制。这份清单的价值是<b>排除法 + 对症</b>，不是因果证明。</li>
+          <li><b>不是（也不全是）模型——但这一条排不掉。</b>四个数据点里只有 FrontierHarness 把模型钉死成 K3；Harness-Bench 是 GPT-5.4 绑定、tbench 是原生组合，模型贡献混在里面。所以本节归因的对象是"执行层设计"，结论强度以 FrontierHarness 为锚——它至少证明了这套设计在非同厂模型上也成立。</li>
+        </ol>
+      </div>
+      <p>收进理念层，四条机制其实是同一句话：Codex 在模型与世界的每个接口上都<b>把不确定性消灭在契约里</b>——补丁过文法、规则带测试、审批 fail-closed、委派带 JSON Schema 契约与 typed records。每一步要么显式成功、要么显式失败可重试，没有静默路径。准确率是这个哲学在"改文件"这个最高频动作上的投影，也与下一节画像里"平台与企业治理"的定位同源——治理层是它准确率的来源之一，不是附加面。</p>
+    </div>
+
+    <div class="ha-section">
       <div class="ha-kicker">理念画像</div>
       <h2 class="ha-h2">四家的一句话画像</h2>
       <p class="ha-sub">功能会互相抄（以周为单位），设计重心不会。把前文全部收进四张卡片——注意这是"设计重心归纳"，不是能力高下。</p>
@@ -597,7 +646,7 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
       </div>
     </div>
 
-    <div class="ha-section">
+    <div class="ha-section alt">
       <div class="ha-kicker">落点</div>
       <h2 class="ha-h2">给初级 AI 工程师的六条</h2>
       <div class="ha-steps">
@@ -618,7 +667,7 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
           <li><b>OpenCode 官方文档</b>（opencode.ai/docs）：agents、tools、permissions。</li>
           <li><b>DeepSeek Harness 官方文档与仓库</b>（deepseek-harness.github.io/deepseek-harness/、github.com/deepseek-ai/deepseek-harness）：reference/index（架构）、subsystems/subagent、workflow、agent-team、compaction、spill、sandbox、approval、system-prompt、tools、tool-catalog、skills、SAFETY.md。</li>
           <li><b>arXiv 2608.25512</b>（Cordis：A Programming Paradigm for Spatiotemporal Composability）—— DSH 插件模型的形式化基础。</li>
-          <li><b>本站前篇</b>：<a href="/harness-bench-paper-report/">Harness-Bench 论文解读</a>、<a href="/frontier-harness-eval-report/">FrontierHarness 榜单解读</a>（四家版本锚点与其发现 4 快照/归因边界讨论的出处）。</li>
+          <li><b>本站前篇</b>：<a href="/harness-bench-paper-report/">Harness-Bench 论文解读</a>、<a href="/frontier-harness-eval-report/">FrontierHarness 榜单解读</a>（四家版本锚点与发现 4 快照/归因边界讨论的出处；"追问 Codex"一节的全部榜单数字——FrontierHarness、Terminal-Bench 排行榜与论文、Harness-Bench 表 2 及失败分类——均引自这两篇）。</li>
         </ol>
         <div class="src" style="margin-top:10px">抓取与核对时间：2026-09-14。按上文口径警告，功能清单级信息（工具数、上限值、实验开关名）在此之后随时可能过期；结构性结论相对耐用。发现具体数字与官方现行文档不符时，以官方文档为准。</div>
       </div>
