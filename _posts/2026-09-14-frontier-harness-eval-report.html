@@ -1,0 +1,435 @@
+---
+layout: main
+title: FrontierHarness 榜单解读 — 同一个模型跑 9 个 Harness，分差 17 分，账单差 17 倍
+description: Runta 的 FrontierHarness Eval v1.0：钉死模型（Kimi K3）、任务与运行时，横评 Codex、Claude Code、OpenCode、DeepSeek Harness 等 9 个 Harness 的 12 种配置、360 次试验。通过率 50.0%–66.7%，每任务中位成本 $1.05–$18.34。"能过题"和"便宜地过题"是两种能力。
+---
+
+<style>
+  .fh{--ink:#263959;--ink-2:#3c4a63;--accent:#2f6feb;--accent-soft:#eaf1fe;--line:#e6e9ee;--bg:#ffffff;--bg-soft:#f7f8fa;--text:#2b2f36;--muted:#5b6472;--warn:#b3541e;--warn-soft:#fdf1e7;
+       font-family:"Lato","Helvetica Neue",Arial,sans-serif;color:var(--text);line-height:1.78;font-size:16px;min-width:0;}
+  .fh *{box-sizing:border-box;}
+  .fh .wrap{max-width:860px;margin:0 auto;padding:0 10px;}
+  .fh a{color:var(--accent);text-decoration:underline;text-decoration-color:rgba(47,111,235,.4);}
+  .fh a:hover{text-decoration-color:var(--accent);}
+
+  .fh-hero{padding:48px 0 36px;background:linear-gradient(180deg,#ecf3fe 0%,#fbfdff 90%);border-bottom:1px solid var(--line);}
+  .fh-hero .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;letter-spacing:1.5px;color:var(--accent);font-weight:700;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;}
+  .fh-hero h1{font-family:"PT Serif",Georgia,serif;font-size:38px;line-height:1.25;color:var(--ink);margin:16px 0 12px;font-weight:700;}
+  .fh-hero h1 em{font-style:normal;color:var(--accent);}
+  .fh-hero .lede{font-size:18px;color:var(--ink-2);max-width:660px;}
+  .fh-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;}
+  .fh-meta span{font-size:13px;color:var(--ink-2);background:#fff;border:1px solid var(--line);padding:5px 11px;border-radius:8px;}
+
+  .fh-section{padding:54px 0;border-top:1px solid var(--line);}
+  .fh-section.alt{background:var(--bg-soft);}
+  .fh-kicker{font-size:12.5px;letter-spacing:2px;color:var(--accent);font-weight:700;}
+  .fh-h2{font-family:"PT Serif",Georgia,serif;font-size:28px;color:var(--ink);margin:8px 0 14px;font-weight:700;}
+  .fh-sub{color:var(--muted);font-size:16px;max-width:700px;margin:0 0 28px;}
+  .fh p{margin:0 0 14px;}
+  .fh-section > p{max-width:760px;}
+  .fh h3{font-family:"PT Serif",Georgia,serif;font-size:20px;color:var(--ink);margin:26px 0 10px;}
+
+  .fh-def{display:flex;gap:14px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:18px 20px;margin:20px 0;}
+  .fh-def .sym{font-family:"PT Serif",Georgia,serif;font-size:26px;color:var(--accent);font-weight:700;line-height:1.1;flex:none;}
+  .fh-def .body{font-size:15.5px;color:var(--ink-2);}
+  .fh-def .body b{color:var(--ink);}
+
+  .fh-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin:22px 0;}
+  .fh-grid.g4{grid-template-columns:repeat(4,1fr);}
+  .fh-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .fh-card .num{font-family:"PT Serif",Georgia,serif;font-size:30px;font-weight:700;color:var(--accent);}
+  .fh-card .lbl{font-size:13px;color:var(--muted);letter-spacing:1px;margin-top:2px;}
+  .fh-card .expl{font-size:14.5px;color:var(--ink-2);margin-top:10px;line-height:1.6;}
+  .fh-card .expl b{color:var(--ink);}
+
+  .fh-bars{display:grid;gap:11px;margin:24px 0;}
+  .fh-bar{display:grid;grid-template-columns:150px 1fr 74px;align-items:center;gap:12px;}
+  .fh-bar .name{font-size:14px;font-weight:700;color:var(--ink);text-align:right;}
+  .fh-bar .name small{display:block;font-weight:400;color:var(--muted);font-size:12px;}
+  .fh-bar .track{position:relative;background-color:#f7f8fa;border:1px solid var(--line);border-radius:7px;height:26px;overflow:hidden;}
+  .fh-bar .track::after{content:'';position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:rgba(38,57,89,.35);}
+  .fh-bar .fill{height:100%;background:linear-gradient(90deg,#5c94f5,#2f6feb);border-radius:6px 0 0 6px;}
+  .fh-bar .fill.best{background:linear-gradient(90deg,#2f6feb,#1d4fc0);}
+  .fh-bar .fill.warn{background:linear-gradient(90deg,#f0a878,#b3541e);}
+  .fh-bar .val{font-size:14px;font-weight:700;color:var(--ink);}
+  .fh-bar.ref{padding-bottom:10px;border-bottom:2px dashed var(--line);margin-bottom:4px;}
+  .fh-bar.ref .track{background-image:none;background:transparent;border:1px dashed var(--line);}
+  .fh-bar.ref .name small{color:var(--muted);}
+
+  .fh-tablewrap{overflow-x:auto;margin:22px 0;}
+  .fh table{border-collapse:collapse;width:100%;font-size:14px;background:#fff;border:1px solid var(--line);}
+  .fh th,.fh td{border:1px solid var(--line);padding:9px 12px;text-align:center;}
+  .fh th{background:var(--bg-soft);color:var(--ink);font-size:13px;}
+  .fh table tr{background:#fff;}
+  .fh td:first-child,.fh th:first-child{text-align:left;font-weight:700;color:var(--ink);}
+  .fh td{color:var(--ink-2);font-size:14px;}
+  .fh table tr.hl td{background:var(--accent-soft);}
+  .fh .src{font-size:12.5px;color:var(--muted);margin-top:8px;}
+
+  .fh-callout{border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:24px 0;font-size:15px;color:var(--ink-2);}
+  .fh-callout .ttl{font-weight:700;color:var(--ink);margin-bottom:8px;font-size:15.5px;}
+  .fh-callout.eng{background:#fff;border-left:4px solid var(--accent);}
+  .fh-callout.eng .ttl{color:var(--accent);}
+  .fh-callout.warn{background:var(--warn-soft);border-color:#f0d9c4;border-left:4px solid var(--warn);}
+  .fh-callout.warn .ttl{color:var(--warn);}
+  .fh-callout ol,.fh-callout ul{margin:6px 0 0;padding-left:20px;}
+  .fh-callout li{margin:5px 0;}
+
+  .fh-steps{counter-reset:st;margin:22px 0;display:grid;gap:12px;}
+  .fh-step{display:grid;grid-template-columns:34px 1fr;gap:14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 18px;}
+  .fh-step .n{counter-increment:st;width:30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--ink);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .fh-step .n::before{content:counter(st);}
+  .fh-step .t{font-size:15px;color:var(--ink-2);}
+  .fh-step .t b{color:var(--ink);}
+
+  .fh-qa{margin:22px 0;display:grid;gap:14px;}
+  .fh-qa .item{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .fh-qa .q{font-weight:700;color:var(--ink);font-size:15.5px;margin-bottom:8px;}
+  .fh-qa .a{font-size:15px;color:var(--ink-2);}
+  .fh-qa .a ul{margin:8px 0 0;padding-left:20px;}
+  .fh-qa .a li{margin:5px 0;}
+
+  .fh-src{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin:22px 0;}
+  .fh-src ol{margin:8px 0 0;padding-left:20px;}
+  .fh-src li{margin:6px 0;font-size:14.5px;color:var(--ink-2);}
+  .fh-src li b{color:var(--ink);}
+
+  .fh-foot{padding:34px 0 20px;color:var(--muted);font-size:13.5px;text-align:center;}
+
+  @media (max-width:1024px){
+    .fh-grid.g4{grid-template-columns:repeat(2,1fr);}
+  }
+  @media (max-width:720px){
+    .fh-hero h1{font-size:28px;}
+    .fh-hero{padding:32px 0 24px;}
+    .fh-hero .lede{font-size:16.5px;}
+    .fh-grid{grid-template-columns:1fr;}
+    .fh-grid.g4{grid-template-columns:repeat(2,1fr);}
+    .fh-bar{grid-template-columns:100px 1fr 56px;}
+    .fh-bar .name{font-size:12px;}
+    .fh .wrap{padding:0 6px;}
+  }
+  @media (max-width:480px){
+    .fh table{min-width:620px;}
+    .fh-tablewrap{margin:22px -6px;}
+    .fh-grid.g4{grid-template-columns:1fr;}
+  }
+</style>
+
+<div class="fh">
+  <div class="fh-hero">
+    <div class="wrap">
+      <span class="kicker">榜单解读 · Harness 评测</span>
+      <h1>同一个模型跑 9 个 Harness，分差 <em>17 分</em>，<span style="white-space:nowrap">账单</span>差 <em>17 倍</em></h1>
+      <p class="lede">Runta 公司发布的 FrontierHarness Eval v1.0 做了一次少见的工业级受控实验：把模型（Kimi K3）、任务、运行时全部钉死，让 Codex、Claude Code、OpenCode、DeepSeek Harness 等 9 个出厂态 Harness 同台。结论很扎心：通过率挤在 17 分里，成本却差了 17 倍。</p>
+      <div class="fh-meta">
+        <span>榜单：frontierharness.org</span>
+        <span>运营方：Runta</span>
+        <span>v1.0 · 2026-09-01 发布</span>
+        <span>30 任务 · 360 次试验</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <div class="fh-section" style="border-top:none;">
+      <div class="fh-kicker">TL;DR</div>
+      <h2 class="fh-h2">先说结论</h2>
+      <p>如果你只记四件事：</p>
+      <div class="fh-grid">
+        <div class="fh-card">
+          <div class="num">58.1<span style="font-size:16px;color:var(--muted)">%</span></div>
+          <div class="lbl">全场 360 格的真实通过率</div>
+          <div class="expl">360 次试验共 209 次成功、151 次失败。没有任何一个 Harness 的配置能过七成任务——最强 Codex 也只有 66.7%（Runta 博客）。</div>
+        </div>
+        <div class="fh-card">
+          <div class="num">17 <span style="font-size:16px;color:var(--muted)">分</span></div>
+          <div class="lbl">12 个配置的通过率极差</div>
+          <div class="expl">从 50.0%（OpenCode、Hermes）到 66.7%（Codex）。同一个模型、同一批任务，只换执行层，通过率的差距被压在一个窄带里。</div>
+        </div>
+        <div class="fh-card">
+          <div class="num">$1.05–$18.34</div>
+          <div class="lbl">每任务中位成本的极差（约 17 倍）</div>
+          <div class="expl">同样这批任务，Exo Harness 每任务中位 $1.05，Claude Code $18.34。通过率挤在一起，账单却差出一个数量级（榜单主页）。</div>
+        </div>
+        <div class="fh-card">
+          <div class="num">5.6<span style="font-size:16px;color:var(--muted)">×</span></div>
+          <div class="lbl">"同分不同价"的价差</div>
+          <div class="expl">Claude Code 和 DeepSeek Harness 的 Creator 预设都通过 19 题（63.3%），前者每任务 $18.34，后者 $3.28。"能过题"和"便宜地过题"是两种能力（Runta 博客）。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fh-section">
+      <div class="fh-kicker">背景</div>
+      <h2 class="fh-h2">这个榜测的是什么，为什么值得看</h2>
+      <div class="fh-def">
+        <div class="sym">F</div>
+        <div class="body"><b>FrontierHarness Eval</b>是 Runta（一家做 Agent 执行层的公司）运营的 Harness 排行榜。v1.0 覆盖软件开发与终端任务：9 个 Harness、12 种配置，跑 30 个任务共 360 次，每格只跑一次。它的独特之处是把<b>模型、任务、运行时三个变量全部钉死</b>，让被测对象只剩执行层本身，再把 9 个出厂态 Harness（含 Codex、Claude Code 这类闭源 CLI）拉进同一口径——受控程度与被测面都超出了此前同类研究的覆盖。</div>
+      </div>
+      <p>被测名单（榜单主页"Tested harnesses"，版本号一并钉死）：Codex v0.148.0、<b>DeepSeek Harness v0.1.0-rc.8</b>、Claude Code v2.1.237、Pi v0.84.2、Oh My Pi v17.4.0、Kimi Code v0.37.2、Exo Harness v0.1.0、OpenCode v1.18.19、Hermes v0.20.4。其中 DeepSeek Harness 是 DeepSeek 的官方 CLI 编码 Agent，榜单上以四种预设参赛——Creator、Standard、PTC（即其 code 模式）、Minimal——所以是 9 个 Harness、12 种配置。</p>
+      <p>本站上一篇解读的 Harness-Bench（arXiv 2605.27922）是它的学术对照组。两者的分工恰好互补：</p>
+      <div class="fh-tablewrap">
+        <table>
+          <tr><th>评测</th><th>钉死了什么</th><th>换什么</th><th>被测对象特点</th></tr>
+          <tr><td>Harness-Bench<br>（北大，2026-05）</td><td>任务、沙箱、预算、评估器</td><td>6 个可配置开源 Harness × 8 个模型</td><td>开源可调配置，能做因子分析，但不含闭源 CLI</td></tr>
+          <tr class="hl"><td>FrontierHarness v1.0<br>（Runta，2026-09）</td><td>模型（Kimi K3）、任务、运行时</td><td>9 个出厂态 Harness 的 12 种配置</td><td>含 Codex / Claude Code / DeepSeek Harness 等闭源产品，测的是"开箱即用"的真实形态</td></tr>
+        </table>
+      </div>
+      <div class="src">FrontierHarness 的被测版本与任务构成见榜单主页与 Runta 博客；Harness-Bench 口径见 arXiv 2605.27922（本站前篇）。</div>
+      <div class="fh-callout eng">
+        <div class="ttl">工程化视角：为什么"出厂态横评"比"配置级横评"对你的选型更直接</div>
+        <ol>
+          <li><b>你实际部署的就是出厂态。</b>团队里没人会先魔改 Claude Code 的内部缓存策略再上线。学术基准测"配置空间的上限"，这个榜测的是你按下回车那一刻得到的东西。</li>
+          <li><b>闭源 CLI 第一次进了同口径对比。</b>Harness-Bench 只能测开源可配置 Harness，把 Codex 之类的模型绑定系统单列参考系；这个榜让 9 个主流产品在同一模型下直接对撞。</li>
+          <li><b>榜单开源了评测协议</b>（GitHub 见文末），意味着你可以拿自己内部的 Harness / 预设进去跑同样的 30 个任务，得到和业界对得上的数字。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="fh-section alt">
+      <div class="fh-kicker">方法</div>
+      <h2 class="fh-h2">受控三件套：同一个模型、同一批任务、同一台"冰箱"</h2>
+      <p class="fh-sub">这份榜最值钱的地方不是排名，是评测卫生。三个设计决定值得逐条拆开看。</p>
+      <div class="fh-grid">
+        <div class="fh-card">
+          <div class="lbl">① 同一个模型：Kimi K3</div>
+          <div class="expl">选 K3 的理由是中立性——用 Claude 会偏袒 Claude Code 的原生环境，用 GPT 会偏袒 Codex。K3 由 Fireworks 统一供能，9 个 Harness 走同一个网关，网关同时讲 OpenAI Responses API 和 Anthropic Messages API 两种协议，每个 Harness 都用自己的母语对话同一份权重（Runta 博客）。Kimi Code 虽是同厂产品，但被迫走 Anthropic 协议接入（原生 provider 对网关 404），最后只并列第 7——厂商血统没有换来主场优势。</div>
+        </div>
+        <div class="fh-card">
+          <div class="lbl">② 同一批任务：30 个，判分确定性</div>
+          <div class="expl">21 个 Terminal-Bench 任务 + 9 个 DeepSWE 任务，全部是真实仓库上的软件工程活。过不过由确定性 verifier 说了算，不用 LLM 评审；各 Harness 的首轮缓存读取按统一口径计价，成本可比（Runta 博客）。</div>
+        </div>
+        <div class="fh-card">
+          <div class="lbl">③ 同一台"冰箱"：checkpoint 冷启动</div>
+          <div class="expl">所有 Harness 和任务环境被安装一次、拍成 golden checkpoint，360 次试验每次都是全新还原——vCPU、内存、磁盘大小、磁盘内容、<b>内存状态</b>逐项一致。没有任何一次试验继承上一次的文件残留、页缓存或装了一半的依赖（Runta 博客）。</div>
+        </div>
+        <div class="fh-card">
+          <div class="lbl">附加规则：每格一次，绝不重试</div>
+          <div class="expl">重试天然是"热"的（上下文和缓存都温了），跑 N 次取最好会系统性美化成绩。每个配置 × 任务只跑一次，取原始结果（Runta 博客）。</div>
+        </div>
+      </div>
+      <div class="fh-callout warn">
+        <div class="ttl">最容易被忽略的一条评测纪律</div>
+        <p style="margin:0"><b>正式评测之前，基准任务一个都不许跑。</b>原因是隐式前缀缓存——推理服务自动缓存重复出现的提示前缀、命中部分按更低的缓存价计费，应用无需显式标记；一次调试运行就能把前缀"焐热"几个小时，后来者白捡便宜。Runta 的所有调试都在单独的 smoke 任务集上完成。这一条几乎没有任何内部评测团队在做——你上一次在公司基准上"先试跑一下看看通不通"，是什么时候？</p>
+      </div>
+    </div>
+
+    <div class="fh-section">
+      <div class="fh-kicker">榜单</div>
+      <h2 class="fh-h2">主结果：12 个配置的正面账单</h2>
+      <p>先看通过率分布（虚线为全场 360 格通过率 58.1%）：</p>
+      <div class="fh-bars">
+        <div class="fh-bar ref"><div class="name">全场 <small>209 / 360 格</small></div><div class="track"><div class="fill" style="width:58.1%;opacity:.45"></div></div><div class="val">58.1%</div></div>
+        <div class="fh-bar"><div class="name">Codex <small>OpenAI</small></div><div class="track"><div class="fill best" style="width:66.7%"></div></div><div class="val">66.7%</div></div>
+        <div class="fh-bar"><div class="name">DSH Creator <small>DeepSeek Harness</small></div><div class="track"><div class="fill" style="width:63.3%"></div></div><div class="val">63.3%</div></div>
+        <div class="fh-bar"><div class="name">Claude Code <small>Anthropic</small></div><div class="track"><div class="fill" style="width:63.3%"></div></div><div class="val">63.3%</div></div>
+        <div class="fh-bar"><div class="name">Pi <small>v0.84.2</small></div><div class="track"><div class="fill" style="width:60%"></div></div><div class="val">60.0%</div></div>
+        <div class="fh-bar"><div class="name">DSH Standard <small>DeepSeek Harness</small></div><div class="track"><div class="fill" style="width:60%"></div></div><div class="val">60.0%</div></div>
+        <div class="fh-bar"><div class="name">DSH PTC <small>DeepSeek Harness</small></div><div class="track"><div class="fill" style="width:60%"></div></div><div class="val">60.0%</div></div>
+        <div class="fh-bar"><div class="name">Kimi Code <small>月之暗面</small></div><div class="track"><div class="fill" style="width:56.7%"></div></div><div class="val">56.7%</div></div>
+        <div class="fh-bar"><div class="name">DSH Minimal <small>DeepSeek Harness</small></div><div class="track"><div class="fill" style="width:56.7%"></div></div><div class="val">56.7%</div></div>
+        <div class="fh-bar"><div class="name">Oh My Pi <small>v17.4.0</small></div><div class="track"><div class="fill" style="width:56.7%"></div></div><div class="val">56.7%</div></div>
+        <div class="fh-bar"><div class="name">Exo Harness <small>v0.1.0</small></div><div class="track"><div class="fill" style="width:53.3%"></div></div><div class="val">53.3%</div></div>
+        <div class="fh-bar"><div class="name">Hermes <small>v0.20.4</small></div><div class="track"><div class="fill" style="width:50%"></div></div><div class="val">50.0%</div></div>
+        <div class="fh-bar"><div class="name">OpenCode <small>v1.18.19</small></div><div class="track"><div class="fill" style="width:50%"></div></div><div class="val">50.0%</div></div>
+      </div>
+      <div class="src">数据来源：Runta 博客主结果表。条形按 0–100% 绝对刻度绘制，轨道中线为 50% 参考线；深色为榜首。DSH 四行同为 DeepSeek Harness 的不同预设。</div>
+      <p>把成本、缓存、耗时一起摊开（按通过率排序）：</p>
+      <div class="fh-tablewrap">
+        <table>
+          <tr><th>Harness（配置）</th><th>每任务中位成本</th><th>通过率</th><th>中位缓存命中</th><th>中位用时</th></tr>
+          <tr class="hl"><td>Codex</td><td>$3.47</td><td><b>66.7%</b></td><td>88.0%</td><td>6m 43s</td></tr>
+          <tr><td>DSH Creator</td><td>$3.28</td><td>63.3%</td><td>84.3%</td><td>6m 44s</td></tr>
+          <tr><td>Claude Code</td><td><b style="color:#b3541e">$18.34</b></td><td>63.3%</td><td>67.8%</td><td>9m 38s</td></tr>
+          <tr><td>Pi</td><td>$2.43</td><td>60.0%</td><td>79.4%</td><td>7m 33s</td></tr>
+          <tr><td>DSH Standard</td><td>$3.46</td><td>60.0%</td><td>86.5%</td><td>6m 17s</td></tr>
+          <tr><td>DSH PTC</td><td>$4.58</td><td>60.0%</td><td>87.2%</td><td>7m 44s</td></tr>
+          <tr><td>Kimi Code</td><td>$3.65</td><td>56.7%</td><td>88.0%</td><td>7m 56s</td></tr>
+          <tr><td>DSH Minimal</td><td>$4.72</td><td>56.7%</td><td>84.6%</td><td><b>5m 41s</b></td></tr>
+          <tr><td>Oh My Pi</td><td>$4.75</td><td>56.7%</td><td>82.2%</td><td>6m 46s</td></tr>
+          <tr><td>Exo Harness</td><td><b>$1.05</b></td><td>53.3%</td><td>70.3%</td><td>6m 17s</td></tr>
+          <tr><td>Hermes</td><td>$2.90</td><td>50.0%</td><td>85.9%</td><td>6m 58s</td></tr>
+          <tr><td>OpenCode</td><td>$3.24</td><td>50.0%</td><td>78.4%</td><td>6m 27s</td></tr>
+        </table>
+      </div>
+      <div class="src">数据来源：Runta 博客主结果表（同分配置按其原表顺序并列）。"每任务中位成本"为该配置全部 30 次试验（含失败）的中位数——Runta 博客原文称 cost per pass，但与榜单网站 Median cost per task 榜单逐项数值一致（如 Codex $3.47/$3.4683、Claude Code $18.34/$18.3368），本文按网站口径命名。缓存与用时两列的网站口径为"每成功任务"的中位数，与成本列"全部 30 次试验"的分母不同。</div>
+      <p>四个维度的冠军各归其主（榜单主页"Leader"卡片）：</p>
+      <div class="fh-grid g4">
+        <div class="fh-card"><div class="lbl">质量冠军</div><div class="expl"><b>Codex</b>：66.7% 通过率、每任务 $3.47，价格贴近全场中位。通过率第一且不贵，是 Runta 自己给出的"安全默认"。</div></div>
+        <div class="fh-card"><div class="lbl">平衡之选</div><div class="expl"><b>Pi</b>：60.0% 通过率、每任务 $2.43。同样的活反复跑、Token 账单会复利的场景，它是性价比取向里分数最高的。</div></div>
+        <div class="fh-card"><div class="lbl">成本冠军</div><div class="expl"><b>Exo Harness</b>：每任务 $1.05——但注意它靠"提前止损"省钱：51 步封顶、该弃就弃，通过率 53.3% 垫底区。</div></div>
+        <div class="fh-card"><div class="lbl">速度冠军</div><div class="expl"><b>DSH Minimal</b>：中位 5m 41s，全场最快，通过率 56.7%（与同门 Creator 的 63.3% 在 30 题单次样本下属打平档）。</div></div>
+      </div>
+    </div>
+
+    <div class="fh-section alt">
+      <div class="fh-kicker">发现 1</div>
+      <h2 class="fh-h2">"能过题"和"便宜地过题"是两种能力</h2>
+      <p>这张榜最能说明问题的一行对比：Claude Code 与 DSH Creator 同为 63.3%——都是 30 题过 19 题——但一个每任务 $18.34，一个 $3.28，差 5.6 倍。Runta 的原话：<b>完成任务和便宜地完成任务，是两种独立的技能。</b></p>
+      <p>榜单网站还挂了一份"每成功任务成本"榜，OpenCode 以 $0.0615 排第一，看起来像性价比之王。但网站自己加了三条注记的第一条就是打脸：这个数<b>只统计了它通过的 15 题</b>，失败烧掉的钱被排除在外；把失败算回来，OpenCode 每任务是 $3.24，与其说是便宜，不如说是"没花的钱都在没做出来的题上"。</p>
+      <div class="fh-callout eng">
+        <div class="ttl">工程化视角：成本口径决定你被哪种幻觉骗</div>
+        <ol>
+          <li><b>生产核算必须按"每任务（含失败）"。</b>Agent 的钱大头烧在它做不出来的题上——DSH PTC 在一个任务上失败烧掉 $12.95，比六个通过该题的配置都贵。只看成功样本的成本，等于把账单里最大的部分裁掉再汇报。</li>
+          <li><b>选型先算"单位产出的钱"再算价格本身。</b>$1.05 的 Exo 和 $18.34 的 Claude Code 都不是答案，$2.43 的 Pi 和 $3.47 的 Codex 才是分子分母同看的用法：先定你要的通过率下限，再比同通过率档位里谁便宜。</li>
+          <li><b>失败成本低本身是一种生产力。</b>Exo "失败得便宜"（最难的题上 $1.46 止损离场），Runta 的评语是：要挂重试机制的话，你想重试的正是这种。对做 pipeline 的人，"可控放弃"是真实的设计优点，不是缺陷。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="fh-section">
+      <div class="fh-kicker">发现 2</div>
+      <h2 class="fh-h2">缓存命中率不是成本——Claude Code 的 25% 之谜</h2>
+      <p>榜单上 Claude Code 的中位缓存命中率 67.8%，只是 Codex（88.0%）的 1.3 倍差距，看着不算夸张。但 Runta 在博客里单独开了一章：<b>按 token 加权，Claude Code 的缓存命中率只有 25.0%，而其余全部 Harness 落在 91.6%–99.1% 区间，全场 token 加权平均是 92.4%。</b>中位数描述"典型的一次试验"，加权数才描述"你实际付的账单"——两个口径差了 2.7 倍，而普通排行榜根本不会把这两者对账给你看。</p>
+      <p>拆开看，25% 这个数主要是被一格拖垮的：Claude Code 通过的 19 个格子里，最重的 3 格占了它 88% 的 token 消耗；其中最重的一格（python-statemachine 状态机改写题）一个任务就吃掉 24.6M 输入 token、缓存命中仅 15.7%、花了 $64.36——单格占 Claude Code 全部 token 的 68%。所以"25%"更像是对一个异常大格的描述，不代表它的典型行为（Runta 博客）。</p>
+      <p>为什么同一份追加式对话，有的调用 100% 命中、有的颗粒无收？Runta 的归因很克制：Claude Code 围绕 Anthropic 模型的<b>显式 cache-control 语义</b>设计，而 K3 暴露的是<b>隐式前缀缓存</b>，同一套缓存策略未必能平移。他们明确写了：<b>"我们还不能把这个差距归因于 harness 本身"</b>——$18.34 描述的是"Claude Code + K3"这个组合，不是 Claude Code 的孤立属性，分离 harness 与模型的贡献是 v1.1 计划的第一项。</p>
+      <div class="fh-callout eng">
+        <div class="ttl">工程化视角：两个口径，两种坑</div>
+        <ol>
+          <li><b>看任何榜单先问统计口径。</b>"中位数"回答典型情况，"加权"回答总账单。评测报告只给中位数时，最贵的长尾任务可能被藏起来——而长尾恰恰是生产事故和超支的所在地。</li>
+          <li><b>缓存命中是单价，不是账单。</b>一次缓存全命中的 300 轮失败，比一次缓存全 miss 的短任务烧钱得多。Runta 的公式值得抄在工位上：你付的是步数和 token，缓存只改变单价。</li>
+          <li><b>harness × model 是组合属性。</b>把"为 A 家模型调优的 harness"接到"B 家模型的缓存"上，可能既贵又慢。跨厂组合（比如拿 Claude Code 跑第三方模型）上线前，务必在自己的任务上实测成本，不要沿用原生组合的经验值。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="fh-section alt">
+      <div class="fh-kicker">发现 3</div>
+      <h2 class="fh-h2">同一个 Harness 的预设，差出半个 Harness</h2>
+      <p>DeepSeek Harness 的四个预设同模型、同任务、同运行时对撞，结果：Creator 63.3%（$3.28）、Standard 60.0%（$3.46）、PTC 60.0%（$4.58）、Minimal 56.7%（$4.72）。<b>预设之间差 6.6 个通过率点、1.4 倍成本——Runta 的评语是：这个差距已经追平很多"不同 Harness 之间"的差距。</b>换句话说，光改预设就能抹掉半个榜单的排名。</p>
+      <p>两个佐证细节：PTC 预设在最难那道状态机题上花 $12.95 超时失败，比六个通过该题的配置都烧钱；Creator 预设在同一题上 $3.88 超时失败，而同门 Minimal 花到 $10.49 反而通过——工具与提示的配置同时影响了花钱节奏和最终结果（Runta 博客示例任务表）。</p>
+      <div class="fh-callout eng">
+        <div class="ttl">工程化视角：你的"内部 prompt 配置"也是预设</div>
+        <ol>
+          <li><b>回归测试矩阵必须包含配置维度。</b>很多团队给 Agent 改一版系统提示词、调一个工具清单就直接上线——按这份榜的数据，这类改动的波动量级和"换一个 Harness"相当，却常常连跑一遍回归都不做。</li>
+          <li><b>汇报结果必须带配置指纹。</b>既然 Creator 和 Minimal 能差 6.6 分，那"我们上周 agent 通过率 60%"这句话在没有配置指纹时毫无信息量。至少要记录：prompt 版本、工具集、步数上限、温度这类可变项。</li>
+          <li><b>选预设就是选型的一半工作。</b>评估一个新 Harness 时，不要只测默认档——把它的预设/配置空间都过一遍，你很可能在"次优预设"里找到比默认档更适合自己的点。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="fh-section">
+      <div class="fh-kicker">解剖</div>
+      <h2 class="fh-h2">一道题的 12 张账单：pass/fail 看不见钱</h2>
+      <p class="fh-sub">榜单里最硬的一道题：python-statemachine 状态机改写（DeepSWE，官方通过率 38%，历史中位 117 步）。12 个配置里 7 个通过——同一份通过，11 种价格、外加一张 n/a 空账。</p>
+      <div class="fh-tablewrap">
+        <table>
+          <tr><th>配置</th><th>结果</th><th>成本</th><th>轮次</th><th>缓存命中</th><th>用时</th></tr>
+          <tr class="hl"><td>Pi</td><td>通过</td><td><b>$2.50</b></td><td>90</td><td>98.2%</td><td>39m</td></tr>
+          <tr><td>Codex</td><td>通过</td><td>$5.97</td><td>187</td><td>99.1%</td><td>37m</td></tr>
+          <tr><td>Hermes</td><td>通过</td><td>$6.70</td><td>156</td><td>99.1%</td><td>29m</td></tr>
+          <tr><td>Kimi Code</td><td>通过</td><td>$9.24</td><td>209</td><td>99.3%</td><td>38m</td></tr>
+          <tr><td>DSH Standard</td><td>通过</td><td>$10.14</td><td>227</td><td>99.3%</td><td>47m</td></tr>
+          <tr><td>DSH Minimal</td><td>通过</td><td>$10.49</td><td>259</td><td>99.1%</td><td>44m</td></tr>
+          <tr><td>Claude Code</td><td>通过</td><td><b style="color:#b3541e">$64.36</b></td><td>381</td><td>15.7%</td><td>60m</td></tr>
+          <tr><td>Exo Harness</td><td>失败（步数帽）</td><td>$1.46</td><td>51</td><td>96.0%</td><td>40m</td></tr>
+          <tr><td>Oh My Pi</td><td>失败</td><td>$2.71</td><td>86</td><td>98.3%</td><td>42m</td></tr>
+          <tr><td>DSH Creator</td><td>失败（超时）</td><td>$3.88</td><td>109</td><td>98.8%</td><td>60m</td></tr>
+          <tr><td>DSH PTC</td><td>失败（超时）</td><td><b style="color:#b3541e">$12.95</b></td><td>285</td><td>99.5%</td><td>60m</td></tr>
+          <tr><td>OpenCode</td><td>失败（超时）</td><td>n/a</td><td>0</td><td>n/a</td><td>60m</td></tr>
+        </table>
+      </div>
+      <div class="src">数据来源：Runta 博客示例任务表（datacurve/python-statemachine-state-data-scoping）。n/a = 原表该格仅记 n/a、0 轮。行序按原表：通过组在前、失败组在后。</div>
+      <p>这道题是整份榜单的缩影：Pi 和 Claude Code 产出同一个"通过"，价格差 26 倍（90 轮 vs 381 轮，98.2% vs 15.7% 缓存命中）；DSH PTC 挂了 $12.95 的账单，比六个通过者全部都贵。如果只看 pass/fail 一列，这些差异全部不可见——<b>但它们会一分不少地出现在你的 API 月账单上。</b>Runta 同时声明：这 26 倍价差同样属于"Claude Code + K3"这个完整组合，现有数据不能拆出 Claude Code 的孤立属性。</p>
+      <div class="fh-callout eng">
+        <div class="ttl">工程化视角：内部评测至少要记录这五列</div>
+        <ol>
+          <li><b>结果、成本、轮次、缓存命中、耗时</b>——Runta 每格都存这五项，本文才能做出上面这种对比。内部评测只记 pass/fail 的团队，等于主动放弃了成本归因能力。</li>
+          <li><b>给每类任务建"每通过一题的钱"基线。</b>有了它，换 harness / 换模型 / 改 prompt 的每次决策都能折成金额对比，汇报时不再靠体感。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="fh-section alt">
+      <div class="fh-kicker">全景</div>
+      <h2 class="fh-h2">还有哪些榜能看：四家 Harness 的覆盖地图</h2>
+      <p>如果你想同时跟踪 Codex、Claude Code、OpenCode、DeepSeek 这四个名字（前三个是 harness，DeepSeek 则横跨"模型"与"DeepSeek Harness 官方 CLI"两种身份），目前值得定期看的评测如下：</p>
+      <div class="fh-tablewrap">
+        <table>
+          <tr><th>评测</th><th>出品方 / 性质</th><th>钉死了什么</th><th>换什么</th><th>Codex</th><th>Claude Code</th><th>OpenCode</th><th>DeepSeek</th></tr>
+          <tr class="hl"><td>FrontierHarness v1.0<br>frontierharness.org</td><td>Runta · 商业评测（协议开源）</td><td>模型 K3、30 任务、运行时</td><td>9 出厂 Harness · 12 配置</td><td>✓ 66.7%</td><td>✓ 63.3%</td><td>✓ 50.0%</td><td>✓ DSH 四预设</td></tr>
+          <tr><td>Terminal-Bench 排行榜<br>tbench.ai</td><td>Stanford / Harbor / Laude · 社区榜</td><td>任务集（按版本）</td><td>模型 + Harness 全开放提交</td><td>✓ 2.0 版 #4</td><td>✓ 2.0 版 #47</td><td>✓ 2.0 版 #60</td><td>△ 2.0 版仅 V3.2 模型上榜（Terminus 2）</td></tr>
+          <tr><td>Terminal-Bench 论文<br>arXiv 2601.11868</td><td>Stanford 等 44 机构 · 学术</td><td>89 任务</td><td>6 Agent × 21 模型</td><td>✓ Codex CLI 最佳 62.9%</td><td>✓</td><td>✗ 未测</td><td>✗ 未测</td></tr>
+          <tr><td>Harness-Bench<br>arXiv 2605.27922</td><td>北大 × 奇元 · 学术（本站前篇）</td><td>106 任务、预算、评估器</td><td>6 可配置 Harness × 8 模型</td><td>✓ 参考系 80.4 分</td><td>✗</td><td>✗</td><td>✓ deepseek-v4-flash 模型后端</td></tr>
+          <tr><td>The Scaffold Effect<br>arXiv 2607.22585</td><td>学术 · 受控小样本</td><td>Terminal-Bench Pro 50 任务</td><td>3 开源 Harness × 2 模型</td><td>✗</td><td>✗</td><td>✓</td><td>✗</td></tr>
+          <tr><td>HAL<br>arXiv 2510.11977</td><td>学术 · 基建型榜单</td><td>9 个基准</td><td>9 模型 × 学术 scaffold</td><td>✗</td><td>✗</td><td>✗</td><td>✓ V3 / R1 模型</td></tr>
+        </table>
+      </div>
+      <div class="src">Terminal-Bench 排行榜数字为 2026-09-14 快照：2.0 版 137 条社区提交中 Codex CLI #4（82.2%）、Claude Code #47（58.0%）、OpenCode #60（51.7%）；当前 4.0 版仅收 Codex / Claude Code / Grok Build / mini-SWE-agent 四个 Agent。HAL 的 scaffold 为学术框架（SWE-Agent、smolagent 等），不含商业 CLI。✓ = 直接被测；△ = 以模型身份被测、跑在第三方 harness 上。</div>
+      <p>除了排行榜，2026 年还有一批论文在做"harness 效应"本身：The Scaffold Effect（arXiv 2607.22585）证明同模型换三个开源 harness，通过率差 0–8 个点、<b>每解一题的 token 差最高 40 倍</b>；UnderSpecBench（arXiv 2607.02294）专测 Claude Code、Codex、OpenCode 三家在 DevOps 任务上的越界行为；Don't Blame the LLM（arXiv 2607.03691）统计五个开源 harness 的发版演化、再固定模型追踪 Qwen Code CLI 的 35 个连续版本；Harness Engineering（arXiv 2609.00006）则直接解剖 11 个 harness 的源码。方向已经收敛：<b>harness 是一个独立的、可测量的、值钱的工程变量。</b></p>
+      <div class="fh-callout eng">
+        <div class="ttl">工程化视角：看榜先问一句——它把什么钉死了</div>
+        <ul>
+          <li><b>想选 harness</b>：看钉死模型的榜（FrontierHarness），那里 harness 是唯一变量。</li>
+          <li><b>想选模型</b>：看钉死 harness 的榜（Terminal-Bench 论文恰好给出反面结论——模型换挡 +52%、换 scaffold +17%，模型杠杆更大）。</li>
+          <li><b>想算成本</b>：只信同时报"结果 + 成本 + 轮次 + 缓存"的评测。只有 pass rate 的榜，对做预算的人约等于没有信息。</li>
+          <li><b>想要全部</b>：等 FrontierHarness v1.1 的 harness × model 全矩阵——那才是这个方向的终局形态。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="fh-section">
+      <div class="fh-kicker">落地</div>
+      <h2 class="fh-h2">工程师怎么用这份榜：三个问题</h2>
+      <div class="fh-qa">
+        <div class="item">
+          <div class="q">Q1：我的场景该选谁？</div>
+          <div class="a">
+            <ul>
+              <li><b>求稳求快上手</b>：Codex——全场唯一 66.7%，且每任务 $3.47 贴近中位，Runta 给出的"安全默认"。</li>
+              <li><b>批量、重复、成本敏感</b>：Pi——60.0% + $2.43，同样 100 遍的活，账单差出几倍的场景选它。</li>
+              <li><b>预算极紧 + 可以接受重试</b>：Exo Harness——$1.05 的止损型设计，配外层重试逻辑用。</li>
+              <li><b>在意单任务时延</b>：DSH Minimal，5m 41s 全场最快；通过率比同门 Creator 低 6.6 个点（30 题单次样本，属打平档），按时延敏感度权衡。</li>
+              <li><b>注意版本时效</b>：以上结论全部绑定榜单页钉死的版本号（Codex v0.148.0、Claude Code v2.1.237 等）。这些产品迭代极快，选型前用它开源的协议在最新版上重跑一遍你的任务集。</li>
+            </ul>
+          </div>
+        </div>
+        <div class="item">
+          <div class="q">Q2：看这类榜单最常见的三个坑？</div>
+          <div class="a">
+            <ul>
+              <li><b>口径坑</b>：中位数 vs 加权数（发现 2 的 2.7 倍缺口）、每任务 vs 每成功任务（OpenCode 的幸存者偏差）。看到任何成本数字，先问分母是什么。</li>
+              <li><b>组合坑</b>：$18.34 是"Claude Code + K3"的属性，不是 Claude Code 的。跨厂组合的实际成本必须实测。</li>
+              <li><b>版本坑</b>：Don't Blame the LLM 那篇显示 harness 一天能发两版还多，任何榜单数字的保质期以周计。</li>
+            </ul>
+          </div>
+        </div>
+        <div class="item">
+          <div class="q">Q3：能拿它评测我们自己的内部 harness 吗？</div>
+          <div class="a">能，而且门槛刻意做低了。评测协议与任务定义开源在 GitHub（frontier-harness-eval/eval），仓库里带一份 SKILL.md——把地址丢给你的 agent，它会引导你选 harness、模型、任务集，检查前置条件并启动评测，最后产出质量、token 用量、成本、时延报告；也可以按仓库的手工流程自己跑。团队内部 harness、甚至同一 harness 的不同 prompt 预设，都可以进同一套协议对比——正好把发现 3 的教训用起来。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fh-section alt">
+      <div class="fh-kicker">边界</div>
+      <h2 class="fh-h2">这份结论的适用边界</h2>
+      <div class="fh-steps">
+        <div class="fh-step"><div class="n"></div><div class="t"><b>任务面窄</b>：v1.0 只覆盖软件开发与终端任务，30 题（21 Terminal-Bench + 9 DeepSWE）。Runta 自己声明不能外推到其他类型的知识工作，v1.1 计划扩任务面并做 harness × model 全矩阵。</div></div>
+        <div class="fh-step"><div class="n"></div><div class="t"><b>单格一次、无重测方差</b>：每格只跑一次是刻意的（重试是"热"的），代价是没有 run-to-run 方差可报——63.3% 与 60.0% 之间的排序，在 30 题样本下应视为"打平档"，别过度解读名次。</div></div>
+        <div class="fh-step"><div class="n"></div><div class="t"><b>出厂态、不调优</b>：各 harness 按原样参赛，内部一律不改（包括 Claude Code 的缓存策略）。所以成本差异属于"完整 harness-model 配置"，不能拆账到单一组件——这也是 Runta 在 Claude Code 25% 缓存分析里反复强调的归因警告。</div></div>
+        <div class="fh-step"><div class="n"></div><div class="t"><b>利益相关</b>：Runta 是卖 Agent 执行层的商业公司，这份榜自带获客属性——榜单页挂着 $100 体验金。但协议、任务定义与数据开源在 GitHub，方法论透明可复现，这是它比一般厂商白皮书可信的地方。数字照用，动机自知。</div></div>
+      </div>
+    </div>
+
+    <div class="fh-section">
+      <div class="fh-kicker">数据源</div>
+      <h2 class="fh-h2">本文引用来源</h2>
+      <div class="fh-src">
+        <ol>
+          <li><b>榜单主页</b>：FrontierHarness Eval v1.0 — <a href="https://frontierharness.org/" target="_blank">frontierharness.org</a>（2026-09-14 访问；主表、四 Leader、每任务成本榜、缓存榜、速度榜、被测版本号均出自此页）。</li>
+          <li><b>官方介绍文</b>：Introducing FrontierHarness Eval，Shilin Zhu &amp; Shiqi Mei，Runta Blog，2026-09-01 — <a href="https://runta.com/blog/introducing-frontierharness-eval" target="_blank">runta.com/blog/introducing-frontierharness-eval</a>（方法论、Kimi K3 选型、Claude Code 缓存分析、示例任务表、局限声明均出自此文）。</li>
+          <li><b>评测协议与任务定义（开源）</b>：<a href="https://github.com/frontier-harness-eval/eval" target="_blank">github.com/frontier-harness-eval/eval</a> — SKILL.md 引导的自评测流程与手工 walkthrough。</li>
+          <li><b>全景对比引用</b>：Terminal-Bench 论文 <a href="https://arxiv.org/abs/2601.11868" target="_blank">arXiv 2601.11868</a> 与其排行榜 <a href="https://www.tbench.ai/" target="_blank">tbench.ai</a>（2.0 / 4.0 版快照见正文注）；Harness-Bench <a href="https://arxiv.org/abs/2605.27922" target="_blank">arXiv 2605.27922</a>（本站前篇）；The Scaffold Effect arXiv 2607.22585；HAL <a href="https://arxiv.org/abs/2510.11977" target="_blank">arXiv 2510.11977</a>；UnderSpecBench arXiv 2607.02294；Don't Blame the LLM arXiv 2607.03691；Harness Engineering arXiv 2609.00006。</li>
+          <li><b>名词口径</b>：本文"Harness"的定义与争议背景见本站前篇《Harness-Bench 论文解读》。文中 DSH = DeepSeek Harness（DeepSeek 官方 CLI 编码 Agent）；PTC 为榜单对该 harness 的 code 模式配置所用的缩写。</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="fh-foot">
+      本页数据引用自 frontierharness.org（2026-09-14 快照）与 Runta 官方博客 · 转载请注明出处
+    </div>
+  </div>
+</div>
