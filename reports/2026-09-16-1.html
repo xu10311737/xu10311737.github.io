@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="解读 Nous Research 开源 Agent Hermes Agent：策展式持久记忆、渐进加载的技能系统、后台自我改进审查与全历史检索构成的四层学习系统，以及登顶 OpenRouter 用量榜背后每个工程师都能抄走的记忆工程设计。">
+  <title>Hermes Agent：把"越用越聪明"做成有预算、可审计的工程系统</title>
+  <style>
+    :root{
+      --ink:#172a33;--ink-2:#304650;--muted:#65767c;--paper:#fbfcfa;--panel:#ffffff;
+      --line:#dbe3e0;--teal:#0c7772;--teal-soft:#e2f1ee;--coral:#c76545;--coral-soft:#f8e8e1;
+      --lime:#6f7f2a;--lime-soft:#eef2d9;--navy:#102b35;--shadow:0 12px 30px rgba(16,43,53,.08);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--paper);color:var(--ink-2);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.82}
+    a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:3px}
+    a:hover{color:var(--coral)}
+    code{font:0.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:#e9efec;color:#0b5f5a;padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:16px;top:16px;z-index:20;background:#fff;padding:8px 12px;border:2px solid var(--teal)}
+    .shell{max-width:1120px;margin:0 auto;padding:0 24px}
+    .masthead{background:var(--navy);color:#f4f7f3;border-bottom:5px solid var(--coral)}
+    .masthead .shell{padding-top:20px;padding-bottom:58px}
+    .meta-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#b8c9c6;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+    .meta-row .date{color:#f2c2ad}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:48px;align-items:end;margin-top:52px}
+    h1,h2,h3{color:var(--ink);line-height:1.25;margin:0;font-weight:750}
+    h1{color:#f9fbf6;font-size:clamp(2.35rem,5vw,4.8rem);letter-spacing:-.03em;max-width:850px}
+    .dek{color:#d1dfdb;font-size:1.16rem;max-width:760px;margin:22px 0 0}
+    .signal{border-left:2px solid var(--coral);padding:4px 0 4px 20px;color:#f5dfd5;font-size:14px}
+    .signal b{display:block;color:#fff4ef;font-size:17px;margin-bottom:5px}
+    .toc{position:sticky;top:0;z-index:5;background:rgba(251,252,250,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+    .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px}
+    .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
+    main{padding-bottom:80px}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
+    .section.alt{background:#f1f5f1;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding-left:max(24px,calc(50vw - 536px));padding-right:max(24px,calc(50vw - 536px))}
+    .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);margin-bottom:10px}
+    h2{font-size:clamp(1.7rem,3vw,2.5rem);max-width:860px}.intro{font-size:1.08rem;max-width:820px;margin:16px 0 30px;color:var(--ink-2)}
+    h3{font-size:1.2rem;margin-bottom:8px}.section p{max-width:860px;margin:0 0 18px}.section p:last-child{margin-bottom:0}
+    .tldr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+    .tldr article{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--teal);padding:18px 18px 20px;min-height:174px;box-shadow:var(--shadow)}
+    .tldr article:nth-child(2){border-top-color:var(--coral)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:#8b6389}
+    .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
+    .factline{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:22px 0 0;color:var(--muted);font-size:13px}.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:800;letter-spacing:.05em}.fact{background:var(--teal-soft);color:var(--teal)}.inference{background:var(--coral-soft);color:#9d4b31}
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:0 7px 20px rgba(16,43,53,.05)}
+    .panel h3{display:flex;gap:10px;align-items:baseline}.panel .mark{color:var(--coral);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}.panel ul,.panel ol{margin:10px 0 0;padding-left:22px}.panel li{margin:7px 0;font-size:15px}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}.flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);position:relative}.flow .node:last-child{border-right:0}.flow .node:not(:last-child)::after{content:"";position:absolute;right:-9px;top:52px;width:16px;height:16px;border-top:2px solid var(--coral);border-right:2px solid var(--coral);transform:rotate(45deg);background:#fff;z-index:1}.flow .k{display:block;color:#b0512f;font:700 12px Georgia,serif;margin-bottom:9px}.flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .code{background:#162e37;color:#dce9e5;padding:20px 22px;overflow:auto;border-left:4px solid var(--coral);font:13px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;margin:20px 0;white-space:pre-wrap;overflow-wrap:anywhere}.code .key{color:#f4b79f}
+    .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:900px}.callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.coral{border-left-color:var(--coral);background:var(--coral-soft)}
+    .table-wrap{overflow-x:auto;margin-top:26px;border:1px solid var(--line);background:#fff}.compare{width:100%;min-width:1020px;border-collapse:collapse;font-size:14px}.compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}.compare th{background:var(--navy);color:#f5faf7;font-size:13px}.compare tr:last-child td{border-bottom:0}.compare td:first-child{font-weight:750;color:var(--ink);width:13%}.compare td:nth-child(2){background:#f4faf7}.compare td:nth-child(3){background:#fff8f3}.compare td:nth-child(4){background:#f7f8fb}.compare td:nth-child(5){background:#f8f6ee}.compare td:nth-child(6){background:#f4f4fa}.compare th:first-child,.compare td:first-child{position:sticky;left:0}.compare td:first-child{background:#fff;border-right:1px solid var(--line)}
+    .steps{counter-reset:step;display:grid;gap:13px;margin-top:28px}.step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px}.step::before{content:counter(step,decimal-leading-zero);color:var(--coral);font:700 23px Georgia,serif;padding-top:2px}.step h3{font-size:17px}.step p{font-size:15px;margin:5px 0 0}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:25px}.metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line)}.metric:nth-child(2){border-top-color:var(--coral)}.metric:nth-child(3){border-top-color:var(--lime)}.metric b{display:block;color:var(--ink);font-size:15px}.metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-top:28px}.risk{padding:18px 20px;background:#fff;border:1px solid var(--line)}    .risk h3{font-size:16px}.risk p{font-size:14px;margin:6px 0 0}.risk .level{font-size:11px;font-weight:800;letter-spacing:.1em;color:#b0512f}.risk .level.mid{color:#8a6d3b}
+    .sources{display:grid;gap:10px;margin-top:25px}.source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px}.source .n{color:var(--coral);font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}.source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
+    .footer{color:var(--muted);font-size:13px;padding-top:28px}.footer strong{color:var(--ink)}
+    @media (max-width:820px){.hero-grid{grid-template-columns:1fr;gap:24px;margin-top:38px}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.split,.risk-grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{right:auto;top:auto;bottom:-9px;left:50%;transform:rotate(135deg);background:#fff}.section{padding:48px 0}.section.alt{padding-left:24px;padding-right:24px}}
+    @media (max-width:520px){.shell{padding-left:17px;padding-right:17px}.masthead .shell{padding-bottom:42px}.meta-row{align-items:flex-start;flex-direction:column;gap:4px}.tldr{grid-template-columns:1fr}.tldr article{min-height:auto}.section.alt{margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding-left:17px;padding-right:17px}.step{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:16px}.toc .shell{gap:16px}.compare{min-width:900px}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="shell">
+      <div class="meta-row"><span>人工智能（AI）工程技术日报 / 研究与判断</span><span class="date">2026-09-16 · ISSUE 03</span></div>
+      <div class="hero-grid">
+        <div>
+          <h1>Hermes Agent：把"越用越聪明"做成有预算、可审计的工程系统</h1>
+          <p class="dek">Nous Research 的开源 Agent 在 OpenRouter（第三方模型 API 聚合网关：统一接入各家大模型、按 token 用量计费，并按"经其路由的消耗量"发布应用用量排行）应用用量榜登顶：约 1.57 万亿 token（token 是大模型处理文本的计量单位），约为第二名 Claude Code 的两倍。它的差异化不在模型更强，而在把"从经验中学习"拆成了四层子系统——策展式持久记忆、渐进加载的技能、后台自我改进审查、全历史全文检索——每一层都自带容量预算、审批门控与安全扫描。</p>
+        </div>
+        <div class="signal"><b>先给结论</b>记忆不是堆得越多越好，而是"策展"出来的：字符上限逼迫 Agent 自己合并删除；后台审查在便宜模型上提炼经验；审批门控让"AI 写进你画像里的每一句话"都要过你的手。对做 Agent 系统的工程师，这套学习回路加治理的设计，比登顶数字本身更值得抄作业。</div>
+      </div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="文章目录">
+    <div class="shell"><a href="#tldr">TL;DR（太长不看）</a><a href="#problem">背景与问题</a><a href="#principle">核心原理</a><a href="#difference">创新与差异</a><a href="#compare">竞品对比</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+  <main id="content">
+    <section class="section" id="tldr">
+      <div class="shell">
+        <div class="label">01 / Decision brief</div>
+        <h2>TL;DR（太长不看）：一个把"自我改进"当第一等系统来设计的开源 Agent</h2>
+        <div class="tldr">
+          <article><span class="num">01 / WHAT</span><h3>发生了什么</h3><p>Nous Research 的开源 Agent 项目 Hermes Agent（GitHub 仓库 NousResearch/hermes-agent，MIT 许可证）在 OpenRouter 应用用量榜（数据截至 2026-09-14）以约 1.57 万亿 token 居首，约为第二名 Claude Code（约 7140 亿）的两倍；仓库约 24.6 万 star。</p></article>
+          <article><span class="num">02 / WHY</span><h3>解决谁的问题</h3><p>主流 Agent 每次会话从零开始，经验无法沉淀；人工维护的规则文件（如 CLAUDE.md）更新靠人。Hermes 把"学到什么、怎么存、何时用、谁批准"做成自动运转又可人工治理的子系统。</p></article>
+          <article><span class="num">03 / HOW</span><h3>核心机制</h3><p>四层学习系统：MEMORY.md/USER.md 策展式记忆（硬容量上限）、SKILL.md 技能库（渐进式披露按需加载）、每轮结束后的后台自我改进审查（可路由到便宜模型）、SQLite 全文检索全部历史会话。</p></article>
+          <article><span class="num">04 / SHIP</span><h3>生产判断</h3><p>个人助理与团队自动化场景当下可用（5 美元档 VPS——虚拟专用服务器，按月租用的云端小主机——即可运行，经 Telegram 等消息平台交互）；审批门控默认关闭，接到生产凭据域前必须显式打开；用量榜单名不等于用户量第一。</p></article>
+        </div>
+        <div class="factline"><span class="tag fact">来源事实</span><span>OpenRouter 排行页（数据截至 2026-09-14）与 GitHub 仓库页（数据截至 2026-09-16）显示上述用量与热度数据；记忆容量、审批门控、后台审查等机制描述均转写自官方文档（来源 02–04）。</span><span class="tag inference">本文推断</span><span>用量登顶与其"常驻网关"形态直接相关——持续在线、定时任务、多平台转发天然放大 token 消耗，榜单证明的是"运行量"而非"用户数"。</span></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="problem">
+      <div class="shell">
+        <div class="label">02 / Background</div>
+        <h2>背景与问题：Agent 的下一个战场，是"经验能不能留下来"</h2>
+        <p class="intro">过去两年，Agent（能自主调用工具、连续多步完成任务的 AI 程序）的能力边界由两样东西决定：模型有多聪明，工具有多齐全。2026 年这两样都在快速同质化——模型层各家互相追赶，工具层 MCP（Model Context Protocol，一个把外部能力以标准接口挂给模型的协议生态）让"能调多少 API"不再是壁垒。剩下的差异化变量是：这个 Agent 用了一个月之后，和第一天有什么不同。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>旧方式：经验留不下来</h3><p>多数 Agent 每次会话从零开始。用户想留下点什么，主要靠两条路：<strong>人工规则文件</strong>——在仓库里手写 CLAUDE.md、AGENTS.md 这类说明文件，把"我们团队的约定"喂给模型，但内容全靠人更新；<strong>厂商托管的记忆</strong>——ChatGPT、Copilot 等产品的 Memory 功能能记住偏好，但记忆存在厂商服务器、不可导出不可审计、换模型即失效。两条路的共同问题：学习这个动作本身，要么由人完成，要么被厂商锁定。</p><ul><li>规则文件不会自己生长：犯过的错、摸索出的流程，下次会话照犯照摸。</li><li>托管记忆是黑盒：用户看不到、也管不了 AI 记了自己什么。</li><li>长会话的隐性成本：对话越长，压缩越频繁，费用随历史线性上涨。</li></ul></div>
+          <div class="panel"><h3><span class="mark">B</span>为什么此时出现 Hermes Agent</h3><p>同期信号密集：Hugging Face 论文页上 Prime Agent（自我改进 harness——harness 指包裹模型、供其运行并沉淀经验的执行环境——约 2.08 万 star）、NeoHorse-1（414 票，递归自我改进）、Microsoft SkillOpt（把技能当外部状态优化的文本空间优化器）等工作连续上榜；OpenAI 与 Anthropic 各自经营 skills 目录；记忆中间件 Mem0 论文长期位居引用榜。本文推断，行业共识正在形成：<strong>"会学习"应当成为 Agent 的系统属性，而不是提示词技巧</strong>。Hermes Agent 把这件事推得最远——它直接自称"the self-improving AI agent"（自我改进的 AI Agent），并把学习循环写进了产品标语"the agent that grows with you"（与你一起成长的 Agent）。</p></div>
+        </div>
+        <div class="callout"><p><strong>判断边界：</strong>本文不评测"它学得准不准"——那需要长期实测；本文回答的是"它把学习做成了什么样的系统，这个设计里哪些是可迁移的"。全部能力描述来自官方文档与仓库页面，未包含作者实测数据。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="principle">
+      <div class="shell">
+        <div class="label">03 / Mechanism</div>
+        <h2>核心原理：四层学习系统，每层都有预算、门控和扫描</h2>
+        <p class="intro">Hermes Agent 对"学习"的拆解不是一句提示词里的"请记住用户的偏好"，而是四层职责清晰的子系统：陈述性记忆（记住事实）、程序性技能（记住怎么做）、后台审查（决定值得记什么）、历史检索（记不全的查得到）。它运行在自有主目录（<code>~/.hermes/</code>）中，一个网关进程同时接入 Telegram、Discord、Slack、WhatsApp、Signal 等消息平台与命令行。</p>
+        <div class="flow" role="group" aria-label="Hermes Agent 学习循环流程">
+          <div class="node"><span class="k">01 / START</span><b>会话开始：注入冻结快照</b><small>MEMORY.md 与 USER.md 的当前内容在会话开始时一次性注入 system prompt（系统提示词，每次对话固定开头的指令块），会话中途不再变化——以保住前缀缓存（prefix cache：请求开头不变时，服务商可复用已算好的部分，降费提速）。</small></div>
+          <div class="node"><span class="k">02 / WORK</span><b>工作中：技能按需加载</b><small>技能目录只占约 3k token 的索引位；用到哪个技能，才加载哪份全文，进一步展开参考文件。</small></div>
+          <div class="node"><span class="k">03 / BOUNDARY</span><b>会话边界：/new 开新会话</b><small>记忆的价值在旧会话结束时兑现：新会话重新读取更新后的记忆，上下文从零开始、保持便宜。</small></div>
+          <div class="node"><span class="k">04 / REVIEW</span><b>后台审查：回放提炼</b><small>每轮结束后派生一个后台分支，回放对话，把反复出现的纠正与可复用流程提炼成记忆条目或技能补丁。</small></div>
+          <div class="node"><span class="k">05 / GOVERN</span><b>治理：扫描与审批</b><small>写入前扫描注入与外泄模式；开启审批门控后，一切记忆与技能写入先暂存，经 /memory pending 逐条批准或拒绝。</small></div>
+        </div>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">01</span>陈述性记忆：策展，而非堆砌</h3><p>两个文件构成持久记忆：<strong>MEMORY.md</strong>（Agent 的个人笔记——环境事实、项目约定、踩过的坑）上限 2200 字符（约合 800 token）；<strong>USER.md</strong>（用户画像——偏好、沟通风格）上限 1375 字符（约 500 token）。这个上限是硬约束：写入超限时工具<strong>直接报错</strong>，把现有条目列表回显给 Agent，要求它在同一回合内先合并（replace）或删除（remove）旧条目，腾出空间再重试——系统不做自动压缩。官方文档明确了这样设计的动机：记忆要"聚焦"，被迫取舍本身就是学习的一部分。系统提示词中还会显示容量水位（如"67% — 1474/2200 chars"），让 Agent 始终知道自己还剩多少"记性"。</p></div>
+          <div class="panel"><h3><span class="mark">02</span>程序性技能：渐进式披露</h3><p>技能（Skills）是按需加载的操作手册，每个技能是一个 <code>SKILL.md</code> 文件加可选的参考目录，兼容 agentskills.io 开放标准。加载分三级：第 0 级技能索引（名称+描述，整体约 3k token）常驻；第 1 级按需读入某个技能全文；第 2 级再按需读参考文件。Agent 通过 <code>skill_manage</code> 工具维护自己的技能库：闯出一条多步流程、踩坑后找到正确路径、被用户纠正做法时，就把经验写成技能。文档把两者的分工讲得很清楚：<strong>记忆存"应始终在场的小事实"，技能存"只在相关时才加载的长流程"</strong>。</p></div>
+        </div>
+        <pre class="code" aria-label="记忆注入与满载报错（转写自官方文档，非本文实测输出）"><span class="key"># 会话开始时，记忆以冻结块注入 system prompt（格式转写自官方文档）
+</span>MEMORY (your personal notes) [67% — 1,474/2,200 chars]
+User's project is a Rust web service at ~/code/myapi using Axum + SQLx § This machine runs Ubuntu 22.04, has Docker and Podman installed § User prefers concise responses
+
+<span class="key"># 容量满时，memory 工具返回错误而非静默丢弃（转写自官方文档）
+</span>{ "success": false,
+  "error": "Memory at 2,100/2,200 chars. Adding this entry (250 chars) would exceed
+            the limit. Consolidate now: use 'replace' to merge overlapping entries
+            or 'remove' stale ones, then retry this add — all in this turn.",
+  "current_entries": ["..."], "usage": "2,100/2,200" }</pre>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">03</span>后台自我改进审查：学习的自动化引擎</h3><p>每轮对话结束后，Hermes 派生一个后台分支（fork）回放整段对话，判断有没有值得留下的东西：反复的纠正提炼成记忆条目，可复用的工作流提炼成技能补丁。三个工程细节值得注意：<strong>成本路由</strong>——审查可配置到更便宜的模型上运行，此时改用对话摘要（digest）重放，官方基准约为在主模型上运行成本的 1/3 至 1/5；<strong>本地推理的谦让</strong>——审查若占用本地 GPU 会阻塞下一次提问，因此在托管本地模型上默认延迟到机器空闲时执行；<strong>双门控</strong>——<code>memory.write_approval</code> 与 <code>skills.write_approval</code> 打开后，来自前台对话与后台审查的一切写入都会先暂存（staged），经 <code>/memory pending</code>、<code>/skills pending</code> 逐条审阅后批准或拒绝。官方称这套设计为"consent-aware learning loop"（知情的、经同意的学习循环）。</p></div>
+          <div class="panel"><h3><span class="mark">04</span>历史检索：记不全的，查得到</h3><p>记忆容量有上限，但全部会话原文都存进本地 SQLite 数据库（<code>~/.hermes/state.db</code>），用 FTS5（SQLite 的全文检索扩展）建索引。Agent 用 <code>session_search</code> 工具检索过往对话：官方文档给出的量级是检索约 20 毫秒、滚动浏览约 1 毫秒，且<strong>不消耗任何模型 token</strong>——这是"上周我们讨论过 X 吗"这类问题的免费回答通道。它与记忆的分工：记忆约 1300 token 固定注入每个会话、承载关键事实；检索零成本、承载无限历史。两者合起来，才是完整的"长期记忆"。</p></div>
+        </div>
+        <div class="callout coral"><p><strong>一个反直觉的设计权衡：</strong>学习循环依赖"会话边界"。在消息平台上，一段聊天被刻意设计为跨重启的连续会话，可以数周不中断——方便，但后台记忆更新因冻结快照而对进行中的会话不可见，"遗忘→从记忆回忆→检索历史"的循环几乎不会触发，且上下文压缩要在一个越来越长的历史上反复运行、越来越贵。官方文档因此给出明确建议：在任务完成、话题切换、一天开始时主动 <code>/new</code>。会话越连续，Agent 越"失忆"；边界越清晰，Agent 越聪明。这与直觉相反——按本文分析，这正是这套系统成本结构的关键。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="difference">
+      <div class="shell">
+        <div class="label">04 / What changed</div>
+        <h2>真正的创新在哪里：把"自我改进"从行为变成协议</h2>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">01</span>学习是系统属性，不是提示词技巧</h3><p>多数产品的"记忆"是一层中间件：捕获对话、抽取事实、检索注入。Hermes 的差异在于让 Agent <strong>自己</strong>持有写权限（memory 与 skill_manage 是模型可调用的工具），同时给这个写权限配上完整治理——容量预算、内容扫描（记忆写入前检测提示词注入——prompt injection，把恶意指令藏进内容、诱导模型执行的攻击——以及凭据外泄与不可见 Unicode 字符模式）、暂存审批、可视化修剪（<code>/journey</code> 命令把学到的技能与记忆画成时间线，逐条可删可改）。在公开产品中，如此完整的自我改进治理面尚属少见（本文判断）。</p></div>
+          <div class="panel"><h3><span class="mark">02</span>"学到什么"与"写下什么"被显式分离</h3><p>学习动作拆成两段：判断（后台审查回放对话、提炼候选）与落笔（经门控写入记忆或技能）。两段之间是人可以介入的审查位。这正是自我改进类系统最难的一环——不是让 AI 学得快，而是让<strong>错误的学不被固化</strong>。小模型容易把一次巧合当规律、把用户的情绪当偏好写进画像；审批门控把这个风险从"事后发现"变成"事前拦截"。</p></div>
+          <div class="panel"><h3><span class="mark">03</span>记忆经济学被精确到 token</h3><p>每个数字都有据可查：记忆注入固定约 1300 token；技能索引约 3k token；历史检索零 token、20 毫秒；后台审查路由到便宜模型，可把这部分成本降至主模型运行成本的约 1/3 至 1/5；冻结快照保住前缀缓存。"记忆"在这套设计里不是玄学，是一张有预算的资产负债表。</p></div>
+          <div class="panel"><h3><span class="mark">04</span>开放生态位：可换模型、可迁移、可扩展</h3><p>模型无关——通过 Nous Portal（官方订阅网关，300 余个模型）、OpenRouter、OpenAI 或自建端点接入，<code>hermes model</code> 一条命令切换；技能生态八源并行——官方目录、skills.sh（Vercel 运营的技能目录）、站点自述文件（well-known）机制、GitHub 直装（默认收录 openai/skills、anthropics/skills、huggingface/skills、NVIDIA/skills 四个官方仓库）、ClawHub、LobeHub、browse.sh 与任意 URL，全部经安全扫描，并可选挂 NVIDIA SkillEvaluator 做第二道咨询性扫描；从另一个开源个人 Agent 项目 OpenClaw 提供一键迁移（<code>hermes claw migrate</code>），连人格文件 SOUL.md、记忆、技能、密钥都能搬走。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="compare">
+      <div class="shell">
+        <div class="label">05 / Landscape</div>
+        <h2>竞品对比：记忆能力的光谱</h2>
+        <div class="table-wrap">
+          <table class="compare">
+            <thead><tr><th scope="col">维度</th><th scope="col">Hermes Agent</th><th scope="col">Claude Code</th><th scope="col">DeepSeek Harness（dsh）</th><th scope="col">托管消费级记忆（如 ChatGPT Memory）</th><th scope="col">记忆中间件（如 Mem0）</th></tr></thead>
+            <tbody>
+              <tr><td>形态定位</td><td>个人/团队常驻 Agent，消息平台网关+命令行</td><td>终端编码 Agent（闭源）</td><td>插件化 Agent 框架（开发者预览）</td><td>厂商应用内功能</td><td>嵌入自建 Agent 的记忆库/服务</td></tr>
+              <tr><td>记忆机制</td><td>MEMORY.md/USER.md 策展式持久记忆+FTS5 全历史检索，Agent 自主读写</td><td>人工维护的规则文件（CLAUDE.md 等）</td><td>会话日志为模型上下文唯一来源，可回放重建</td><td>厂商服务端托管，自动抽取</td><td>自动抽取、图记忆、检索注入，由宿主 Agent 调用</td></tr>
+              <tr><td>学习循环</td><td>后台审查自动提炼记忆与技能；写入可门控审批</td><td>无自动学习（规则文件靠人更新）</td><td>非其核心卖点（核心是插件可替换性）</td><td>自动记忆，无用户可审的逐条门控</td><td>提供"记"的管道，"学什么"由宿主决定</td></tr>
+              <tr><td>记忆可治理性</td><td>容量上限+水位显示+暂存审批+/journey 逐条修剪+写入前安全扫描</td><td>用户直接编辑文件</td><td>日志格式带代际与迁移链，可审计</td><td>黑盒：不可导出、逐条管控能力有限</td><td>取决于宿主集成</td></tr>
+              <tr><td>模型绑定</td><td>无关（多供应商一键切换）</td><td>绑定 Anthropic 模型</td><td>模型适配器可插拔</td><td>绑定厂商模型</td><td>模型无关</td></tr>
+              <tr><td>开源/自托管</td><td>MIT，约 24.6 万 star，本地主目录全量数据</td><td>否</td><td>MIT，约 22.5 万 star</td><td>否</td><td>开源（各有许可）</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="intro" style="margin-top:22px">从光谱看：托管记忆赢在零门槛、输在不可治理；记忆中间件赢在可集成、输在"学什么"没有自主引擎；规则文件赢在完全可控、输在不会自己生长。Hermes 的位置是把"自动学习"与"逐条治理"强行焊在一起——两个优点此前很少同时出现在一个产品里（本文推断）。</p>
+        <div class="metric-grid">
+          <div class="metric"><b>约 1.57 万亿 token</b><span>OpenRouter 应用用量榜第一（数据截至 2026-09-14），约为第二名 Claude Code（约 7140 亿）的两倍、第三名梯队编码客户端的三倍以上。</span></div>
+          <div class="metric"><b>约 24.6 万 star / 5.13 万 fork</b><span>GitHub 仓库页 2026-09-16 数据，超过同期热度最高的其他 Agent 项目；35400 余次提交显示高频迭代。</span></div>
+          <div class="metric"><b>约 1300 token</b><span>每个会话为全部持久记忆支付的固定注入成本；历史检索另计为零——20 毫秒级 FTS5 查询不产生模型调用。</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="production">
+      <div class="shell">
+        <div class="label">06 / Engineering</div>
+        <h2>工程化视角：三个生产问题</h2>
+        <div class="split">
+          <div class="panel"><h3>问题一：今天就能用在生产里的是什么？</h3><p><strong>个人与团队的常驻助理 + 无人值守自动化。</strong>5 美元档 VPS 即可运行；一个网关进程同时在线 Telegram、Discord 等多个平台；内置 cron（沿用至今的 Unix 定时任务机制）调度器用自然语言定义"每天早上汇总新闻""每周审计一次依赖"这类任务，按计划送达任意平台。团队场景可把 <code>skills.create_dir</code> 指向一个 Git 仓库，让 Agent 创造的技能自动进入版本管理与代码评审。多步重复任务还能写成 Python 脚本经 RPC（远程过程调用，像调用本地函数一样使用远端功能）调用工具，把长流程折叠成零上下文成本的回合。</p></div>
+          <div class="panel"><h3>问题二：什么时候不该用它？</h3><p><strong>要求行为确定、可复现的场景慎用。</strong>自我改进意味着行为会漂移：今天跑通的流程，后台审查改写技能后明天可能不同。两个前置动作：接入生产凭据前打开两个审批门控（默认是关闭的），把一切写入置于人工审阅之下；对"每一步必须可审计"的流程，用 <code>auxiliary.background_review.enabled: false</code> 关闭自动学习，仅保留人工 <code>/refine</code>。另外官方文档明确警告：不要让两个 Agent 进程指向同一个主目录——两个写入者会互相污染记忆状态。</p></div>
+          <div class="panel"><h3>问题三：成本结构长什么样？</h3><p>四块：<strong>基础设施</strong>——低至 5 美元 VPS；七种执行后端里的 Modal、Daytona 提供"闲时休眠"的按需计费，空闲近乎零成本；<strong>模型调用</strong>——主要变动成本，后台审查路由到便宜模型，可把这部分成本降至主模型运行成本的约 1/3 至 1/5，本地模型则把审查延迟到 GPU 空闲；<strong>记忆固定开销</strong>——每会话约 1300 token 注入，冻结快照设计保住前缀缓存折扣；<strong>会话管理</strong>——消息平台上的连续会话若数周不 <code>/new</code>，压缩成本会随历史增长反复累积，这是最容易被忽视的一项。</p></div>
+          <div class="panel"><h3>部署边界提示</h3><p>官方对 Windows 提供原生 PowerShell 安装（自带隔离的便携 Git Bash 与 uv 包管理器，不污染系统环境），并诚实写明了杀毒软件误报 uv.exe 的验证与白名单步骤——这类细节是判断一个开源项目工程成熟度的好信号。安全面：记忆写入前的注入/外泄模式扫描、技能安装的强制扫描加咨询性二次扫描、项目级技能需显式 trust，构成了纵深防御的雏形；但 <code>--force</code> 可越过"警告"级拦截，说明最终防线仍是运维者自己。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="risk">
+      <div class="shell">
+        <div class="label">07 / Risks</div>
+        <h2>局限与风险：登顶数字之外必须看清的事</h2>
+        <div class="risk-grid">
+          <article class="risk"><span class="level">高</span><h3>用量第一不等于用户第一</h3><p>榜单统计的是经 OpenRouter 路由的 token 消耗量。Hermes 的形态——常驻网关、定时任务、多平台长会话——天然放大单用户消耗。1.57 万亿 token 证明"它在真实大规模运行"，不能直接推出"它是最受欢迎的 Agent"。本文推断编码类客户端的单用户用量远低于常驻助理。</p></article>
+          <article class="risk"><span class="level">高</span><h3>审批门控默认关闭</h3><p>"自由写入"是出厂默认。这意味着多数用户的后台审查在无人监督下持续改写记忆与技能。错误假设一旦写入 USER.md（用户画像），会在之后每个会话的 system prompt 里反复生效——画像污染是自我改进系统特有的复合风险。开箱即用与安全默认之间，Hermes 选择了前者。</p></article>
+          <article class="risk"><span class="level mid">中</span><h3>学习质量依赖审查模型</h3><p>官方未公布"审查提炼准确率"的系统性评测；为省钱把审查路由到小模型时，误学概率上升（文档也建议小模型用户开启写入审批）。学到错误经验的 Agent 会在错误方向上持续自我强化——反例验证（构造已知应拦截的错误学习样本）目前完全依赖用户自己。</p></article>
+          <article class="risk"><span class="level mid">中</span><h3>供应链面在快速扩张</h3><p>八条技能来源（其中 ClawHub、LobeHub 为无人工审核的社区市场）意味着攻击面同步扩张。扫描体系（强制扫描+SkillEvaluator 咨询扫描+dangerous 不可强制覆盖）设计认真，但 PII（个人身份信息）类发现被定位为"仅供参考"、部分拦截可被 <code>--force</code> 越过。项目级技能随 git pull 变化的信任缝隙，靠内容哈希扫描缓存来弥补。</p></article>
+          <article class="risk"><span class="level mid">中</span><h3>画像数据的隐私面</h3><p>USER.md 存的是用户行为画像，且经网关同步到 Telegram、Discord 等第三方平台。数据在本地主目录（这一点优于托管方案），但平台链路上的暴露面需要使用者自行评估；write_approval 与 /journey 修剪是仅有的治理工具。</p></article>
+          <article class="risk"><span class="level mid">中</span><h3>反直觉的运维要求</h3><p>学习循环依赖用户主动创造会话边界。多数用户不知道"长聊天会阻止 Agent 学习"这件事——产品把成本与学习效果的最大杠杆，放在了一个用户最不容易意识到的地方。</p></article>
+        </div>
+        <div class="callout coral"><p><strong>安全结论：</strong>把自我改进系统接入生产域的正确顺序是：先开两个审批门控，再接入凭据，最后才放定时任务。在通过你自己的错误学习样本验证之前，不要假设后台审查"学得对"。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="future">
+      <div class="shell">
+        <div class="label">08 / Outlook</div>
+        <h2>未来方向：学习闭环的尽头是训练数据</h2>
+        <div class="split">
+          <div class="panel"><h3>技能互操作：agentskills.io 成行业公约？</h3><p>同一份 SKILL.md 规范，Hermes 官方声明兼容（见来源 04）；OpenAI 与 Anthropic 各自经营以 SKILL.md 为载体的官方技能目录（见来源 04 的 GitHub 直装来源清单），Vercel 运营 skills.sh 目录。当"技能"成为跨 Agent 通用资产，写一次技能处处可用的网络效应会把标准固化——本文推断，2026 年内 SKILL.md 的地位大概率接近当年 Dockerfile 之于容器。</p></div>
+          <div class="panel"><h3>单 Agent 的经验，如何变成模型的能力</h3><p>Hermes 仓库明示了研究出口：批量轨迹生成（batch trajectory generation）与轨迹压缩（trajectory compression），用于训练下一代工具调用模型。这条路径值得所有 Agent 团队注意——运行中沉淀的高质量"任务-尝试-修正-成功"轨迹，正是后训练（post-training）最贵的数据。<strong>学习闭环的终点不是更聪明的个体 Agent，而是把众多个体的经验蒸馏进模型本身。</strong></p></div>
+          <div class="panel"><h3>记忆治理将成为标配功能</h3><p>同期 Anthropic 发布 containment（遏制）工程文章、各厂商密集讨论 AI 安全标准组织（AIbase 报道），行业对"AI 自主行为"的治理共识在收敛。本文推断：水位显示、暂存审批、逐条修剪、写入扫描这套"记忆治理四件套"，会从 Hermes 的差异化特性变成用户对一切记忆功能的默认期望。</p></div>
+          <div class="panel"><h3>商业闭环：网关+订阅</h3><p>Nous Portal 把 300 余个模型与搜索、图像、语音、云浏览器等工具网关打包进单一订阅，本文推断其商业逻辑与用量登顶互为因果：低门槛入口带来运行量，运行量反哺订阅收入。开源主体+托管增值的组合，正在成为独立 AI 实验室的标准生存结构。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="takeaways">
+      <div class="shell">
+        <div class="label">09 / Takeaways</div>
+        <h2>工程师可以借鉴什么</h2>
+        <div class="steps">
+          <article class="step"><div><h3>给记忆设预算，而不是给记忆加容量</h3><p>Hermes 最反常识的一招是"记性小"：2200 字符上限加满载报错，逼 Agent 在写入前合并、删除、取舍。堆容量只会让记忆变成没人读的垃圾抽屉；设预算才会让留下来的每一条值钱。你自己的 Agent 系统里，记忆有没有预算？</p></div></article>
+          <article class="step"><div><h3>把"学到什么"和"写下什么"分开，中间放审批</h3><p>判断与落笔分离，学习流水线才有可插入的人工审查位。哪怕你的系统没有后台审查，也值得预留 staged writes（暂存写入）的接口——今天暂存的是记忆条目，明天可能就是会改动生产配置的技能。</p></div></article>
+          <article class="step"><div><h3>冻结快照 + 会话边界，是记忆的经济学基础</h3><p>记忆注入只在会话开始时发生、中途不变，保住前缀缓存；会话边界让每段工作从便宜的短上下文开始，学习循环（遗忘→回忆→检索）才有机会运转。长会话看似连续高效，实际同时牺牲了费用与学习——这个权衡值得写进每一个长任务的运维手册。</p></div></article>
+          <article class="step"><div><h3>检索代替堆积：让历史零成本可查</h3><p>FTS5 全文检索约 20 毫秒、零 token 成本，让 Agent 不必把一切都塞进上下文。判断标准很简单：这条信息是"每个回合都要在场"（进记忆），还是"偶尔需要查证"（进检索层）？绝大多数"记忆需求"其实是检索需求（本文判断，非统计结论）。</p></div></article>
+        </div>
+        <div class="factline"><span class="tag inference">本文判断</span><span>如果你正在搭 Agent 系统，Hermes 的记忆与技能文档比它的排行榜数字更值得精读——四层设计里每一条容量数字与门控开关都是可以直接抄走的工程决策；如果你只是选一个常驻个人助理，先打开审批门控再交给它凭据。</span></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="sources">
+      <div class="shell">
+        <div class="label">10 / Sources</div>
+        <h2>数据源</h2>
+        <p class="intro">本节区分来源事实与本文推断。核心事实来自 OpenRouter 排行页、Hermes Agent 官方文档与 GitHub 仓库，数据截至 2026-09-16（Asia/Shanghai）。</p>
+        <div class="sources">
+          <article class="source"><span class="n">01</span><p><strong>OpenRouter Rankings</strong> · 应用用量榜（数据截至 2026-09-14）<small>应用榜：Hermes Agent 约 1.57 万亿 token 居首，Claude Code 约 7140 亿、Kilo Code 约 4740 亿、Cline 约 4070 亿、Codex 约 2520 亿；模型榜与评测数据用于交叉参照。榜单为经其路由的 token 消耗量口径。<br><a href="https://openrouter.ai/rankings" target="_blank" rel="noopener">https://openrouter.ai/rankings</a></small></p></article>
+          <article class="source"><span class="n">02</span><p><strong>NousResearch/hermes-agent</strong> · GitHub · 数据截至 2026-09-16：约 24.6 万 star、约 5.13 万 fork、35400 余次提交，MIT 许可证<small>README：自我改进定位、四层学习循环概述、多平台网关、七种执行后端、Nous Portal、OpenClaw 迁移、Windows 原生安装与 uv 误报说明、研究出口（批量轨迹生成与轨迹压缩）。<br><a href="https://github.com/NousResearch/hermes-agent" target="_blank" rel="noopener">https://github.com/NousResearch/hermes-agent</a></small></p></article>
+          <article class="source"><span class="n">03</span><p><strong>Persistent Memory</strong> · Hermes Agent 官方文档<small>MEMORY.md/USER.md 容量上限与水位、冻结快照模式、满载报错与同回合合并要求、会话边界与学习循环的关系、session_search 与 FTS5 成本量级、后台审查的成本路由/digest 重放/本地延迟、write_approval 与 /memory pending 审批流、记忆写入安全扫描、/journey 学习历程可视化、外部记忆供应商清单（Honcho、Mem0 等 8 家）。<br><a href="https://hermes-agent.nousresearch.com/docs/user-guide/features/memory" target="_blank" rel="noopener">https://hermes-agent.nousresearch.com/docs/user-guide/features/memory</a></small></p></article>
+          <article class="source"><span class="n">04</span><p><strong>Skills System</strong> · Hermes Agent 官方文档<small>渐进式披露三级加载与索引成本、SKILL.md 格式与 agentskills.io 兼容、/learn 学习命令与知识库技能、skill_manage 六动作、技能写入审批门控、八条技能来源与信任分级（含 GitHub 直装默认收录 anthropics/skills 等官方仓库）、安全扫描与 NVIDIA SkillEvaluator 咨询扫描、项目级技能 trust 机制、外部技能目录与 create_dir 重定向。<br><a href="https://hermes-agent.nousresearch.com/docs/user-guide/features/skills" target="_blank" rel="noopener">https://hermes-agent.nousresearch.com/docs/user-guide/features/skills</a></small></p></article>
+          <article class="source"><span class="n">05</span><p><strong>Nous Research 官网</strong><small>公司定位（开源模型与研究实验室）、Hermes Agent 产品入口与 Nous Portal 订阅网关的归属关系。<br><a href="https://nousresearch.com/" target="_blank" rel="noopener">https://nousresearch.com/</a></small></p></article>
+          <article class="source"><span class="n">06</span><p><strong>agentskills.io</strong> · 技能开放标准<small>SKILL.md 技能规范作为跨 Agent 通用格式的依据，Hermes 官方声明兼容。<br><a href="https://agentskills.io/" target="_blank" rel="noopener">https://agentskills.io/</a></small></p></article>
+          <article class="source"><span class="n">07</span><p><strong>Hugging Face Trending Papers</strong>（数据截至 2026-09）<small>Prime Agent: A Self-Improving RLM Harness（约 2.08 万 star）、NeoHorse-1（414 票）、SkillOpt（Microsoft）、Mem0 等同期工作，用于"自我改进成为系统属性"的行业趋势佐证。<br><a href="https://huggingface.co/papers" target="_blank" rel="noopener">https://huggingface.co/papers</a></small></p></article>
+          <article class="source"><span class="n">08</span><p><strong>How we contain Claude across products</strong> · Anthropic Engineering<small>环境层遏制与自主行为治理的行业参照，用于第 08 节"记忆治理成为标配"的方向推断。<br><a href="https://www.anthropic.com/engineering/how-we-contain-claude" target="_blank" rel="noopener">https://www.anthropic.com/engineering/how-we-contain-claude</a></small></p></article>
+          <article class="source"><span class="n">09</span><p><strong>AIbase</strong>（数据截至 2026-09-16）<small>用于第 08 节"各厂商密集讨论 AI 安全标准组织"的行业动态佐证。<br><a href="https://www.aibase.com/" target="_blank" rel="noopener">https://www.aibase.com/</a></small></p></article>
+        </div>
+
+        <div class="footer"><strong>来源事实与本文推断：</strong>排行数据、仓库数据与官方文档机制描述标为"来源事实"；登顶原因、商业动机、行业趋势与生产判断均标为"本文推断"。本文的能力描述均来自官方文档与公开页面，未包含作者实测数据。</div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
