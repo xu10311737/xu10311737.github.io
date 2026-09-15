@@ -32,7 +32,7 @@
     .toc{position:sticky;top:0;z-index:5;background:rgba(251,252,250,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
     .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px}
     .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
-    main{padding-bottom:80px}.section{padding:64px 0;border-bottom:1px solid var(--line)}
+    main{padding-bottom:80px}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
     .section.alt{background:#f1f5f1;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding-left:max(24px,calc(50vw - 536px));padding-right:max(24px,calc(50vw - 536px))}
     .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);margin-bottom:10px}
     h2{font-size:clamp(1.7rem,3vw,2.5rem);max-width:860px}.intro{font-size:1.08rem;max-width:820px;margin:16px 0 30px;color:var(--ink-2)}
@@ -41,18 +41,17 @@
     .tldr article{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--teal);padding:18px 18px 20px;min-height:174px;box-shadow:var(--shadow)}
     .tldr article:nth-child(2){border-top-color:var(--coral)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:#8b6389}
     .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
-    .factline{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:22px 0 0;color:var(--muted);font-size:13px}.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:800;letter-spacing:.05em}.fact{background:var(--teal-soft);color:var(--teal)}.inference{background:var(--coral-soft);color:#9d4b31}.caution{background:var(--lime-soft);color:#5e6d22}
+    .factline{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:22px 0 0;color:var(--muted);font-size:13px}.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:800;letter-spacing:.05em}.fact{background:var(--teal-soft);color:var(--teal)}.inference{background:var(--coral-soft);color:#9d4b31}
     .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:0 7px 20px rgba(16,43,53,.05)}
     .panel h3{display:flex;gap:10px;align-items:baseline}.panel .mark{color:var(--coral);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}.panel ul,.panel ol{margin:10px 0 0;padding-left:22px}.panel li{margin:7px 0;font-size:15px}
-    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}.flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);position:relative}.flow .node:last-child{border-right:0}.flow .node:not(:last-child)::after{content:"";position:absolute;right:-9px;top:52px;width:16px;height:16px;border-top:2px solid var(--coral);border-right:2px solid var(--coral);transform:rotate(45deg);background:#fff;z-index:1}.flow .k{display:block;color:var(--coral);font:700 12px Georgia,serif;margin-bottom:9px}.flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
-    .code{background:#162e37;color:#dce9e5;padding:20px 22px;overflow:auto;border-left:4px solid var(--coral);font:13px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;margin:20px 0;white-space:pre-wrap;overflow-wrap:anywhere}.code .key{color:#f4b79f}.code .value{color:#bbd98e}.code .arrow{color:#ffd9a8;font-weight:700}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}.flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);position:relative}.flow .node:last-child{border-right:0}.flow .node:not(:last-child)::after{content:"";position:absolute;right:-9px;top:52px;width:16px;height:16px;border-top:2px solid var(--coral);border-right:2px solid var(--coral);transform:rotate(45deg);background:#fff;z-index:1}.flow .k{display:block;color:#b0512f;font:700 12px Georgia,serif;margin-bottom:9px}.flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .code{background:#162e37;color:#dce9e5;padding:20px 22px;overflow:auto;border-left:4px solid var(--coral);font:13px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;margin:20px 0;white-space:pre-wrap;overflow-wrap:anywhere}.code .key{color:#f4b79f}.code .arrow{color:#ffd9a8;font-weight:700}
     .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:900px}.callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.coral{border-left-color:var(--coral);background:var(--coral-soft)}
     .table-wrap{overflow-x:auto;margin-top:26px;border:1px solid var(--line);background:#fff}.compare{width:100%;min-width:1020px;border-collapse:collapse;font-size:14px}.compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}.compare th{background:var(--navy);color:#f5faf7;font-size:13px}.compare tr:last-child td{border-bottom:0}.compare td:first-child{font-weight:750;color:var(--ink);width:13%}.compare td:nth-child(2){background:#f4faf7}.compare td:nth-child(3){background:#fff8f3}.compare td:nth-child(4){background:#f7f8fb}.compare td:nth-child(5){background:#f8f6ee}.compare th:first-child,.compare td:first-child{position:sticky;left:0}.compare td:first-child{background:#fff}.compare .note{display:block;color:var(--muted);font-size:12px;margin-top:5px}
     .steps{counter-reset:step;display:grid;gap:13px;margin-top:28px}.step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px}.step::before{content:counter(step,decimal-leading-zero);color:var(--coral);font:700 23px Georgia,serif;padding-top:2px}.step h3{font-size:17px}.step p{font-size:15px;margin:5px 0 0}
     .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:25px}.metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line)}.metric:nth-child(2){border-top-color:var(--coral)}.metric:nth-child(3){border-top-color:var(--lime)}.metric b{display:block;color:var(--ink);font-size:15px}.metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
-    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-top:28px}.risk{padding:18px 20px;background:#fff;border:1px solid var(--line)}    .risk h3{font-size:16px}.risk p{font-size:14px;margin:6px 0 0}.risk .level{font-size:11px;font-weight:800;letter-spacing:.1em;color:#b0512f}.risk .level.mid{color:#9d4b31}.flow .k{color:#b0512f}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-top:28px}.risk{padding:18px 20px;background:#fff;border:1px solid var(--line)}    .risk h3{font-size:16px}.risk p{font-size:14px;margin:6px 0 0}.risk .level{font-size:11px;font-weight:800;letter-spacing:.1em;color:#b0512f}.risk .level.mid{color:#9d4b31}
     .sources{display:grid;gap:10px;margin-top:25px}.source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px}.source .n{color:var(--coral);font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}.source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
-    .audit-wrap{overflow-x:auto;border:1px solid var(--line);margin-top:22px;background:#fff}.audit{width:100%;min-width:760px;border-collapse:collapse;font-size:12px}.audit th,.audit td{padding:9px 10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}.audit th{background:#e8efec;color:var(--ink);font-size:12px}.audit tr:last-child td{border-bottom:0}.ok{color:var(--teal);font-weight:800}.blocked{color:var(--coral);font-weight:800}.audit td:first-child{font-weight:700;color:var(--ink);width:22%}.audit td:nth-child(2){width:9%}.audit td:last-child{overflow-wrap:anywhere;color:var(--muted)}.audit tbody tr:nth-child(even) td{background:#f6faf7}
     .footer{color:var(--muted);font-size:13px;padding-top:28px}.footer strong{color:var(--ink)}
     .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
     @media (max-width:820px){.hero-grid{grid-template-columns:1fr;gap:24px;margin-top:38px}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.split,.risk-grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{right:auto;top:auto;bottom:-9px;left:50%;transform:rotate(135deg);background:#fff}.section{padding:48px 0}.section.alt{padding-left:24px;padding-right:24px}}
@@ -82,12 +81,12 @@
         <div class="label">01 / Decision brief</div>
         <h2>TL;DR（太长不看）：一个把“可替换性”推向极端的开源 Agent 框架</h2>
         <div class="tldr">
-          <article><span class="num">01 / WHAT</span><h3>做了什么</h3><p>深度求索开源 Agent 框架 DeepSeek Harness（命令名 dsh），TypeScript 编写、MIT 许可证，一条命令 <code>npx @deepseek-ai/dsh web</code> 启动本地 Web 界面。</p></article>
+          <article><span class="num">01 / WHAT</span><h3>做了什么</h3><p>深度求索开源 Agent 框架 DeepSeek Harness（命令名 dsh），TypeScript 编写、MIT 许可证，一条命令 <code>npx @deepseek-ai/dsh web</code>（npx 是 Node.js 的包执行器）即可启动本地 Web 界面。</p></article>
           <article><span class="num">02 / WHY</span><h3>解决谁的问题</h3><p>主流 Harness 的循环、模型接入、沙箱、审批大多内置在主体里，深度定制只能分叉源码。dsh 把这些部件全部拆成可从配置替换的插件。</p></article>
-          <article><span class="num">03 / HOW</span><h3>核心机制</h3><p>底层 Cordis 框架把“注册”实现为携带逆操作的可逆效果，把“依赖”实现为驱动激活与停用的反应式余效应；上层用 profile（组合）与 bundle（分发）分层拼装。</p></article>
+          <article><span class="num">03 / HOW</span><h3>核心机制</h3><p>底层 Cordis 框架让每个组件注册时自带撤销、声明依赖后自动启停；上层用 profile（组合方式）与 bundle（分发单位）分层拼装。</p></article>
           <article><span class="num">04 / SHIP</span><h3>生产判断</h3><p>官方定位是开发者预览：明言未来有破坏兼容性的变更、尚未做安全审计。适合隔离环境试用与架构学习；生产接入要等版本稳定并自建插件审查。</p></article>
         </div>
-        <div class="factline"><span class="tag fact">来源事实</span><span>GitHub 仓库页面（2026-09-15 检查）显示约 22.5 万 star、约 2.7 万 fork；OpenRouter 应用消费榜（2026-09-15 读取）DeepSeek Harness 新上榜，token 消耗约 1380 亿。</span><span class="tag inference">本文推断</span><span>模型厂商亲自下场做 Harness，商业动机是把 API 调用与开发生态留在自家模型周边。</span></div>
+        <div class="factline"><span class="tag fact">来源事实</span><span>GitHub 仓库页面（2026-09-15 数据）显示约 22.5 万 star、约 2.7 万 fork；OpenRouter 应用消费榜（数据截至 2026-09-15）DeepSeek Harness 新上榜，token 消耗约 1380 亿（来源 01、06）。</span><span class="tag inference">本文推断</span><span>模型厂商亲自下场做 Harness，商业动机是把 API 调用与开发生态留在自家模型周边。</span></div>
       </div>
     </section>
 
@@ -97,10 +96,10 @@
         <h2>背景与问题：Harness 的能力边界，正在从“内置”走向“插件”</h2>
         <p class="intro">大语言模型（LLM，Large Language Model）本身只会生成文本。让它能读文件、执行命令、连续多步完成任务的，是包裹在模型外层的那套执行环境，行业称为 harness（本义是“挽具”，即套在马身上让马力可被使用的装备）。它负责组装上下文、登记工具、执行命令、把结果喂回模型，并管理会话、权限与审批。</p>
         <div class="split">
-          <div class="panel"><h3><span class="mark">A</span>能力内置的代价</h3><p>当前主流 Harness 的关键部件大多焊死在主体里：Claude Code 的循环、权限系统与模型接入运行在闭源主体内，官方扩展机制是技能与插件体系（其更新日志显示 2.1.269 版本新增了 <code>claude plugin eval</code> 插件评测命令）；开源编码客户端（如 OpenRouter 同榜的 Cline、Kilo Code）提供源码与配置项，深度修改行为的主要路径仍是维护源码分叉，本次检查未发现其公开提供整件替换 Agent 循环的机制。</p><ul><li>企业想换一个沙箱实现或审批策略，等价于改内核。</li><li>第三方想给循环加拦截逻辑，只能依赖官方预留的口子。</li><li>能力演进节奏由厂商单方面决定。</li></ul></div>
-          <div class="panel"><h3><span class="mark">B</span>为什么此时出现 dsh</h3><p>2026 年 9 月，“插件化”在同一周内密集出现：GitHub Trending 周榜同时出现 <code>openai/plugins</code> 与 <code>openai/skills</code> 两个仓库；Ollama 在 8 月 21 日发布的 v0.33.0 中专门为 DeepSeek Harness 启动器做了兼容修复；学术侧 Hugging Face 论文页同期出现 Prime Agent、NeoHorse-1、Show-Harness 等以 harness 命名的工作。能力边界正在从内置功能转向插件生态，dsh 是把这个方向推到极致的样本。</p></div>
+          <div class="panel"><h3><span class="mark">A</span>能力内置的代价</h3><p>当前主流 Harness 的关键部件大多焊死在主体里：Claude Code 的循环、权限系统与模型接入运行在闭源主体内，官方扩展机制是技能与插件体系（其更新日志显示 2.1.269 版本新增了 <code>claude plugin eval</code> 插件评测命令）；开源编码客户端（如 OpenRouter 同榜的 Cline、Kilo Code）提供源码与配置项，深度修改行为的主要路径仍是维护源码分叉，截至发稿其公开文档尚未提供整件替换 Agent 循环的机制。</p><ul><li>企业想换一个沙箱实现或审批策略，等价于改内核。</li><li>第三方想给循环加拦截逻辑，只能依赖官方预留的口子。</li><li>能力演进节奏由厂商单方面决定。</li></ul></div>
+          <div class="panel"><h3><span class="mark">B</span>为什么此时出现 dsh</h3><p>2026 年 9 月，“插件化”在同一周内密集出现：GitHub Trending 周榜同时出现 <code>openai/plugins</code> 与 <code>openai/skills</code> 两个仓库；Ollama 在 8 月 21 日发布的 v0.33.0 中专门为 DeepSeek Harness 启动器做了兼容修复；学术侧 Hugging Face 论文页同期出现 Prime Agent、NeoHorse-1、Show-Harness 等以 harness 命名的工作；深度求索同周还开源了 V4.1 Flash 模型，模型与 Harness 两侧动作在同一周叠加。能力边界正在从内置功能转向插件生态，dsh 是把这个方向推到极致的样本。</p></div>
         </div>
-        <div class="callout"><p><strong>判断边界：</strong>star 数与榜单排名只证明关注度，不证明生产可用性。本文区分“热度事实”与“生产判断”：前者全部给出数据源链接，后者标为“本文推断”。</p></div>
+        <div class="callout"><p><strong>判断边界：</strong>star 与榜单数据仅证明关注度；本文的生产判断全部标为“本文推断”。</p></div>
       </div>
     </section>
 
@@ -115,7 +114,7 @@
         </div>
         <p class="intro" style="margin-top:34px">论文进一步把效果上下文与余效应上下文统一成单一上下文类型，所有组件的效果与依赖都经由它中介，作者称之为“上下文范式”。由此得到的结论是：不同组件的效果可以交错执行而互不干扰。Cordis 就是这套理论的工程实现：提供效果追踪与余效应求解的核心库，以及带配置调和与热模块替换的声明式组件装载器。在 dsh 的架构文档里，这句话被落成产品原则——“没有可打补丁的特权核心（no privileged core），你通过在其他插件旁边挂载一个插件来扩展 dsh，注册即效果，插件卸载时随之回退”。</p>
         <div class="flow" aria-label="dsh 插件树组装流程">
-          <div class="node"><span class="k">01 / LAUNCH</span><b>CLI 指定 profile</b><small>如 dsh web；模板有 web、headless、sdk、sdk-minimal 与 acp（面向自动化客户端的服务器形态）五种。</small></div>
+          <div class="node"><span class="k">01 / LAUNCH</span><b>CLI 指定 profile</b><small>如 dsh web；模板有 web、headless、sdk、sdk-minimal 与 acp（Agent Client Protocol，面向自动化客户端的服务器形态协议）五种。</small></div>
           <div class="node"><span class="k">02 / BASE</span><b>装载共享层 dsh-base</b><small>模型适配器、工具、持久化、沙箱与审批策略、设置、凭据、遥测。</small></div>
           <div class="node"><span class="k">03 / APP</span><b>叠加应用 bundle</b><small>web-app 加浏览器界面；headless 加一次性运行器；sdk-app 加 JSON-RPC（一种以 JSON 文本编码的远程调用协议）服务器；acp-app 加自动化服务。</small></div>
           <div class="node"><span class="k">04 / PATCH</span><b>逐层补丁</b><small>profile 级 cordis.patch.yml，再 home 级，再 --patch 覆盖；补丁按行 ID 定位、替换或插入配置行。</small></div>
@@ -134,7 +133,7 @@ core/session     <span class="arrow">--&gt;</span>  ctx.sessions    <span class=
 core/tools       <span class="arrow">--&gt;</span>  ctx.tools       <span class="key"># 带作用域的工具注册表与受保护执行管道</span>
 llm/llm          <span class="arrow">--&gt;</span>  ctx.llm         <span class="key"># 模型适配器缝隙</span></pre>
         <div class="split">
-          <div class="panel"><h3>三类事件域，决定扩展点选型</h3><p>架构文档把事件分为三个域：<strong>会话事件</strong>是追加进日志的持久事实，需要在重载后存活时用它；<strong>Agent 事件</strong>（<code>agent/*</code>）携带进行中的工作，用于观察或拦截在途请求，其中多数是瀑布型——监听器必须调用 <code>next()</code> 才能继续；<strong>能力事件</strong>（<code>fs/*</code>、<code>tools/*</code>、<code>telemetry/*</code>）把策略和适配器挂到缝隙上，不必导入循环本身。选扩展点时先问：这个事实需要持久，还是只关乎运行中的这一步？</p></div>
+          <div class="panel"><h3>三类事件域，决定扩展点选型</h3><p>架构文档把事件分为三个域：<strong>会话事件</strong>是追加进日志的持久事实，需要在重载后存活时用它；<strong>Agent 事件</strong>（<code>agent/*</code>）携带进行中的工作，用于观察或拦截在途请求，其中多数是瀑布型（类似 Web 框架的中间件链，前一个处理完才轮到下一个）——监听器必须调用 <code>next()</code> 才能继续；<strong>能力事件</strong>（<code>fs/*</code>、<code>tools/*</code>、<code>telemetry/*</code>）把策略和适配器挂到缝隙上，不必导入循环本身。选扩展点时先问：这个事实需要持久，还是只关乎运行中的这一步？</p></div>
           <div class="panel"><h3>会话日志是模型所见上下文的唯一来源</h3><p>一个 step（步）是一次模型请求加它调用的工具；一个 turn（轮）是零或多步。架构文档的原话是“模型可见即可从日志重建（model-visible means logged）”，并有运行时不变量断言。任何到达模型请求的内容都必须能从会话日志重构；<code>deriveMessages()</code> 从日志投影出模型历史，分叉、恢复、迁移全部从日志派生。日志格式自带代际与迁移链：每个迁移包只负责一个 vN 到 vN+1 的步骤，已提交的代际路径永不改名或删除。</p></div>
         </div>
         <div class="callout coral"><p><strong>一个容易被低估的设计：</strong>文件系统与子进程两个提供者共享同一个“执行世界”。把执行世界指向一个远程沙箱时，Bash、伪终端（PTY，Pseudo Terminal）、语言服务器协议（LSP，Language Server Protocol）工具会一起迁移，不产生提供者分叉。换执行环境从“改造代码”变成“改一行配置”。</p></div>
@@ -149,9 +148,9 @@ llm/llm          <span class="arrow">--&gt;</span>  ctx.llm         <span class=
           <div class="panel"><h3><span class="mark">01</span>循环本身是插件</h3><p>多数系统把 Agent 循环写死在主体里、再对外开插件口。dsh 的默认循环（core/agent-loop）只是插件树上的普通一员：连模型适配器、工具注册表、会话日志、Agent 循环本身都在可替换清单上，且每件都从配置层替换，不动源码。</p><p>这意味着把默认循环换成带合规拦截的自研循环，可以作为一项常规的企业级需求来规划。</p></div>
           <div class="panel"><h3><span class="mark">02</span>注册即效果，卸载即回退</h3><p>所有注册都是携带逆操作的效果。这把“给运行中的 Agent 增减能力”从重启级操作变成运行时操作：web profile 默认支持补丁实时重载，改配置不需要重建世界。对长时间运行的 Agent 而言，能力变更的可逆性直接决定回滚成本。</p></div>
           <div class="panel"><h3><span class="mark">03</span>分发即分层</h3><p>bundle 是“配置行加代码”的分发格式，在自身 package.json 的 dsh 字段里声明。关键性质是：下层 bundle 插入的任何内容，仍可被上层补丁逐行覆写。第三方发行版因此不需要 fork 核心就能改变默认行为，且改动可按行 ID 审计——定制以可单独审查的差异文件的形式存在。</p></div>
-          <div class="panel"><h3><span class="mark">04</span>论文先行于工程</h3><p>在工程框架落地前，其形式化基础先以 92 页的编程语言论文发表：把效果（effect，指程序对外界产生的副作用）与余效应（coeffect，指程序对运行环境的依赖）两个编程语言概念提升为运行时机制，并给出元理论——可逆效果与反应式余效应的组合，能把时空可组合性从单组件推广到整棵交错组件树。工业开源项目附带论文级别的理论文档，这一做法在开源生态中并不多见（本文推断）。</p></div>
+          <div class="panel"><h3><span class="mark">04</span>论文先行于工程</h3><p>在工程框架落地前，其形式化基础先以一篇编程语言论文发表：把效果（effect，指程序对外界产生的副作用）与余效应（coeffect，指程序对运行环境的依赖）两个编程语言概念提升为运行时机制，并给出元理论——可逆效果与反应式余效应的组合，能把时空可组合性从单组件推广到整棵交错组件树。工业开源项目附带论文级别的理论文档，这一做法在开源生态中并不多见（本文推断）。</p></div>
         </div>
-        <div class="factline"><span class="tag fact">来源事实</span><span>以上四点分别对应官方架构文档的“无特权核心”章节、Cordis 章节、profile 与 bundle 章节，以及 arXiv:2608.25512 的摘要。</span><span class="tag inference">本文推断</span><span>元理论的实际意义，是给“插件可安全热插拔”提供了可证明的边界，而不是工程修辞。</span></div>
+        <div class="factline"><span class="tag fact">来源事实</span><span>以上四点分别对应官方架构文档的“无特权核心”章节、Cordis 章节、profile 与 bundle 章节，以及 arXiv:2608.25512 的摘要（来源 03、05）。</span><span class="tag inference">本文推断</span><span>元理论的实际意义，是给“插件可安全热插拔”提供了可证明的边界。</span></div>
       </div>
     </section>
 
@@ -159,23 +158,23 @@ llm/llm          <span class="arrow">--&gt;</span>  ctx.llm         <span class=
       <div class="shell">
         <div class="label">05 / Comparison</div>
         <h2>竞品对比：同一周里，三种“开放”的打开方式</h2>
-        <p class="intro">比较基于各项目公开页面、更新日志与榜单数据能确认的事实；对开源编码客户端一列，本次检查仅依据榜单数据与其公开产品形态，未深入其官方文档；没有证据的位置写“本次检查未发现”，不做绝对断言。</p>
+        <p class="intro">比较基于各项目公开页面、更新日志与榜单数据；开源编码客户端一列仅依据榜单数据与其公开产品形态；没有证据的位置明确标注，不做绝对断言。</p>
         <div class="table-wrap">
           <table class="compare">
             <caption class="sr-only">DeepSeek Harness、Claude Code、OpenAI 插件生态与开源编码客户端对比</caption>
             <thead><tr><th>维度</th><th>DeepSeek Harness（dsh）</th><th>Claude Code</th><th>OpenAI 生态（Codex 与 plugins/skills 目录）</th><th>开源编码客户端（Cline、Kilo Code）</th></tr></thead>
             <tbody>
               <tr><td>形态</td><td>开源框架（平台底座），TypeScript，MIT 许可证；自托管。</td><td>闭源主体 + 官方客户端；扩展走技能与插件体系。</td><td>开源 CLI 加官方插件、技能目录仓库（本周 Trending 周榜在列）。</td><td>开源编辑器扩展形态的编码客户端，社区活跃。</td></tr>
-              <tr><td>架构可替换性</td><td>一切皆插件：循环、模型适配器、会话日志、沙箱后端、审批策略全部可从配置替换。</td><td>能力以官方节奏发布；深度定制依赖官方预留接口，插件体系仍在加码（2.1.269 新增 <code>claude plugin eval</code>）。</td><td>CLI 主体内置行为；生态扩展集中在目录仓库收录层面，主体循环本次检查未发现可配置替换的公开机制。</td><td>扩展以工具接入与配置为主；本次检查未发现可整件替换 Agent 循环的公开机制。</td></tr>
-              <tr><td>理论支撑</td><td>arXiv:2608.25512（时空可组合性，92 页，北大与深度求索合著）。</td><td>本次检查未发现公开的理论文档；以工程实践文档与更新日志为主。</td><td>本次检查未发现公开的理论文档。</td><td>本次检查未发现公开的理论文档。</td></tr>
+              <tr><td>架构可替换性</td><td>一切皆插件：循环、模型适配器、会话日志、沙箱后端、审批策略全部可从配置替换。</td><td>能力以官方节奏发布；深度定制依赖官方预留接口，插件体系仍在加码（2.1.269 新增 <code>claude plugin eval</code>）。</td><td>CLI 主体内置行为；生态扩展集中在目录仓库收录层面，主体循环截至发稿未见可配置替换的公开机制。</td><td>扩展以工具接入与配置为主；截至发稿未见可整件替换 Agent 循环的公开机制。</td></tr>
+              <tr><td>理论支撑</td><td>arXiv:2608.25512（时空可组合性，北大与深度求索合著）。</td><td>截至发稿未见公开的理论文档；以工程实践文档与更新日志为主。</td><td>截至发稿未见公开的理论文档。</td><td>截至发稿未见公开的理论文档。</td></tr>
               <tr><td>成熟度</td><td>开发者预览；README 明言未来有破坏兼容性变更；SAFETY 文档明言未做安全审计。</td><td>生产级，商业产品，迭代频繁（9 月 14 日至 15 日连发 2.1.271 与 2.1.272）。</td><td>生产级，商业产品。</td><td>生产可用，以编辑器扩展形态日常使用。</td></tr>
-              <tr><td>使用热度<span class="note">OpenRouter 应用消费榜，2026-09-15 读取</span></td><td>新上榜，token 消耗约 1380 亿。</td><td>约 7140 亿 token；同榜榜首 Hermes Agent 约 1.57 万亿。</td><td>Codex 约 2520 亿 token。</td><td>Cline 约 4070 亿、Kilo Code 约 4740 亿 token。</td></tr>
-              <tr><td>接入方式</td><td><code>npx</code> 一条命令；web、headless、sdk、sdk-minimal、acp 五种 profile；Python 软件开发工具包（SDK，Software Development Kit）把 dsh 命令行打包为运行时轮子。</td><td>官方客户端与桌面应用。</td><td>官方 CLI 与编辑器集成。</td><td>编辑器扩展市场安装。</td></tr>
+              <tr><td>使用热度<span class="note">OpenRouter 应用消费榜，数据截至 2026-09-15</span></td><td>新上榜，token 消耗约 1380 亿。</td><td>约 7140 亿 token；同榜榜首 Hermes Agent 约 1.57 万亿。</td><td>Codex 约 2520 亿 token。</td><td>Cline 约 4070 亿、Kilo Code 约 4740 亿 token。</td></tr>
+              <tr><td>接入方式</td><td><code>npx</code> 一条命令；web、headless、sdk、sdk-minimal、acp 五种 profile；Python 软件开发工具包（SDK，Software Development Kit）把 dsh 命令行打包为 Python wheel 安装包（wheel 是 Python 的标准二进制包格式）。</td><td>官方客户端与桌面应用。</td><td>官方 CLI 与编辑器集成。</td><td>编辑器扩展市场安装。</td></tr>
             </tbody>
           </table>
         </div>
         <p style="margin-top:18px">社区侧同一时期还有两类值得关注的对照物：一类是 Prime Agent（Prime Intellect 发布的自改进 Harness，配套论文 2026 年 8 月 24 日登上 Hugging Face 论文页，GitHub 约 2.08 万 star），代表“harness 作为研究载体”的路线；另一类是本周 Trending 周榜上以 Agent Harness 性能优化为定位的 ECC 仓库（总 star 超过 25 万），代表“harness 作为可优化对象”的路线。dsh 与它们的差异在于：它不是围绕单一模型或单一优化目标构建，而是把可组合性本身当作产品。</p>
-        <div class="factline"><span class="tag fact">来源事实</span><span>榜单数字来自 OpenRouter Rankings 页面（应用消费榜，2026-09-15 读取，DeepSeek Harness 标注为 new）；Claude Code 版本节奏来自官方更新日志；Prime Agent 与 ECC 数据来自 Hugging Face 论文页与 GitHub Trending 周榜。</span></div>
+        <div class="factline"><span class="tag fact">来源事实</span><span>榜单数字来自 OpenRouter Rankings 页面（应用消费榜，数据截至 2026-09-15，DeepSeek Harness 新上榜）；Claude Code 版本节奏来自官方更新日志；Prime Agent 与 ECC 数据来自 Hugging Face 论文页与 GitHub Trending 周榜（来源 06、08、09、10）。</span></div>
       </div>
     </section>
 
@@ -187,7 +186,7 @@ llm/llm          <span class="arrow">--&gt;</span>  ctx.llm         <span class=
         <div class="steps">
           <article class="step"><div><h3>版本锁定与变更跟踪</h3><p>官方明言“未来将出现破坏兼容性的变更”。接入方应锁定精确版本、订阅版本说明，并在隔离环境中先验证每次升级；每次升级都应作为一次回归测试事件对待。</p></div></article>
           <article class="step"><div><h3>沙箱独立成界，不指望框架自保</h3><p>官方 SAFETY 文档写得直白：项目尚未接受安全审计、不得视为可用于生产；沙箱、审批与权限控制能降低风险但不保证隔离，不要把它当作不可信工作负载的唯一安全控制。生产部署应叠加一次性虚拟机或容器、最小权限与文件备份，这正是 Anthropic 工程团队在 2026 年 5 月发表的遏制实践文章反复强调的原则：环境层遏制优先于模型层自觉。</p></div></article>
-          <article class="step"><div><h3>插件供应链审查</h3><p>dsh 可以加载第三方插件并访问开放给它的网络、进程、凭据与文件。企业需要自建插件准入流程：来源与作者核验、代码审计、权限最小化声明。<code>dsh-plugin</code> 话题目前是社区自发挂载，本次检查未发现市场级的签名或权限治理机制。</p></div></article>
+          <article class="step"><div><h3>插件供应链审查</h3><p>dsh 可以加载第三方插件并访问开放给它的网络、进程、凭据与文件。企业需要自建插件准入流程：来源与作者核验、代码审计、权限最小化声明。<code>dsh-plugin</code> 话题目前是社区自发挂载，尚未出现市场级的签名或权限治理机制。</p></div></article>
           <article class="step"><div><h3>把会话日志纳入审计面</h3><p>“模型可见即可回放”意味着日志天然是完整的行为审计材料，但也意味着它包含全部业务上下文与工具结果。接入留存、脱敏、访问控制与保留期限策略，是使用 dsh 前的必修课。</p></div></article>
           <article class="step"><div><h3>替换件验证矩阵</h3><p>一切皆插件意味着每个部件都可换，也意味着每次替换都是一次行为变更。为高频替换件（模型适配器、沙箱后端、审批策略、循环本身）建立成对回归：同一任务集上对比任务成功率、工具调用正确率与上下文一致性，替换前后各跑一遍。</p></div></article>
           <article class="step"><div><h3>观测先行</h3><p>能力事件域允许把遥测与策略挂到 <code>telemetry/*</code> 等缝隙上而不侵入循环。迁移期最有价值的能力不是功能而是可观测性：先接遥测与追踪，再谈替换。</p></div></article>
@@ -205,7 +204,7 @@ llm/llm          <span class="arrow">--&gt;</span>  ctx.llm         <span class=
           <div class="metric"><b>成本与延迟</b><span>插件树装载时间、每轮请求数与 token 成本、补丁热重载影响、遥测开销。</span></div>
           <div class="metric"><b>可靠性与安全</b><span>插件卸载后的状态干净度、审批拦截率、日志敏感内容扫描命中、插件漏洞响应时效。</span></div>
         </div>
-        <div class="callout"><p><strong>推荐接入顺序：</strong>学习期（<code>--dump-config</code> 读树、写不侵入循环的插件）→ 试用期（一次性虚拟机、低风险任务、遥测先行）→ 灰度期（锁版本、建回归集、立插件审查流程）→ 生产期（等待官方稳定接口声明与安全审计后再扩大范围）。</p></div>
+        <div class="callout"><p>从 Demo 到生产，主要差距集中在四处：接口稳定性、安全审计、插件治理、替换件回归验证。<strong>推荐接入顺序：</strong>学习期（<code>--dump-config</code> 读树、写不侵入循环的插件）→ 试用期（一次性虚拟机、低风险任务、遥测先行）→ 灰度期（锁版本、建回归集、立插件审查流程）→ 生产期（等待官方稳定接口声明与安全审计后再扩大范围）。</p></div>
       </div>
     </section>
 
@@ -214,11 +213,11 @@ llm/llm          <span class="arrow">--&gt;</span>  ctx.llm         <span class=
         <div class="label">07 / Limits</div>
         <h2>局限与风险：可组合性不是免费午餐</h2>
         <div class="risk-grid">
-          <article class="risk"><span class="level">高</span><h3>开发者预览，破坏性变更在途</h3><p>README 用加粗字样声明“未来将出现破坏兼容性的变更”。今天写的插件与补丁，没有任何接口稳定承诺。任何基于 dsh 的投入都要按“随时需要返工”定价。</p></article>
+          <article class="risk"><span class="level">高</span><h3>开发者预览，破坏性变更在途</h3><p>README 明言“未来将出现破坏兼容性的变更”。今天写的插件与补丁，没有任何接口稳定承诺。任何基于 dsh 的投入都要按“随时需要返工”定价。</p></article>
           <article class="risk"><span class="level">高</span><h3>未做安全审计</h3><p>SAFETY 文档明确：项目尚未接受安全审计，不得视为安全或可用于生产的软件；沙箱与审批降低风险但不保证隔离。它自己不提供“不可信工作负载的唯一安全边界”。</p></article>
-          <article class="risk"><span class="level">高</span><h3>插件供应链无治理</h3><p>第三方插件可访问开放给项目的网络、进程、凭据与文件；发现机制目前是 GitHub 话题自发挂载。本次检查未发现签名、权限声明或市场审核机制。Anthropic 在 2026 年 5 月的遏制实践文章中复盘过同类风险：仓库中带毒的 <code>.claude/settings.json</code> 钩子文件，会在用户确认信任该目录之前随项目启动自动执行。</p></article>
+          <article class="risk"><span class="level">高</span><h3>插件供应链无治理</h3><p>第三方插件可访问开放给项目的网络、进程、凭据与文件；发现机制目前是 GitHub 话题自发挂载，尚未见签名、权限声明或市场审核机制。Anthropic 在 2026 年 5 月的遏制实践文章中复盘过同类风险：仓库中带毒的 <code>.claude/settings.json</code> 钩子文件，会在用户确认信任该目录之前随项目启动自动执行。</p></article>
           <article class="risk"><span class="level mid">中</span><h3>一切皆插件的间接层成本</h3><p>调试要跨插件边界追事件流，性能开销没有官方基准：仓库的 BENCHMARK 文档只指向 Python SDK 指南，未给公开数字。插件化越彻底，理解一次调用链所需的心智模型越贵。</p></article>
-          <article class="risk"><span class="level mid">中</span><h3>热度不等于采用</h3><p>约 22.5 万 star 证明关注度，OpenRouter 榜单约 1380 亿 token 显示经其路由的初步用量；本次检查未发现公开的生产部署案例研究。两者都不是生产就绪的证据。</p></article>
+          <article class="risk"><span class="level mid">中</span><h3>热度不等于采用</h3><p>约 22.5 万 star 证明关注度，OpenRouter 榜单约 1380 亿 token 显示经其路由的初步用量；尚无公开的生产部署案例研究。两者都不是生产就绪的证据。</p></article>
           <article class="risk"><span class="level mid">中</span><h3>单一主体治理</h3><p>Cordis 与 dsh 的接口演进节奏都由深度求索主导。生态成型后，“换 harness 不换模型”与“换模型不换 harness”两个方向的锁定效应都会出现，宜提前评估退出成本。</p></article>
         </div>
         <div class="callout coral"><p><strong>安全结论：</strong>把 dsh 部署在专用环境并只授予最小权限，是官方文档明示的前置条件；在其通过独立安全审计之前，任何把它接入生产凭据域的方案都需要自证隔离有效性。</p></div>
@@ -231,7 +230,7 @@ llm/llm          <span class="arrow">--&gt;</span>  ctx.llm         <span class=
         <h2>未来方向：从开发者预览到生态位</h2>
         <div class="split">
           <div class="panel"><h3>生态：从话题到市场</h3><p>官方已铺好社区地基：<code>dsh-plugin</code> 话题便于插件被发现，企微群与 GitHub Discussions 承接反馈，Ollama 桌面端在 8 月已把 dsh 启动器纳入其应用并做兼容修复。本文推断，下一阶段大概率出现插件市场与签名、权限模型——这是任何插件生态走向生产的必经之路。</p></div>
-          <div class="panel"><h3>产品：多形态分发</h3><p>架构文档披露了明确的分发矩阵：Electron 桌面应用（基于 Chromium 网页引擎与 Node.js 运行时的跨平台桌面应用框架）把精确版本的 dsh 运行时打包进签名资源、通过私有协议通信且不开回环端口；Python SDK 把 dsh 命令行打包为平台运行时轮子；ACP profile 面向自动化；webhook 面向外部事件接入。框架正同时覆盖交互、无头、嵌入式三种形态。</p></div>
+          <div class="panel"><h3>产品：多形态分发</h3><p>架构文档披露了明确的分发矩阵：Electron 桌面应用（基于 Chromium 网页引擎与 Node.js 运行时的跨平台桌面应用框架）把精确版本的 dsh 运行时打包进签名资源、通过私有协议通信且不开回环端口；Python SDK 把 dsh 命令行打包为平台安装包；ACP profile 面向自动化；webhook 面向外部事件接入。框架正同时覆盖交互、无头、嵌入式三种形态。</p></div>
           <div class="panel"><h3>协作：Agent Teams 原语化</h3><p>实验性的 Agent Teams 把持久名册、任务板与邮箱作为协调缝隙（<code>ctx.agentTeams</code>）建立在可续接的子代理之上。多 Agent 协作从提示词约定走向框架原语，是值得跟踪的方向；它目前是实验特性，接口可能变化。</p></div>
           <div class="panel"><h3>行业：模型厂做 Harness 的逻辑</h3><p>本文推断，深度求索做 dsh 的商业动机与开源模型战略一致：开源模型降低试用门槛，开源 Harness 把开发者工作流留在自家模型可达范围内，两者互相导流。当 Harness 层出现事实标准，模型层的切换成本会重构——这解释了为何 OpenAI 同期也在经营 plugins 与 skills 目录。</p></div>
         </div>
@@ -256,57 +255,25 @@ llm/llm          <span class="arrow">--&gt;</span>  ctx.llm         <span class=
       <div class="shell">
         <div class="label">10 / Sources</div>
         <h2>数据源</h2>
-        <p class="intro">本节区分来源事实与本文推断。核心事实来自 dsh 官方仓库文档、设计论文与各产品官方页面；所有访问状态均记录于 2026-09-15（Asia/Shanghai）。</p>
+        <p class="intro">本节区分来源事实与本文推断。核心事实来自 dsh 官方仓库文档、设计论文与各产品官方页面，数据截至 2026-09-15（Asia/Shanghai）。</p>
         <div class="sources">
-          <article class="source"><span class="n">01</span><p><strong>deepseek-ai/deepseek-harness</strong> · GitHub · 2026-09-15 检查：约 22.5 万 star、约 2.7 万 fork，MIT 许可证，TypeScript，仓库页面显示最近更新日期为 2026-09-15<small>项目定位（“DeepSeek Harness: Everything is a Plugin”）、语言、许可证与热度数据核验入口。<br><a href="https://github.com/deepseek-ai/deepseek-harness" target="_blank" rel="noopener">https://github.com/deepseek-ai/deepseek-harness</a></small></p></article>
+          <article class="source"><span class="n">01</span><p><strong>deepseek-ai/deepseek-harness</strong> · GitHub · 2026-09-15 数据：约 22.5 万 star、约 2.7 万 fork，MIT 许可证，TypeScript，仓库页面显示最近更新日期为 2026-09-15<small>项目定位（“DeepSeek Harness: Everything is a Plugin”）、语言、许可证与热度数据佐证。<br><a href="https://github.com/deepseek-ai/deepseek-harness" target="_blank" rel="noopener">https://github.com/deepseek-ai/deepseek-harness</a></small></p></article>
           <article class="source"><span class="n">02</span><p><strong>README.zh.md</strong> · deepseek-harness 仓库官方中文说明<small>官方定位（开源 agent harness）、“一切皆插件”与 Cordis 驱动的表述、开发者预览与破坏性变更声明、npx 启动方式、社区入口。<br><a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md" target="_blank" rel="noopener">https://github.com/deepseek-ai/deepseek-harness/blob/master/README.zh.md</a></small></p></article>
           <article class="source"><span class="n">03</span><p><strong>docs/architecture.md</strong> · deepseek-harness 仓库架构文档<small>“无特权核心”原则、profile 与 bundle 分层、补丁顺序、核心包与 ctx 键表、三类事件域、turn 与 step 流程、会话日志与“模型可见即可从日志重建”不变量、能力缝隙三角色、扩展点清单、Python SDK 与 Electron 桌面端分发方式。<br><a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md" target="_blank" rel="noopener">https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md</a></small></p></article>
           <article class="source"><span class="n">04</span><p><strong>SAFETY.zh.md</strong> · deepseek-harness 仓库安全文档<small>实验性状态、未接受安全审计、沙箱与审批的边界（不保证隔离、不得作为唯一安全控制）、负责任使用清单。<br><a href="https://github.com/deepseek-ai/deepseek-harness/blob/master/SAFETY.zh.md" target="_blank" rel="noopener">https://github.com/deepseek-ai/deepseek-harness/blob/master/SAFETY.zh.md</a></small></p></article>
-          <article class="source"><span class="n">05</span><p><strong>A Programming Paradigm for Spatiotemporal Composability</strong> · arXiv:2608.25512 · 2026-08-26 提交，92 页，作者来自北京大学与 DeepSeek-AI<small>Cordis 的理论基础：时间可组合性与可逆效果、空间可组合性与反应式余效应、上下文范式、动态组合演算的元理论。<br><a href="https://arxiv.org/abs/2608.25512" target="_blank" rel="noopener">https://arxiv.org/abs/2608.25512</a></small></p></article>
-          <article class="source"><span class="n">06</span><p><strong>OpenRouter Rankings</strong> · 应用消费榜，2026-09-15 读取，DeepSeek Harness 约 1380 亿 token 且标注 new<small>同榜数据：Hermes Agent 约 1.57 万亿、Claude Code 约 7140 亿、Codex 约 2520 亿、Cline 约 4070 亿、Kilo Code 约 4740 亿 token；用于热度与经其路由的用量佐证。<br><a href="https://openrouter.ai/rankings" target="_blank" rel="noopener">https://openrouter.ai/rankings</a></small></p></article>
+          <article class="source"><span class="n">05</span><p><strong>A Programming Paradigm for Spatiotemporal Composability</strong> · arXiv:2608.25512 · 2026-08-26 提交，作者来自北京大学与 DeepSeek-AI<small>Cordis 的理论基础：时间可组合性与可逆效果、空间可组合性与反应式余效应、上下文范式、动态组合演算的元理论。<br><a href="https://arxiv.org/abs/2608.25512" target="_blank" rel="noopener">https://arxiv.org/abs/2608.25512</a></small></p></article>
+          <article class="source"><span class="n">06</span><p><strong>OpenRouter Rankings</strong> · 应用消费榜（数据截至 2026-09-15）：DeepSeek Harness 约 1380 亿 token，新上榜<small>同榜数据：Hermes Agent 约 1.57 万亿、Claude Code 约 7140 亿、Codex 约 2520 亿、Cline 约 4070 亿、Kilo Code 约 4740 亿 token；用于热度与经其路由的用量佐证。<br><a href="https://openrouter.ai/rankings" target="_blank" rel="noopener">https://openrouter.ai/rankings</a></small></p></article>
           <article class="source"><span class="n">07</span><p><strong>Ollama Release v0.33.0</strong> · GitHub · 2026-08-21 发布<small>更新说明含“DeepSeek Harness 启动器在全局 npm 安装失败时回退到 npx，并支持 Windows 命令垫片”——Ollama 已将 dsh 启动器纳入其桌面应用生态的佐证。<br><a href="https://github.com/ollama/ollama/releases/tag/v0.33.0" target="_blank" rel="noopener">https://github.com/ollama/ollama/releases/tag/v0.33.0</a></small></p></article>
           <article class="source"><span class="n">08</span><p><strong>Claude Code Changelog</strong> · Anthropic 官方文档 · 2.1.269 至 2.1.272（2026-09-09 至 09-15）<small>2.1.269 新增 claude plugin eval 插件评测命令；2.1.271（09-14）与 2.1.272（09-15）用于竞品迭代节奏佐证。<br><a href="https://docs.anthropic.com/en/docs/claude-code/changelog" target="_blank" rel="noopener">https://docs.anthropic.com/en/docs/claude-code/changelog</a></small></p></article>
-          <article class="source"><span class="n">09</span><p><strong>GitHub Trending（周榜）</strong> · 2026-09-15 检查<small>同期在榜：openai/plugins、openai/skills、以 Agent Harness 性能优化为定位的 ECC（总 star 超过 25 万）等；用于“插件化同周密集出现”的佐证。<br><a href="https://github.com/trending?since=weekly" target="_blank" rel="noopener">https://github.com/trending?since=weekly</a></small></p></article>
-          <article class="source"><span class="n">10</span><p><strong>Hugging Face Trending Papers</strong> · Prime Agent 等论文页（Papers with Code 主页已重定向至此）<small>Prime Agent: A Self-Improving RLM Harness（2026-08-24，GitHub 约 2.08 万 star）、NeoHorse-1（Routing Harness，414 票）、Show-Harness（2026-09-09）等同期 harness 论文，用于学术趋势佐证。<br><a href="https://huggingface.co/papers" target="_blank" rel="noopener">https://huggingface.co/papers</a></small></p></article>
+          <article class="source"><span class="n">09</span><p><strong>GitHub Trending（周榜，2026-09-15）</strong><small>同期在榜：openai/plugins、openai/skills、以 Agent Harness 性能优化为定位的 ECC（总 star 超过 25 万）等；用于“插件化同周密集出现”的佐证。<br><a href="https://github.com/trending?since=weekly" target="_blank" rel="noopener">https://github.com/trending?since=weekly</a></small></p></article>
+          <article class="source"><span class="n">10</span><p><strong>Hugging Face Trending Papers</strong> · Prime Agent 等同期 harness 论文页<small>Prime Agent: A Self-Improving RLM Harness（2026-08-24，GitHub 约 2.08 万 star）、NeoHorse-1（Routing Harness，414 票）、Show-Harness（2026-09-09）等同期 harness 论文，用于学术趋势佐证。<br><a href="https://huggingface.co/papers" target="_blank" rel="noopener">https://huggingface.co/papers</a></small></p></article>
           <article class="source"><span class="n">11</span><p><strong>How we contain Claude across products</strong> · Anthropic Engineering · 2026-05-25<small>环境层遏制优先于模型层引导的原则、沙箱分层与真实事故复盘（含仓库内 .claude/settings.json 钩子文件在用户信任确认前自动执行的披露漏洞、经钓鱼实施凭据外泄的红队演练、经 api.anthropic.com 白名单外泄的第三方披露事故）；本文“沙箱独立成界”与插件供应链风险的参照来源。<br><a href="https://www.anthropic.com/engineering/how-we-contain-claude" target="_blank" rel="noopener">https://www.anthropic.com/engineering/how-we-contain-claude</a></small></p></article>
-          <article class="source"><span class="n">12</span><p><strong>机器之心首页（Week 37 通讯摘要）</strong> · 2026-09-15 检查<small>“本周，深度求索开源 DeepSeek V4.1 Flash 模型”表述，用于说明同期深度求索的模型侧动作；正文与量化数据未用于本文事实。<br><a href="https://www.jiqizhixin.com/" target="_blank" rel="noopener">https://www.jiqizhixin.com/</a></small></p></article>
+          <article class="source"><span class="n">12</span><p><strong>机器之心首页（Week 37 通讯摘要，2026-09-15）</strong><small>“本周，深度求索开源 DeepSeek V4.1 Flash 模型”表述，用于第 02 节“同一周动作密集”的背景佐证。<br><a href="https://www.jiqizhixin.com/" target="_blank" rel="noopener">https://www.jiqizhixin.com/</a></small></p></article>
         </div>
 
-        <h3 style="margin-top:44px">20 个每日来源的实际检查记录</h3>
-        <p class="intro" style="font-size:15px">状态为本次只读访问结果；访问受限时记录现象，不据不可访问内容猜测事实。</p>
-        <div class="audit-wrap">
-          <table class="audit">
-            <caption class="sr-only">20 个每日来源实际检查记录</caption>
-            <thead><tr><th>来源</th><th>状态</th><th>本次检查页面与结果</th></tr></thead>
-            <tbody>
-              <tr><td>OpenAI Blog</td><td class="blocked">403</td><td><a href="https://openai.com/news/" target="_blank" rel="noopener">OpenAI 新闻页</a> 拒绝访问；未据此猜测内容。</td></tr>
-              <tr><td>Anthropic Engineering / Claude Code Changelog</td><td class="ok">200</td><td><a href="https://www.anthropic.com/engineering" target="_blank" rel="noopener">Engineering</a> 与 <a href="https://docs.anthropic.com/en/docs/claude-code/changelog" target="_blank" rel="noopener">Changelog</a> 可访问。</td></tr>
-              <tr><td>Google DeepMind / Gemini Docs</td><td class="ok">200</td><td><a href="https://deepmind.google/blog/" target="_blank" rel="noopener">DeepMind Blog</a> 可访问。</td></tr>
-              <tr><td>Hugging Face Blog / Daily Papers</td><td class="ok">200</td><td><a href="https://huggingface.co/papers" target="_blank" rel="noopener">Daily Papers</a> 可访问。</td></tr>
-              <tr><td>GitHub Trending</td><td class="ok">200</td><td><a href="https://github.com/trending?since=weekly" target="_blank" rel="noopener">周榜</a> 可访问，已解析在榜仓库。</td></tr>
-              <tr><td>Hacker News</td><td class="ok">200</td><td><a href="https://news.ycombinator.com/" target="_blank" rel="noopener">首页</a> 可访问，作为讨论热度辅助检查。</td></tr>
-              <tr><td>Reddit r/LocalLLaMA</td><td class="blocked">403</td><td><a href="https://www.reddit.com/r/LocalLLaMA/" target="_blank" rel="noopener">原始页面</a> 拒绝访问；未使用其内容。</td></tr>
-              <tr><td>LMSYS Chatbot Arena</td><td class="blocked">超限</td><td><a href="https://lmarena.ai/leaderboard" target="_blank" rel="noopener">lmarena.ai</a> 与 <a href="https://arena.ai/leaderboard" target="_blank" rel="noopener">arena.ai</a> 排行榜响应均超过抓取工具 5MB 上限，记录为访问受限；本文未引用其数据。</td></tr>
-              <tr><td>OpenRouter Rankings</td><td class="ok">200</td><td><a href="https://openrouter.ai/rankings" target="_blank" rel="noopener">Rankings</a> 可访问。</td></tr>
-              <tr><td>Papers with Code</td><td class="ok">200</td><td><a href="https://paperswithcode.com/" target="_blank" rel="noopener">主页</a> 重定向至 Hugging Face Trending Papers，按重定向后内容检查。</td></tr>
-              <tr><td>arXiv cs.CL</td><td class="ok">200</td><td><a href="https://arxiv.org/list/cs.CL/recent" target="_blank" rel="noopener">Recent submissions</a> 与论文页可访问。</td></tr>
-              <tr><td>LangChain Blog</td><td class="ok">200</td><td><a href="https://blog.langchain.com/" target="_blank" rel="noopener">Blog</a> 可访问。</td></tr>
-              <tr><td>LlamaIndex Blog</td><td class="ok">200</td><td><a href="https://www.llamaindex.ai/blog" target="_blank" rel="noopener">Blog</a> 可访问。</td></tr>
-              <tr><td>vLLM Releases</td><td class="ok">200</td><td><a href="https://github.com/vllm-project/vllm/releases" target="_blank" rel="noopener">GitHub Releases</a> 可访问，核验 v0.29.0。</td></tr>
-              <tr><td>Ollama Releases</td><td class="ok">200</td><td><a href="https://github.com/ollama/ollama/releases" target="_blank" rel="noopener">GitHub Releases</a> 可访问，核验 v0.33.0 中 dsh 启动器修复与 v0.34.x。</td></tr>
-              <tr><td>Mistral Blog</td><td class="ok">200</td><td><a href="https://mistral.ai/news/" target="_blank" rel="noopener">Latest news</a> 可访问。</td></tr>
-              <tr><td>Qwen GitHub / Blog</td><td class="ok">200</td><td><a href="https://github.com/QwenLM" target="_blank" rel="noopener">QwenLM GitHub</a> 与旧博客页可访问；旧博客已迁移至 qwen.ai/research。</td></tr>
-              <tr><td>DeepSeek GitHub / Blog</td><td class="ok">200</td><td><a href="https://github.com/deepseek-ai" target="_blank" rel="noopener">DeepSeek GitHub</a> 与 <a href="https://github.com/deepseek-ai/deepseek-harness" target="_blank" rel="noopener">deepseek-harness 仓库</a> 可访问。</td></tr>
-              <tr><td>机器之心</td><td class="ok">200</td><td><a href="https://www.jiqizhixin.com/" target="_blank" rel="noopener">主页</a> 可访问。</td></tr>
-              <tr><td>量子位</td><td class="ok">200</td><td><a href="https://www.qbitai.com/" target="_blank" rel="noopener">主页</a> 可访问。</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p style="font-size:13px;color:var(--muted);margin-top:12px;max-width:860px">与第 01 期（同日发布）记录的两处差异说明：LangChain Blog 本期直接访问成功，而第 01 期记录为 403，推测是该站对自动化访问的限流波动；LMSYS 第 01 期以 arena.ai/leaderboard 记录为可访问，本期两个域名响应均超过抓取工具的 5MB 上限，属抓取工具能力口径差异。两处差异均未影响本文事实引用。</p>
 
-        <h3 style="margin-top:44px">本周每周补查来源说明</h3>
-        <p class="intro" style="font-size:15px">本周 10 个补查来源的逐项访问检查已于同期第 01 期（2026-09-15.html，ISSUE 01）完成并记录于该期数据源章节，本次运行不重复占用检查预算；本次补充抽查 Simon Willison 博客（200，2026-09-08 至 09-14 近期条目中未发现 dsh 的专门评论，<a href="https://simonwillison.net/" target="_blank" rel="noopener">simonwillison.net</a>）。</p>
-        <div class="footer"><strong>来源事实与本文推断：</strong>仓库文档、论文、榜单与各官方页面直接支持的内容标为“来源事实”；对生产价值、架构影响、商业动机与未来方向的归纳标为“本文推断”。403 与响应超限的来源没有被用来支持任何具体事实。本文作者未实际运行 dsh，全部能力描述来自官方文档，不包含未声明的实测结论。</div>
+
+        <div class="footer"><strong>来源事实与本文推断：</strong>仓库文档、论文、榜单与各官方页面直接支持的内容标为“来源事实”；对生产价值、架构影响、商业动机与未来方向的归纳标为“本文推断”。本文的能力描述均来自官方文档与公开资料，未包含作者实测数据。</div>
       </div>
     </section>
   </main>
