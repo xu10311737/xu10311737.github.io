@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="解读开源极简 coding agent pi：六个明确不做（无 MCP、无子代理、无权限弹窗、无计划模式、无内置待办、无后台任务）、千 token 级系统提示、可自我扩展的 harness 与 105k star 背后的上下文工程、供应链安全与 agent 可观测性启示。">
+  <title>pi：把"不做什么"刻进设计的 10 万星开源 Coding Agent</title>
+  <style>
+    :root{
+      --ink:#172a33;--ink-2:#304650;--muted:#65767c;--paper:#fbfcfa;--panel:#ffffff;
+      --line:#dbe3e0;--teal:#0c7772;--teal-soft:#e2f1ee;--coral:#c76545;--coral-soft:#f8e8e1;
+      --lime:#6f7f2a;--lime-soft:#eef2d9;--navy:#102b35;--plum:#8b6389;--shadow-lg:0 12px 30px rgba(16,43,53,.08);--shadow-sm:0 7px 20px rgba(16,43,53,.05);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--paper);color:var(--ink-2);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.82}
+    a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:3px}
+    a:hover{color:var(--coral)}
+    code{font:0.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:#e9efec;color:#0b5f5a;padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:16px;top:16px;z-index:20;background:#fff;padding:8px 12px;border:2px solid var(--teal)}
+    .shell{max-width:1120px;margin:0 auto;padding:0 24px}
+    .masthead{background:var(--navy);color:#f4f7f3;border-bottom:5px solid var(--teal)}
+    .masthead .shell{padding-top:20px;padding-bottom:58px}
+    .meta-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#b8c9c6;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+    .meta-row .date{color:#a8d8cf}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:48px;align-items:end;margin-top:52px}
+    h1,h2,h3{color:var(--ink);line-height:1.25;margin:0;font-weight:750}
+    h1{color:#f9fbf6;font-size:clamp(2.35rem,5vw,4.6rem);letter-spacing:-.03em;max-width:860px}
+    .dek{color:#d1dfdb;font-size:1.16rem;max-width:780px;margin:22px 0 0}.dek+.dek{margin-top:10px}
+    .signal{border-left:2px solid var(--coral);padding:4px 0 4px 20px;color:#f5dfd5;font-size:14px}
+    .signal b{display:block;color:#fff4ef;font-size:17px;margin-bottom:5px}
+    .toc{position:sticky;top:0;z-index:5;background:rgba(251,252,250,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+    .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px}
+    .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
+    main{padding-bottom:80px}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
+    .section.alt{background:#f1f5f1;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding-left:max(24px,calc(50vw - 536px));padding-right:max(24px,calc(50vw - 536px))}
+    .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);margin-bottom:10px}
+    h2{font-size:clamp(1.7rem,3vw,2.5rem);max-width:880px}.intro{font-size:1.08rem;max-width:840px;margin:16px 0 30px;color:var(--ink-2)}
+    h3{font-size:1.2rem;margin-bottom:8px}.section p{max-width:880px;margin:0 0 18px}.section p:last-child{margin-bottom:0}
+    .tldr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+    .tldr article{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--teal);padding:18px 18px 20px;min-height:174px;box-shadow:var(--shadow-lg)}
+    .tldr article:nth-child(2){border-top-color:var(--coral)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:var(--plum)}
+    .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
+    .factline{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:22px 0 0;color:var(--muted);font-size:13px}.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:800;letter-spacing:.05em}.fact{background:var(--teal-soft);color:var(--teal)}.inference{background:var(--coral-soft);color:#9d4b31}
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:var(--shadow-sm)}
+    .panel h3{display:flex;gap:10px;align-items:baseline}.panel .mark{color:var(--coral);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}.panel ul,.panel ol{margin:10px 0 0;padding-left:22px}.panel li{margin:7px 0;font-size:15px}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}.flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);position:relative}.flow .node:last-child{border-right:0}.flow .node:not(:last-child)::after{content:"";position:absolute;right:-9px;top:52px;width:16px;height:16px;border-top:2px solid var(--coral);border-right:2px solid var(--coral);transform:rotate(45deg);background:#fff;z-index:1}.flow .k{display:block;color:#b0512f;font:700 12px Georgia,serif;margin-bottom:9px}.flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .code{background:#162e37;color:#dce9e5;padding:20px 22px;overflow:auto;max-width:880px;border-left:4px solid var(--coral);font:13px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;margin:20px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+    .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:880px}.callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.coral{border-left-color:var(--coral);background:var(--coral-soft)}
+    .note{font-size:14px;color:var(--muted);margin:12px 0 0}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:26px;border:1px solid var(--line);background:#fff}.scroll-hint{display:none}.compare{width:100%;min-width:980px;border-collapse:collapse;font-size:14px}.compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}.compare th{background:var(--navy);color:#f5faf7;font-size:13px}.compare tr:last-child td{border-bottom:0}.compare td:first-child{font-weight:750;color:var(--ink);width:13%}.compare td:nth-child(2){background:var(--teal-soft)}.compare td:nth-child(3){background:var(--coral-soft)}.compare td:nth-child(4){background:#fff}.compare td:nth-child(5){background:var(--lime-soft)}
+    .nono{width:100%;min-width:840px;border-collapse:collapse;font-size:14px}.nono th,.nono td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}.nono th{background:var(--navy);color:#f5faf7;font-size:13px}.nono tr:last-child td{border-bottom:0}.nono td:first-child{font-weight:750;color:#9d4b31;width:12%}
+    .steps{counter-reset:step;display:grid;gap:14px;margin-top:28px}.step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px;box-shadow:var(--shadow-sm)}.step::before{content:counter(step,decimal-leading-zero);color:var(--coral);font:700 23px Georgia,serif;padding-top:2px}.step h3{font-size:17px}.step p{font-size:15px;margin:5px 0 0}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:25px}.metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line);box-shadow:var(--shadow-sm)}.metric:nth-child(2){border-top-color:var(--coral)}.metric:nth-child(3){border-top-color:var(--lime)}.metric b{display:block;color:var(--ink);font-size:15px}.metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}.risk{padding:18px 20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm)}.risk h3{font-size:16px}.risk p{font-size:14px;margin:6px 0 0}.risk .level{font-size:11px;font-weight:800;letter-spacing:.1em;color:#b0512f}.risk .level.mid{color:#8a6d3b}
+    .sources{display:grid;gap:10px;margin-top:25px}.source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px;box-shadow:var(--shadow-sm)}.source .n{color:var(--coral);font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}.source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
+    .footer{color:var(--muted);font-size:13px;padding-top:28px}.footer strong{color:var(--ink)}
+    @media (max-width:820px){.hero-grid{grid-template-columns:1fr;gap:24px;margin-top:38px}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.split,.risk-grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{right:auto;top:auto;bottom:-9px;left:50%;transform:rotate(135deg);background:#fff}.section{padding:48px 0}.section.alt{padding-left:24px;padding-right:24px}}
+    @media (max-width:1030px){.scroll-hint{display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:8px 0 0}}
+    @media (max-width:900px){.compare{min-width:720px;font-size:12.5px}.nono{min-width:600px;font-size:12.5px}.compare th,.compare td,.nono th,.nono td{padding:10px 10px}}
+    @media (max-width:520px){.shell{padding-left:17px;padding-right:17px}.masthead .shell{padding-bottom:42px}.meta-row{align-items:flex-start;flex-direction:column;gap:4px}.tldr{grid-template-columns:1fr}.tldr article{min-height:auto}.section.alt{margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding-left:17px;padding-right:17px}.step{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:16px}.toc .shell{gap:16px}.code{padding:16px 14px}}
+    @media print{.toc{position:static}.masthead,.compare th,.nono th,.code{-webkit-print-color-adjust:exact;print-color-adjust:exact}.panel,.risk,.step,.metric,.tldr article,.callout,.flow .node{break-inside:avoid}.compare,.nono{min-width:0;font-size:11px}.section{padding:32px 0}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="shell">
+      <div class="meta-row"><span>人工智能（AI）工程技术日报 / 研究与判断</span><span class="date">2026-09-16 · ISSUE 04</span></div>
+      <div class="hero-grid">
+        <div>
+          <h1>pi：把"不做什么"刻进设计的 10 万星开源 Coding Agent</h1>
+          <p class="dek">Earendil 开源的极简 coding agent（能在终端里读代码、改文件、跑命令、连续多步完成编程任务的 AI 程序）pi，在 GitHub 攒到约 10.56 万 star，跻身 OpenRouter（模型 API 聚合网关，按其路由的 token 用量发布应用排行）应用用量榜前五。</p>
+          <p class="dek">它的差异化不在功能多，而在功能少得有纪律：系统提示加工具定义合计不到 1000 token；MCP（Model Context Protocol，外部工具挂载协议）、子代理（主代理派生的独立实例）、权限弹窗、计划模式、内置待办、后台任务六件事被官方明确写进"我们不做什么"，每件都给出文件、tmux（终端复用器，可同屏管理多个终端会话）或扩展原语的替代路径——"让 pi 适应你的工作流，而不是反过来"。</p>
+        </div>
+        <div class="signal"><b>先给结论</b>pi 押注的判断是：2026 年的前沿模型经过强化学习（RL，用奖励信号训练模型行为）已经"天生会当 coding agent"，harness（本义"挽具"，指包裹模型、供其调用工具并循环执行的运行环境）的价值从"替模型操心"转向"给工程师控制权"。对做 Agent 系统的工程师，值得抄的不是它的功能清单，而是它的三张账单：上下文账（什么进上下文、占多少 token）、安全账（弹窗是剧场、边界在环境）、治理账（依赖最小信任、会话数据全公开）。</div>
+      </div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="文章目录">
+    <div class="shell"><a href="#tldr">TL;DR（太长不看）</a><a href="#problem">背景与问题</a><a href="#principle">核心原理</a><a href="#difference">创新与差异</a><a href="#compare">竞品对比</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+  <main id="content">
+    <section class="section" id="tldr">
+      <div class="shell">
+        <div class="label">01 / Decision brief</div>
+        <h2>TL;DR（太长不看）：一个靠"负空间"取胜的开源 Harness</h2>
+        <div class="tldr">
+          <article><span class="num">01 / WHAT</span><h3>发生了什么</h3><p>libGDX 游戏框架作者 Mario Zechner 发起的 coding agent pi（GitHub 仓库 earendil-works/pi，MIT 许可证）数据截至 2026-09-16 约 10.56 万 star、单日新增 437；OpenRouter 应用用量榜第五，约 2570 亿 token。2025 年 11 月它还是个人仓库 badlogic/pi-mono，如今由 Earendil Inc. 主导开发。</p></article>
+          <article><span class="num">02 / WHY</span><h3>解决谁的问题</h3><p>主流 harness 功能持续膨胀、系统提示与工具定义随版本漂移、上下文在用户看不见的地方被注入、会话细节不可检查。pi 面向的是"想要一个稳定、可完全控制、可观测的执行环境"的工程师，而不是要开箱即用全家桶的用户。</p></article>
+          <article><span class="num">03 / HOW</span><h3>核心机制</h3><p>极简核心：系统提示加四个工具（read、write、edit、bash）不到 1000 token；六个"不做"全部配替代路径；缺的功能用 TypeScript 扩展实现（官方维护 50 多个示例），甚至可以让 pi 边运行边改自己，<code>/reload</code> 热加载。</p></article>
+          <article><span class="num">04 / SHIP</span><h3>生产判断</h3><p>pi 默认无权限确认（作者称 YOLO 模式，跳过一切确认直通执行），接入生产前必须先解决隔离：官方给出 Docker、Gondolin 扩展（本地微型虚拟机）、OpenShell 三条容器化路径。token 与成本统计为尽力而为口径，不可直接当计费依据；第三方扩展截至发稿未见强制安全扫描，安装前人工审查责任在使用者。</p></article>
+        </div>
+        <div class="factline"><span class="tag fact">来源事实</span><span>star 与用量数据来自 GitHub Trending、GitHub 仓库页与 OpenRouter 排行页（数据截至 2026-09-16）；系统提示原文、六不原则、供应链策略、基准结果均转写自 pi.dev 官网与作者公开博文（来源 01–04）。</span><span class="tag inference">本文推断</span><span>"极简路线如今可行"依赖一个前提——模型侧的 agentic 能力已被训练内化；若该前提变化，"负空间"设计不会自动失效，但竞争力会向扩展生态倾斜。</span></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="problem">
+      <div class="shell">
+        <div class="label">02 / Background</div>
+        <h2>背景与问题：Harness 军备竞赛的另一面，是失控的上下文</h2>
+        <p class="intro">2025 年起，coding agent harness 成为开发者日常工具：Claude Code、Codex、Cursor、Amp、opencode、Droid 相继成为主流选择。竞争的主流打法是加法——更多内置功能、更长的系统提示、更重的流程管控。pi 的作者 Mario Zechner 是这场军备竞赛的深度参与者（游戏框架 libGDX 的作者，二十余年开源老兵），他的结论却相反：加法正在伤害这类工具的核心用户。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>加法 harness 的四个痛点</h3><p>作者在公开长文里逐条列出了他弃用 Claude Code 转而自建的理由（来源 03），每一条都指向"控制权"：<strong>功能膨胀</strong>——"它变成了飞船，80% 的功能我用不上"；<strong>版本漂移</strong>——系统提示与工具定义每次发布都在变，既破坏用户工作流，也改变模型行为；<strong>上下文黑箱</strong>——harness 在用户看不见的地方注入内容，"真正的上下文工程（context engineering，精确控制进入上下文窗口的内容）在现有工具里做不到或极难做到"；<strong>可观测性缺失</strong>——"我想检查与模型交互的每一个细节，基本没有 harness 允许"。此外，依赖 Vercel AI SDK（SDK，软件开发工具包）这类高层抽象的工具（如 opencode）对自托管模型的支持不佳，工具调用经常出问题。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>为什么此时出现 pi</h3><p>pi 的成立依赖两个条件先后成熟。<strong>模型侧</strong>：作者观察，前沿模型经过大规模 RL 训练后"天然理解 coding agent 是什么"，不需要上万 token 的系统提示来教（来源 03）——harness 里大量"替模型操心"的指令变成了冗余。<strong>工程侧</strong>：与 pi 同在 Earendil 的 Flask 作者 Armin Ronacher 在同期文章（来源 04）给出独立佐证：高层 SDK 抽象在真实工具调用场景下会破裂（Anthropic 的网页搜索工具经 Vercel SDK 会破坏消息历史），"构建 agent 时直接对接各厂商原生 SDK 才能保持完全控制"——Earendil 已经放弃了 Vercel AI SDK 路线。2025-11-30 作者发文公布 pi，2026 年 9 月项目已由个人仓库迁入 earendil-works 组织，star 突破 10 万（来源 01、02、06）。</p></div>
+        </div>
+        <div class="callout"><p><strong>判断边界：</strong>本文不评测"pi 干活好不好用"——那需要长期实测；本文回答的是"它把 harness 的设计重心从功能移到了哪里，哪些决策可以迁移到你自己的系统里"。全部能力描述来自官方文档、仓库页面与作者公开博文，未包含作者实测数据。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="principle">
+      <div class="shell">
+        <div class="label">03 / Mechanism</div>
+        <h2>核心原理：四层解耦的最小骨架，每层只做一件事</h2>
+        <p class="intro">pi 不是单个 CLI（命令行程序），而是一个 monorepo（单仓库多包）里的六个可独立使用的包。coding agent 的完整链路被切成了职责分明的四层，另有两个横向配套——这种解耦意味着各层都能脱离 pi 单独复用。</p>
+        <div class="flow" role="group" aria-label="pi 分层架构">
+          <div class="node"><span class="k">01 / MODEL</span><b>pi-ai：统一模型 API</b><small>直连四类原生 API（OpenAI Completions/Responses、Anthropic Messages、Google GenAI）及任意 OpenAI 兼容端点；处理各供应商差异；跨供应商上下文交接；全链路可中断；token 与成本追踪。</small></div>
+          <div class="node"><span class="k">02 / LOOP</span><b>pi-agent-core：Agent 循环</b><small>处理工具执行、参数校验、事件流与消息排队；循环不设步数上限——跑到模型自己说完成；可经传输抽象直跑或走代理。</small></div>
+          <div class="node"><span class="k">03 / RENDER</span><b>pi-tui：终端渲染</b><small>保留原生滚动与搜索的"追加式"终端界面；组件级缓存加差分渲染，配合同步输出转义序列，把闪烁压到近零。</small></div>
+          <div class="node"><span class="k">04 / AGENT</span><b>pi-coding-agent：CLI 组装</b><small>会话树、四运行模式、扩展系统、skills（能力包）、主题、AGENTS.md 项目上下文加载——把前三层拼成一个产品。</small></div>
+          <div class="node"><span class="k">05 / SIDE</span><b>chord + telemetry 配套</b><small>chord 是独立的应用组合运行时（服务、复制状态、RPC 即远程调用、插件）；pi-telemetry 定义厂商中立的遥测契约。</small></div>
+        </div>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">01</span>pi-ai：把"统一 API"做在供应商怪癖之上</h3><p>统一 LLM API 的难点从来不是接口签名，而是供应商差异。pi-ai 的做法是直连原生 API 并显式吸收怪癖：Cerebras、xAI、Mistral 等不接受 <code>store</code> 字段、不认 <code>developer</code> 角色；有的用 <code>max_tokens</code>、有的只认 <code>max_completion_tokens</code>；推理轨迹在不同供应商返回的字段名不同（来源 03）。三个生产级设计值得注意：<strong>全链路可中断</strong>——任意环节可 abort，且返回已生成的部分结果而非丢弃；<strong>工具结果双通道</strong>——工具可同时返回"给模型看的 output"与"给界面渲染的 details"，UI 不必反向解析文本；<strong>参数流式渐进解析</strong>——模型边生成工具参数边解析，界面能实时流式显示文件改动的 diff。跨供应商切换会话时，Anthropic 的思维链被转写为 <code>&lt;thinking&gt;</code> 标签文本交给下一家模型（来源 03）。</p></div>
+          <div class="panel"><h3><span class="mark">02</span>pi-tui：差分渲染换来的"零闪烁"</h3><p>终端 UI 有两条路线：全屏接管式（Amp、opencode）要自己重造滚动与搜索；追加式（Claude Code、Codex、pi）保留终端原生能力。pi 选追加式，代价是渲染要精细：组件树缓存已渲染行，更新时找到第一处差异行、只从那里重绘到末尾；用户上滚出视口时整体重绘；所有输出包在同步输出转义序列（终端的标准原子刷新指令）里一次性提交。作者的对照结论：在 Ghostty、iTerm2 上几乎无闪烁，仍优于 Claude Code（来源 03）。</p></div>
+        </div>
+        <p>下面是 pi 系统提示的主体——英文原文节选，转写自来源 03。除按项目加载的 AGENTS.md 外，pi 不向上下文注入任何别的内容：</p>
+        <pre class="code" aria-label="pi 系统提示英文原文节选（转写自来源 03）">You are an expert coding assistant. You help users with coding
+tasks by reading files, executing commands, editing code, and
+writing new files.
+
+Available tools:
+- read: Read file contents
+- bash: Execute bash commands
+- edit: Make surgical edits to files
+- write: Create or overwrite files
+
+Guidelines:
+- Use bash for file operations like ls, grep, find
+- Use read to examine files before editing
+- Be concise in your responses</pre>
+        <p>这段系统提示与四个工具的定义合计不足 1000 token（来源 03）。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">03</span>上下文工程栈：每样东西都明码标价</h3><p>pi 的上下文组装全部显式：<strong>AGENTS.md</strong>（业界渐成的项目说明文件约定）从全局目录、父目录、当前目录分层加载；<strong>SYSTEM.md</strong> 可按项目整体替换或追加默认系统提示；<strong>compaction</strong>（上下文压缩：接近窗口上限时自动摘要旧消息）通过扩展完全可定制，可换摘要模型、可做代码感知摘要；<strong>skills</strong>（能力包：指令加工具的组合）按需加载，不破坏前缀缓存（prompt cache：请求开头不变时，服务商可复用已算好的部分，降费提速）；<strong>prompt templates</strong> 把可复用提示词做成 Markdown，输入 <code>/名称</code> 展开；扩展还能在每个回合前动态注入消息、过滤历史、实现检索或长期记忆（来源 01、03）。</p></div>
+          <div class="panel"><h3><span class="mark">04</span>会话树与四种运行形态</h3><p>会话存成树而非线性列表：<code>/tree</code> 可回到任意历史节点另起分支，全部分支在一个文件里；<code>/export</code> 导出 HTML，<code>/share</code> 上传 GitHub gist 得到可分享的渲染页（来源 01）。运行形态有四种：交互 TUI；<code>pi -p</code> 打印模式与 JSON 事件流供脚本调用；RPC（Remote Procedure Call，远程过程调用，程序间经管道或网络互相调用接口）模式经标准输入输出跑 JSON 协议，供非 Node 技术栈集成；SDK 模式把 pi 嵌进应用（开源项目 OpenClaw 是官方引用的真实集成案例）。agent 工作中可随时插入消息：Enter 发"转向"消息（当前工具完成后送达、打断剩余工具），Alt+Enter 发"跟进"消息（等 agent 做完再送）——这是对长任务失控感的直接回应。</p></div>
+        </div>
+        <div class="callout coral"><p><strong>一个反直觉的取舍：</strong>pi 刻意让系统提示"不随模型调整"。直觉上各家模型应在原生 harness 的提示下表现最好，但作者的实测经验是：训练充分的前沿模型不需要模仿某家 harness 的专属提示，稳定不变的短提示反而让行为可预期、让前缀缓存保得住（来源 03）。harness 追着模型版本改提示，本身就是一种不稳定源。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="difference">
+      <div class="shell">
+        <div class="label">04 / What changed</div>
+        <h2>创新与差异：六个"不做"，每个都有替代路径</h2>
+        <p class="intro">pi.dev 官网用专门一节陈列"我们不做什么"——把产品的负空间当成卖点公开承诺。这不是噱头：每个"不做"都有官方替代路径与理由，且大多数给出了可安装或可抄的参考实现。</p>
+        <div class="table-wrap">
+          <table class="nono">
+            <thead><tr><th scope="col">官方不做</th><th scope="col">替代路径</th><th scope="col">官方理由（来源 01、03）</th></tr></thead>
+            <tbody>
+              <tr><td>不内置 MCP</td><td>带 README 的命令行工具，agent 按需阅读；或用 mcporter 把 MCP 服务器包装成 CLI；或写扩展自行支持</td><td>流行 MCP 服务器把全部工具描述常驻上下文：Playwright MCP 21 个工具约 13.7k token、Chrome DevTools MCP 26 个约 18k token——开工前先占掉 7–9% 上下文窗口</td></tr>
+              <tr><td>不内置子代理</td><td>经 bash 或 tmux 派生新的 pi 实例；或用官方 subagent 扩展示例</td><td>子代理是"黑箱里的黑箱"：内部过程不可见、上下文交接不可控；会话中段才想起用子代理收集上下文，说明前期规划失败</td></tr>
+              <tr><td>不内置权限确认弹窗</td><td>容器化运行；或用官方 permission-gate 扩展示例自建确认流</td><td>能写代码又能跑代码的 agent，弹窗拦截基本是"安全剧场"——真正有效的边界只有运行环境隔离</td></tr>
+              <tr><td>不内置计划模式</td><td>把计划写进 PLAN.md 文件；或用 plan-mode 扩展示例</td><td>文件式计划跨会话存活、可进版本库、可与 agent 协同编辑，全程可观测——会话内建的临时计划模式三者全无</td></tr>
+              <tr><td>不内置待办清单</td><td>TODO.md 文件，checkbox 即状态</td><td>内置待办给模型引入需要维护的额外状态，出错机会更多；文件状态简单、可见、完全在用户手里</td></tr>
+              <tr><td>不内置后台任务</td><td>tmux；agent 可列出、进入、共用同一会话</td><td>后台进程管理是成熟问题，终端复用器早已解决——作者演示了与 agent 共用一个 LLDB 调试会话互相配合的形态</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="scroll-hint">← 表格较宽，可左右滑动查看 →</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">01</span>原语而非功能：把功能从产品搬进用户空间</h3><p>"其他工具焊死在产品里的功能，pi 都给原语让你自己搭。"扩展是普通 TypeScript 模块，可触达工具、命令、快捷键、事件与整个 TUI；官方示例库维护着 50 多个参考实现：子代理、计划模式、权限门、路径保护、SSH 执行、沙箱、MCP 集成、自定义状态栏等（来源 01）。扩展、skills、提示模板、主题可打包成 Pi package，经 <code>pi install npm:@foo/pi-tools</code> 或 <code>pi install git:…</code> 安装——复用 npm 这个 JavaScript 生态最大的包分发基础设施，而不是另造市场。</p></div>
+          <div class="panel"><h3><span class="mark">02</span>自我扩展：agent 改写自己的运行环境</h3><p>pi 最特别的交互形态：缺什么就让 pi 现场写——它可以直接改写自己的配置与扩展，改完 <code>/reload</code> 热加载继续干（来源 01）。"harness 即代码"在这里从口号变成日常操作：你的工作流定制不是配置项，是一段你能读、能审、能进版本库的 TypeScript。官网的展示包括一个运行在 pi 里的 DOOM 扩展——用来说明扩展面已经宽到什么程度。</p></div>
+          <div class="panel"><h3><span class="mark">03</span>供应链与社区治理：把"不信任"写成流程</h3><p>一个会被 agent 执行任意命令的工具，其自身供应链就是攻击面。pi 的对策是六个可抄进任何 Node 项目的纪律：npm 依赖变更视为需人工审查的代码变更；依赖精确版本固定；lockfile（锁文件，把依赖版本钉死的清单）是唯一事实来源；<code>min-release-age=2</code>——发布不满两天的依赖不装，专门防"新包投毒"；<code>--ignore-scripts</code>——安装时跳过执行包内脚本；生命周期脚本白名单加 CI 里的 npm audit（来源 02）。社区治理同样强硬：新贡献者的 issue 与 PR 默认自动关闭，维护者每天人工复核——这是对 AI 生成低质贡献（slop）泛滥的直接回应。</p></div>
+          <div class="panel"><h3><span class="mark">04</span>会话数据开源：把真实工作流变成公共语料</h3><p>pi-mono 会话数据经 pi-share 发布到 Hugging Face（badlogicgames/pi-mono 数据集），作者明说动机：用真实世界任务数据改进 coding agent，而不是只靠玩具基准（来源 02、03）。一个 harness 公开自己的完整使用轨迹——包括失败与返工——在同类项目里相当少见，这既是研究资产，也把"我们到底怎么用它干活"变成了可审计的事实。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="compare">
+      <div class="shell">
+        <div class="label">05 / Landscape</div>
+        <h2>竞品对比：harness 的两种世界观</h2>
+        <div class="table-wrap">
+          <table class="compare">
+            <thead><tr><th scope="col">维度</th><th scope="col">pi</th><th scope="col">Claude Code</th><th scope="col">Codex</th><th scope="col">opencode</th></tr></thead>
+            <tbody>
+              <tr><td>定位与形态</td><td>极简原语 harness；TUI / print-JSON / RPC / SDK 四模式</td><td>全功能终端 coding agent</td><td>终端 coding agent（Rust 核心）</td><td>终端 coding agent（全屏 TUI）</td></tr>
+              <tr><td>开源与热度</td><td>MIT，约 10.56 万 star（2026-09-16），6300 余次提交</td><td>闭源；OpenRouter 应用榜前二</td><td>核心开源（codex-rs）</td><td>开源</td></tr>
+              <tr><td>系统提示策略</td><td>加工具定义 &lt; 1000 token；稳定不随版本漂移；可整体替换</td><td>大型系统提示，每次发布都可能变化（来源 03 作者跟踪记录）</td><td>工具定义同样极简（来源 03）</td><td>按模型换提示；Claude 版为 Claude Code 提示的删节复制（来源 03 观点）</td></tr>
+              <tr><td>权限模型</td><td>无弹窗；隔离交给容器，或用扩展自建</td><td>确认弹窗加小模型预检命令（来源 03）</td><td>—</td><td>—</td></tr>
+              <tr><td>MCP 立场</td><td>不内置；CLI 工具加 README 的渐进披露替代</td><td>内置支持，生态最大</td><td>—</td><td>—</td></tr>
+              <tr><td>子代理立场</td><td>不内置；tmux 派生保持可观测，或扩展实现</td><td>内置；作者批评其过程零可见、上下文交接不可控（来源 03）</td><td>—</td><td>—</td></tr>
+              <tr><td>自托管模型</td><td>任意 OpenAI 兼容端点直连，官方列 15 家以上供应商，会话中途可换模型</td><td>绑定 Anthropic 模型</td><td>绑定 OpenAI 模型</td><td>支持但依赖 Vercel AI SDK，工具调用问题多（来源 03）</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="scroll-hint">← 表格较宽，可左右滑动查看 →</p>
+        <p class="note">表中"—"表示该维度未在本文来源中比较；关于竞品的批判性描述（版本漂移、子代理黑箱、工具调用问题）均转写自 pi 作者博文（来源 03），属利益相关方的单方陈述，选型前建议对照竞品官方文档交叉核实。</p>
+        <p>两种世界观各行其道：全功能派把经验产品化、开箱即用；原语派把决定权连同负担一起交给用户。pi 与 Codex 在工具极简上殊途同归，差异在 pi 连系统提示、UI、扩展面也一并交了出去。同在 Earendil 的 Armin Ronacher 公开试用 Amp 的理由颇具代表性：欣赏其 Oracle 子代理与主循环的交互设计——见贤思齐与路线选择并不矛盾（来源 04）。</p>
+        <div class="metric-grid">
+          <div class="metric"><b>约 105,600 star / 单日 +437</b><span>GitHub Trending 与仓库页 2026-09-16 数据；对一个以"克制"为卖点的项目，这个增速本身构成信号：市场对"减法 harness"存在真实需求（本文推断）。</span></div>
+          <div class="metric"><b>OpenRouter 应用榜第五</b><span>约 2570 亿 token 经 OpenRouter 路由消耗（数据截至 2026-09-16）；同榜前二为 Hermes Agent 与 Claude Code。榜单量级证明"运行量"，不直接等于用户数。</span></div>
+          <div class="metric"><b>&lt; 1000 token</b><span>系统提示与四个工具定义的合计体积（来源 03）。作者据此主张：训练充分的前沿模型不需要庞大的 harness 指令来"教会"它工作。</span></div>
+        </div>
+        <div class="callout"><p><strong>基准佐证，而非基准崇拜：</strong>作者把 pi（配 Claude Opus 4.5）送进 Terminal-Bench 2.0（laude-institute 的终端任务基准），每任务五次完整跑分，完整结果与可复现的结果文件一并公开（来源 03、08）。作者据跑分得出的结论是：极简工具集与专用 harness 的差距远小于直觉。更硬的旁证是同榜的 Terminus 2——只给模型一个 tmux 会话、纯文本交互的极简 agent，同样在榜上站稳。两个结果合起来指向一个判断（本文推断）：工具复杂度与最终成绩的相关性，比功能清单给人的直觉低得多。作者同时诚实记录了基准的局限：美国太平洋时段上线后错误率上升，结果随之变差。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="production">
+      <div class="shell">
+        <div class="label">06 / Engineering</div>
+        <h2>工程化视角：三个生产问题</h2>
+        <div class="split">
+          <div class="panel"><h3>问题一：接入生产系统，要先过哪几关？</h3><p><strong>第一关是隔离，且不可跳过。</strong>pi 默认以你的用户权限运行、无任何确认（来源 02、03），接入生产凭据前必须先画环境边界，官方给出三条路径：普通 Docker；Gondolin 扩展——宿主保留 pi 与供应商密钥，把工具执行与命令路由进本地 Linux 微型虚拟机（micro-VM，进程级轻量隔离）；OpenShell——策略控制的沙箱。<strong>第二关是供应链。</strong>官方安装命令自带 <code>--ignore-scripts</code>，扩展安装来自 npm 与 git——截至发稿，其公开文档未见对第三方扩展的强制安全扫描与权限声明机制，安装即信任，审查责任在使用者。<strong>第三关是集成形态。</strong>脚本化用 print/JSON 模式；非 Node 技术栈用 RPC 协议；嵌入产品用 SDK——OpenClaw 是官方引用的完整案例。<strong>第四关是计量。</strong>各供应商对 token 与缓存读写的上报口径不一（有的在流首、有的在流尾，中断后无法对账），pi 的成本追踪是尽力而为口径（来源 03），适合自用参考，不能直接当计费系统。</p></div>
+          <div class="panel"><h3>问题二：它对现有 LLM 应用架构有什么影响？</h3><p>最直接的影响是<strong> harness 的解绑（unbundling）</strong>：模型 API 层（pi-ai）、循环层（pi-agent-core）、渲染层（pi-tui）各自独立可用——你不必用 pi 的 CLI，可以只拿 pi-ai 做一个与 coding 无关的对话应用。这代表一种架构主张：harness 不该是铁板一块。<strong>第二层影响是对"统一 SDK"路线的修正</strong>：Earendil 的实战结论（来源 04）是高层抽象在真实工具调用下破裂、显式管理缓存点优于自动管理——Anthropic 的缓存需要手工设点（系统提示后一处、会话头部两处），系统提示与工具因此必须保持静态，动态信息（如当前时间）放到后置消息注入。这条经验对一切自建 agent 循环的团队直接适用。<strong>第三层影响是上下文管理的标准化</strong>：AGENTS.md 分层加载正在成为项目级约定，pi 的 skills 渐进披露提供了不破坏前缀缓存的扩展模式（来源 01、03）。</p></div>
+          <div class="panel"><h3>问题三：从 Demo 到生产可用，主要差距在哪里？</h3><p>四个差距。<strong>基准不等于生产</strong>：作者自己强调 Terminal-Bench 不代表真实表现，且结果随时段漂移（来源 03）——上生产前必须用自己的任务集回归。<strong>模型仍是上下文收集短板</strong>：作者观察模型被训练得倾向只读文件的局部，常漏掉完成任务所需的关键上下文；pi-mono 的 issue 跟踪器里大量贡献因此被关闭——"我们太信任 agent 了"。对策不是更好的工具，而是工作流：先在独立会话收集上下文、产出可复用的 artifact（工件文件），再开新鲜会话带着 artifact 干活。<strong>并行多代理写码是反模式</strong>：作者的原话是——除非不在乎代码库退化成垃圾堆（来源 03）。<strong>评测仍是行业级未解难题</strong>：同司的 Armin 直言测试与评估是他们遇到的最难问题，现有方案没有一个令人满意（来源 04）——这一点 pi 也没解决，它只是把"你看到的就是全部上下文"做实了，让失败可归因。</p></div>
+          <div class="panel"><h3>部署边界提示</h3><p>官方文档明确：pi 不内置权限系统、以启动用户身份运行，所有安全边界外置给容器化方案（来源 02）。这构成一条清晰的部署纪律：容器先于凭据，凭据先于任务。会话数据方面，树状历史默认落盘本地、可导出可分享——团队引入时要自行决定哪些会话可以离开机器；公开仓库里作者本人把 pi-mono 会话持续发布到 Hugging Face，这是个人选择而非默认行为。Windows 有原生 PowerShell 安装脚本，安装走 <code>pi.dev/install.ps1</code>。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="risk">
+      <div class="shell">
+        <div class="label">07 / Risks</div>
+        <h2>局限与风险：把控制权交给用户，也把责任交给了用户</h2>
+        <div class="risk-grid">
+          <article class="risk"><span class="level">高</span><h3>无确认直通是真实攻击面</h3><p>pi 可经 curl 读写网络、可执行任何命令、可读任何文件——这些都是提示词注入（prompt injection：把恶意指令藏进模型会读的内容里、诱导其执行）的入口。作者引用的安全论述（来源 03）承认：读数据、执行代码、网络访问三者不可兼得，弹窗也防不住；Simon Willison 的双 LLM 隔离模式同样被其提出者自评为"相当糟"。pi 的答案是诚实的放弃——但"诚实"不降低风险，只把风险移给了懂行的人。</p></article>
+          <article class="risk"><span class="level">高</span><h3>扩展供应链无护栏</h3><p><code>pi install</code> 直装任意 npm 包或 git 仓库。截至发稿，其公开文档未见类似技能目录的强制扫描、危险操作拦截或权限声明机制。在"扩展可触达工具与整个 TUI"的设计下，一个恶意扩展的权限等同 pi 本体——第三方扩展引入前的人工审查没有替代品。</p></article>
+          <article class="risk"><span class="level mid">中</span><h3>极简是门槛，不是免费午餐</h3><p>六个"不做"意味着大量开箱即用的便利需要自行组装——或让 pi 现场替你写。对不写 TypeScript 的用户，官方答案是"装一个别人写的包"，这又回到上一条的供应链问题。毛坯房对建筑师是自由，对租客是负担（本文推断）。</p></article>
+          <article class="risk"><span class="level mid">中</span><h3>社区治理限制了贡献增长</h3><p>新贡献者的 issue 与 PR 默认自动关闭、维护风格自述为"独裁式"、官方给出的分歧出口是"欢迎 fork"（来源 02、03）。这在 slop 泛滥的当下保护了主干质量，代价是外部贡献的持续摩擦——对一个依赖生态繁荣度的原语型项目，这是需要观察的长期张力。</p></article>
+          <article class="risk"><span class="level mid">中</span><h3>统一 API 的泄漏抽象</h3><p>供应商差异是永远的地心引力：token 计量口径不一、跨供应商思维链交接是有损转写（Anthropic 思维链被改写成普通标签文本）、工具调用流式在个别大厂 API 上仍不支持（来源 03）。任何"统一层"都只能尽力而为——把它当契约而非保证。</p></article>
+          <article class="risk"><span class="level mid">中</span><h3>单公司主导的可持续性</h3><p>pi 由 Earendil Inc. 主导开发，域名由第三方捐赠，商业化路径未见公开披露（来源 01、02）。原语型 harness 的价值恰恰依赖长期稳定——10 万 star 的社区若与公司战略出现分歧，fork 是官方明示的退出通道，但生态分裂成本已经预付。</p></article>
+        </div>
+        <div class="callout coral"><p><strong>安全结论：</strong>pi 的部署顺序应当是——先容器（Docker、Gondolin 或 OpenShell 三选一），再凭据，最后才放任务。它对"弹窗派"的批评值得认真对待：确认疲劳让弹窗沦为点击仪式；但它的替代方案要求团队具备容器化运维能力。没有免费的边界，只有画在不同层的边界。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="future">
+      <div class="shell">
+        <div class="label">08 / Outlook</div>
+        <h2>未来方向：极简 harness 会把行业带向哪里</h2>
+        <div class="split">
+          <div class="panel"><h3>能力分发复用 npm 生态</h3><p>Pi package 经 npm 与 git 分发，意味着 coding agent 的能力市场不需要新建目录与评分体系，直接继承 JavaScript 世界最大的包基础设施（来源 01）。本文推断：当"装一个扩展"与"装一个 npm 包"的心智成本完全一致，团队私有扩展的内部共享会先于公开市场繁荣起来——前者才是这套分发机制的近期价值。</p></div>
+          <div class="panel"><h3>harness 即代码：agent 改写自己的运行环境</h3><p>pi 让 agent 现场修改自己的配置与扩展、热加载继续工作（来源 01），把"定制 harness"从配置文件升格为日常对话。本文推断："个人 harness"（我的 pi 与你的 pi 长得不一样）与"产品 harness"（所有人的 Claude Code 长得一样）会加速分化，前者靠扩展生态繁荣，后者靠训练协同优化——两条路线的服务对象从一开始就不同。</p></div>
+          <div class="panel"><h3>极简路线正在多点开花</h3><p>同期证据并非只有 pi：Codex 的工具定义同样极简（来源 03）；Terminal-Bench 团队自研的 Terminus 2 只给模型一个 tmux 会话照样上榜（来源 03、08）；DeepSeek 的开源 harness（约 22.5 万 star）在仓库定位里写明"一切皆插件"（来源 09）。本文推断：行业正收敛向"骨架最小、能力外挂、上下文显式"的共同形态——区别只在外挂的载体是扩展、插件还是技能文件。</p></div>
+          <div class="panel"><h3>公开会话成为研究资产</h3><p>pi-mono 会话数据持续发布到 Hugging Face（来源 02），加上 pi 的会话树可导出、可分享，真实工作流的"任务—尝试—修正—完成"轨迹首次以 harness 官方身份成为公共语料。本文推断：这类真实任务轨迹对后训练与行为研究的价值将高于又一批新基准——最稀缺的从来不是评测题，是真实失败过程的完整记录。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="takeaways">
+      <div class="shell">
+        <div class="label">09 / Takeaways</div>
+        <h2>工程师可以借鉴什么</h2>
+        <div class="steps">
+          <article class="step"><div><h3>先给你的系统提示记账，再谈 agent 优化</h3><p>pi 用不到 1000 token 的系统提示加四个工具，在作者的终端基准对照中不输重型 harness（来源 03）。本文推断：多数 harness 里庞大的"替模型操心"内容，优化的是提供者的安心感而非模型的表现。第一步永远是测量：把进入上下文的每一段内容列出来、标上 token 数，你会发现最大的几块往往没人为它们负责。</p></div></article>
+          <article class="step"><div><h3>用渐进披露替代常驻工具描述</h3><p>MCP 服务器的 21 个工具 13.7k token、26 个工具 18k token（来源 03）——开工前先烧掉 7–9% 的上下文窗口。带 README 的 CLI 工具让 agent 按需阅读、按需付 token，还天然保住前缀缓存。这个模式不要求你放弃 MCP：把"何时加载什么"从供应商的连接协议夺回到自己的上下文工程里，才是重点。</p></div></article>
+          <article class="step"><div><h3>把状态放进文件，而不是模式里</h3><p>计划写 PLAN.md、待办写 TODO.md：跨会话存活、可进版本库、人可编辑、agent 可读写、全程可观测。会话内建的临时"计划模式"与"待办面板"把状态锁进了黑盒——文件式状态的所有权在用户手里。这也是 pi 对子代理批评的延伸：看不见的状态就是失控的状态。</p></div></article>
+          <article class="step"><div><h3>构建在原生 API 上，把中断与部分结果设计进去</h3><p>Earendil 放弃 Vercel AI SDK 的教训（来源 03、04）：高层抽象在真实工具调用下破裂；显式管理缓存点优于自动管理。以及一条常被忽略的生产要求：请求要能全链路中断，中断后要拿得到已生成的部分结果——大多数统一 API 两者都做不到（来源 03）。</p></div></article>
+          <article class="step"><div><h3>供应链纪律可以整包抄走</h3><p>六条直接可迁移：依赖变更视为代码变更走审查、精确版本固定、lockfile 为唯一事实来源、<code>min-release-age=2</code> 防新包投毒、<code>--ignore-scripts</code> 安装、生命周期脚本白名单。这六条不依赖 pi 的任何代码——任何被 agent 执行命令的工具，都该对照自查一遍。</p></div></article>
+        </div>
+        <div class="factline"><span class="tag inference">本文判断</span><span>如果你正在为团队选型：要开箱即用与厂商协同，全功能派仍是稳妥解；如果你的差异化恰恰在上下文与工作流本身，pi 这类原语派把最大的自由度连同最大的责任一起给你——两者不是替代关系，是光谱两端。无论选哪端，"上下文账、安全账、治理账"三张账单都值得先算。</span></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="sources">
+      <div class="shell">
+        <div class="label">10 / Sources</div>
+        <h2>数据源</h2>
+        <p class="intro">本节区分来源事实与本文推断。核心事实来自 pi 官网、GitHub 仓库与两位作者的公开博文，数据截至 2026-09-16（Asia/Shanghai）。</p>
+        <div class="sources">
+          <article class="source"><span class="n">01</span><p><strong>pi.dev 官网</strong> · 数据截至 2026-09-16<small>产品定位语（"There are many agent harnesses but this one is yours" / "Adapt Pi to your workflows, not the other way around"）、四运行模式、15 家以上供应商与会话中途切换、会话树与 /export、/share、上下文工程栈（AGENTS.md、SYSTEM.md、Compaction、Skills、prompt templates、动态注入）、"What we didn't build" 六不原则、扩展原语与 50 余示例、pi install 包分发、自我扩展与 /reload、OpenClaw 集成案例、安装命令。<br><a href="https://pi.dev" target="_blank" rel="noopener">https://pi.dev</a></small></p></article>
+          <article class="source"><span class="n">02</span><p><strong>earendil-works/pi</strong> · GitHub 仓库（MIT 许可证）· 数据截至 2026-09-16：约 10.56 万 star、6300 余次提交<small>README：monorepo 六包结构与各自职责、无内置权限系统的定位声明、Gondolin / Docker / OpenShell 三条容器化路径、供应链加固六条（含 min-release-age=2 与 --ignore-scripts）、新贡献者 issue 与 PR 默认自动关闭的治理声明、pi-mono 会话数据集发布至 Hugging Face、RFC 流程、pi.dev 域名由 exe.dev 捐赠。<br><a href="https://github.com/earendil-works/pi" target="_blank" rel="noopener">https://github.com/earendil-works/pi</a></small></p></article>
+          <article class="source"><span class="n">03</span><p><strong>What I learned building an opinionated and minimal coding agent</strong> · Mario Zechner（pi 作者、libGDX 作者）（2025-11-30）<small>弃用 Claude Code 的四条动机、pi-ai 的供应商怪癖矩阵与跨供应商上下文交接、全链路可中断与部分结果、工具结果双通道、参数流式渐进解析、pi-tui 差分渲染与同步输出、系统提示与四工具原文及合计体积、YOLO 默认与安全剧场论述、No MCP 的 token 数据（13.7k / 18k）、子代理反模式与上下文收集工作流、Terminal-Bench 2.0 五次/任务跑分与 Terminus 2 对照、时段影响基准的观察、模型只读文件局部的缺陷观察。<br><a href="https://mariozechner.at/posts/2025-11-30-pi-coding-agent/" target="_blank" rel="noopener">https://mariozechner.at/posts/2025-11-30-pi-coding-agent/</a></small></p></article>
+          <article class="source"><span class="n">04</span><p><strong>Agent Design Is Still Hard</strong> · Armin Ronacher（Flask 作者，Earendil）（2025-11-21）<small>放弃 Vercel AI SDK 的决策与原因（web search 工具破坏消息历史）、显式缓存管理与三点布点、reinforcement in the loop、失败隔离、虚拟文件系统共享状态、output tool 的困难、评测是最难问题的判断、Haiku/Sonnet 工具调用最佳与 token 成本不等于 agent 成本、试用 Amp 的观察。<br><a href="https://lucumr.pocoo.org/2025/11/21/agents-are-hard/" target="_blank" rel="noopener">https://lucumr.pocoo.org/2025/11/21/agents-are-hard/</a></small></p></article>
+          <article class="source"><span class="n">05</span><p><strong>OpenRouter Rankings</strong> · 数据截至 2026-09-16<small>应用用量榜：Hermes Agent 第一、Claude Code 第二、pi 第五（约 2570 亿 token）；应用描述语 "There are many coding agents, but this one is yours"。榜单为经其路由的 token 消耗量口径。<br><a href="https://openrouter.ai/rankings" target="_blank" rel="noopener">https://openrouter.ai/rankings</a></small></p></article>
+          <article class="source"><span class="n">06</span><p><strong>GitHub Trending</strong> · 数据截至 2026-09-16<small>earendil-works/pi：约 105,577 star、TypeScript、单日新增 437；同期榜上的 agent-skills、context-mode 等项目用于行业热度参照。<br><a href="https://github.com/trending" target="_blank" rel="noopener">https://github.com/trending</a></small></p></article>
+          <article class="source"><span class="n">07</span><p><strong>The dual LLM pattern</strong> · Simon Willison（2023-04-25）<small>双 LLM 隔离模式的原始论述，其提出者对方案局限的自我评价经来源 03 引用，用于第 07 节安全论证。<br><a href="https://simonwillison.net/2023/Apr/25/dual-llm-pattern/" target="_blank" rel="noopener">https://simonwillison.net/2023/Apr/25/dual-llm-pattern/</a></small></p></article>
+          <article class="source"><span class="n">08</span><p><strong>Terminal-Bench</strong> · laude-institute · 数据截至 2026-09-16<small>终端任务基准及其 Terminus 2 参照 agent，pi 的五次/任务跑分与提交资格声明见来源 03；用于第 05 节"极简工具集与成绩相关性"论证。<br><a href="https://github.com/laude-institute/terminal-bench" target="_blank" rel="noopener">https://github.com/laude-institute/terminal-bench</a></small></p></article>
+          <article class="source"><span class="n">09</span><p><strong>deepseek-ai</strong> · GitHub 组织页 · 数据截至 2026-09-16<small>deepseek-harness 仓库（约 22.5 万 star，MIT 许可证）及其"DeepSeek Harness: Everything is a Plugin"定位描述，用于第 08 节"极简与插件化路线多点开花"的行业趋势佐证。<br><a href="https://github.com/deepseek-ai" target="_blank" rel="noopener">https://github.com/deepseek-ai</a></small></p></article>
+        </div>
+
+        <div class="footer"><strong>来源事实与本文推断：</strong>star 与用量数据、系统提示原文、六不原则、供应链策略、容器化路径、基准观察标为"来源事实"；市场需求判断、路线分化预测、选型建议与各处标注"本文推断"的归纳均为本文分析。本文的能力描述均来自官方文档与公开资料，未包含作者实测数据。</div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
