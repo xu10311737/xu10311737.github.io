@@ -111,12 +111,12 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
     <div class="wrap">
       <span class="kicker">实现对比 · Harness 解剖</span>
       <h1>四个 Agent 运行时的<span style="white-space:nowrap">解剖</span>：<em>同题，四种答案</em></h1>
-      <p class="lede">Claude Code、Codex、DeepSeek Harness、OpenCode 都在干同一件事——把一个模型变成能在你仓库里干活的运行时。但从 agent loop 的第一种写法开始，四家就分了岔：委派用 fork、线程、子会话还是插件注册表？prompt 是拼出来的、服务端下发的、按模型分发的、还是历史里的一条消息？这篇用四家官方文档加一份 83 页的源码解剖论文，把四种工程哲学摆上解剖台。</p>
+      <p class="lede">Claude Code、Codex、DeepSeek Harness、OpenCode 都在干同一件事——把一个模型变成能在你仓库里干活的运行时。但从 agent loop 的第一种写法开始，四家就分了岔：委派用 fork、线程、子会话还是插件注册表？prompt 是拼出来的、服务端下发的、按模型分发的、还是历史里的一条消息？这篇用四家官方文档加一份 83 页的源码研究论文，把四种工程取向逐项对比清楚。</p>
       <div class="ha-meta">
         <span>对比对象：四家 Harness</span>
         <span>Claude Code · Codex · DeepSeek Harness · OpenCode</span>
         <span>主依据：arXiv 2609.00006（源码级研究）</span>
-        <span>最重一章：多 agent 委派</span>
+        <span>差异最大的一章：多 agent 委派</span>
         <span>抓取时间：2026-09</span>
       </div>
     </div>
@@ -132,22 +132,22 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         <div class="ha-card">
           <div class="num">15<span style="font-size:16px;color:var(--muted)">×</span></div>
           <div class="lbl">多 agent 的 token 放大倍数</div>
-          <div class="expl">源码研究的设计建议直说：大多数编码任务的真并行度，配不上多 agent 约 15 倍的 token 开销（arXiv 2609.00006，建议 12）。四家都建了委派，但克制程度完全不同。</div>
+          <div class="expl">源码研究的设计建议直说：大多数编码任务里，真正能并行的部分很少，撑不起多 agent 约 15 倍的 token 开销（arXiv 2609.00006，建议 12）。四家都做了委派机制，但克制程度完全不同。</div>
         </div>
         <div class="ha-card">
           <div class="num">4 <span style="font-size:16px;color:var(--muted)">层</span></div>
-          <div class="lbl">Claude Code 的多 agent 谱系</div>
+          <div class="lbl">Claude Code 的四层多 agent 机制</div>
           <div class="expl">session 内 subagent、并行 session 监控（agent view）、session 团队（agent teams）、模型写脚本的 workflows 四种机制并存——官方对其中三种给出了"谁持有计划"的对比表，是四家中维度最全的。</div>
         </div>
         <div class="ha-card">
           <div class="num">6 <span style="font-size:16px;color:var(--muted)">个</span></div>
           <div class="lbl">DeepSeek Harness 的子代理后端数</div>
-          <div class="expl">它的委派层是"具名提供方注册表"：进程内 spawn / fork、ACP、独立 SDK——外加两个竞品：把 Codex 和 Claude Code 当自己的子 agent 后端跑（DSH 官方文档）。</div>
+          <div class="expl">它的委派层是"按名字注册、可整体替换"的一组后端：进程内 spawn / fork、ACP、独立 SDK——另外还能把 Codex 和 Claude Code 两个竞品当自己的子 agent 后端来跑（DSH 官方文档）。</div>
         </div>
         <div class="ha-card">
           <div class="num">0 <span style="font-size:16px;color:var(--muted)">个</span></div>
           <div class="lbl">400 万行代码里的两个零</div>
-          <div class="expl">11 个生产 harness、约 400 万行 Python/TypeScript/Rust 源码：没有任何一个 import 通用 agent 框架（LangChain、AutoGen、CrewAI……全数缺席），没有任何一个用向量检索读代码。</div>
+          <div class="expl">11 个生产 harness、约 400 万行 Python/TypeScript/Rust 源码：没有任何一个 import 通用 agent 框架（LangChain、AutoGen、CrewAI……一个都没有），没有任何一个用向量检索读代码。</div>
         </div>
       </div>
     </div>
@@ -159,7 +159,7 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         <div class="sym">H</div>
         <div class="body"><b>Agent = 模型 + Harness。</b>2026 年 7 月的源码研究《Harness Engineering》（arXiv 2609.00006，Wavestone AI Lab，83 页）给这个领域下了工作定义：harness 就是模型之外的全部运行时——"the runtime that couples an LLM to the world—its loop, its tools, its context, its safety controls, its orchestration, and its extension surfaces"（推理循环、工具、上下文、安全控制、编排、扩展面）。本站前两篇解读了"怎么测 harness"（<a href="/harness-bench-paper-report/">Harness-Bench</a>、<a href="/frontier-harness-eval-report/">FrontierHarness 榜单</a>），这一篇回答另一个问题：测的那些东西，<b>里面到底是什么</b>。</div>
       </div>
-      <p>该研究把 harness 拆成 7 个子系统，并给出了每一档的极简/极繁实现。这张表是全文的解剖图：</p>
+      <p>该研究把 harness 拆成 7 个子系统，并给出了每一档的极简/极繁实现。这张表是全文的对照框架：</p>
       <div class="ha-tablewrap">
         <table>
           <tr><th>子系统</th><th>职责</th><th>极简实现</th><th>极繁实现</th></tr>
@@ -173,16 +173,16 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         </table>
       </div>
       <div class="src">7 子系统定义与极简/极繁对照：arXiv 2609.00006 §2.3、Table 1。</div>
-      <h3>四家与三个口径</h3>
+      <h3>四家与三个阅读前提</h3>
       <p>对比对象沿用 FrontierHarness 榜单钉死的版本：<b>Claude Code v2.1.237、Codex v0.148.0、DeepSeek Harness v0.1.0-rc.8、OpenCode v1.18.19</b>。但要先交代三件影响读法的事：</p>
       <div class="ha-callout warn">
-        <div class="ttl">口径警告：你读到的每个数字都是"某时点快照"</div>
+        <div class="ttl">数据前提：你读到的每个数字都是某一时间点的快照</div>
         <ol>
           <li><b>源码研究的快照滞后。</b>论文对 Claude Code 的分析基于一份流传的 2026 年 3 月源码快照（它反复提醒发货 binary 可能与快照不同）；Claude Code 官方文档今天描述的部分行为（如 v2.1.257 的模型强制变量）比榜单版本还新。</li>
           <li><b>DeepSeek Harness 是 developer preview。</b>官方 README 明言快速迭代、会有 breaking changes，它的文档随时在变。</li>
-          <li><b>论文语料不含 DSH。</b>研究解剖的 11 个系统（Claude Code、Codex CLI、Gemini CLI、Mistral Vibe、OpenHands、Aider、Mini-SWE-Agent、Hermes、Pi、OpenCode、OpenClaw）里没有 DeepSeek Harness——研究期它还没发布。所以 DSH 的全部细节来自其官方文档，其余三家则可以"官方文档 + 源码研究"双口径互证。</li>
+          <li><b>论文研究的系统里没有 DSH。</b>研究解剖的 11 个系统（Claude Code、Codex CLI、Gemini CLI、Mistral Vibe、OpenHands、Aider、Mini-SWE-Agent、Hermes、Pi、OpenCode、OpenClaw）里没有 DeepSeek Harness——做研究时它还没发布。所以 DSH 的全部细节来自其官方文档，其余三家则可以同时用官方文档和源码研究两个来源互相核对。</li>
         </ol>
-        论文自己的话是方法论教训："inventory claims (tool counts, feature cells, version pins) decay in weeks, while structural claims (loop taxonomy, subsystem anatomy, the absences) have so far proven durable"——功能清单级的信息以周为单位过期，结构性结论才耐用（§14.5）。这也是上篇发现 4 讨论的快照过期问题的另一个切面。
+        论文自己总结了方法论教训：功能清单级的信息（工具数量、功能矩阵、版本号）几周内就会过期；结构性结论（循环的分类、子系统的构成、哪些能力缺席）到目前为止一直站得住（§14.5）。上篇"发现 4"讨论的快照过期问题，在这是同一件事的另一面。
       </div>
       <p>下文的引用体系：未特别标注的事实来自四家官方文档（Claude Code = code.claude.com/docs，Codex = learn.chatgpt.com/docs，OpenCode = opencode.ai/docs，DSH = deepseek-harness.github.io）；标"论文"的来自 arXiv 2609.00006；标"DSH 文档"的来自 DeepSeek Harness 官方文档站与仓库。</p>
     </div>
@@ -190,38 +190,38 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
     <div class="ha-section alt">
       <div class="ha-kicker">D1 · Agent Loop</div>
       <h2 class="ha-h2">同一个循环，四种跑法</h2>
-      <p class="ha-sub">所有 harness 的心脏都是一个 while 循环：调模型、执行工具调用、再调模型。四家的分歧从这么基础的地方就开始了。</p>
+      <p class="ha-sub">每个 harness 的核心都是同一个 while 循环：调模型、执行工具调用、再调模型。分歧从这么基础的地方就开始了。</p>
       <div class="ha-grid g4">
         <div class="ha-card">
           <div class="who">Claude Code</div>
           <div class="lbl">SSE 流式 + 智能工具批处理</div>
-          <div class="expl">Anthropic SSE 细粒度流式事件；独特点是<b>工具批处理的并发分类</b>：每个工具默认 <b>isConcurrencySafe = false</b>（安全默认），只有显式声明安全的只读工具（grep/glob/read）才并行，写操作一律串行（论文 §6.2.2）。</div>
+          <div class="expl">Anthropic SSE 细粒度流式事件。独特点是对工具调用分并发类别：每个工具默认 <b>isConcurrencySafe = false</b>（宁可串行、安全优先），只有显式声明安全的只读工具（grep/glob/read）才并行执行，写操作一律串行（论文 §6.2.2）。</div>
         </div>
         <div class="ha-card">
           <div class="who">Codex</div>
           <div class="lbl">Rust Tokio 异步状态机</div>
-          <div class="expl">Session 编排轮次，经 <b>FuturesOrdered</b> 做有序并行执行，工具运行时已抽出为独立 crate（论文 §6.2.3）。四家中唯一的 Rust 实现，错误恢复策略编译期强约束。</div>
+          <div class="expl">Session 负责编排轮次，经 <b>FuturesOrdered</b> 做有序并行执行，工具运行时已抽出为独立 crate（论文 §6.2.3）。它是四家中唯一的 Rust 实现，错误恢复策略在编译期就被强制约束。</div>
         </div>
         <div class="ha-card">
           <div class="who">OpenCode</div>
           <div class="lbl">日志即队列（log-as-queue）</div>
-          <div class="expl">字面 while(true)，但<b>消息日志兼作工作队列</b>：待办的子 agent 生成与压缩不是控制流分支，而是持久化的 message parts，循环每轮取一个——跨进程重启天然可恢复。无默认步数上限；<b>三次完全相同的工具调用触发 doom-loop 询问</b>，由用户裁决是不是 bug；上下文溢出从不重试、直接转压缩（论文 §6.2.9）。</div>
+          <div class="expl">循环就是字面上的 while(true)，但<b>消息日志同时充当任务队列</b>：要做的子 agent 生成、上下文压缩，不写成代码里的控制流，而是存成持久化的 message parts，循环每轮从里面取一件来干——因为待办事项本身就在日志里，进程重启后也能接着干。无默认步数上限；<b>三次完全相同的工具调用会触发 doom-loop 询问</b>，让用户裁决是不是卡死循环了；上下文溢出从不重试、直接转压缩（论文 §6.2.9）。</div>
         </div>
         <div class="ha-card">
           <div class="who">DeepSeek Harness</div>
           <div class="lbl">循环本身是插件</div>
-          <div class="expl">官方架构文档明言：agent loop 是"实现 Agent 接口的默认驱动器"，是一个<b>可被配置替换的普通插件</b>。每个步骤先经 pre-step waterfall（可拒绝/改写输入），然后组装 prompt、<b>从日志派生并冻结模型历史</b>再发请求；取消在任何阶段都不落盘（DSH 文档 reference/index）。</div>
+          <div class="expl">官方架构文档明言：agent loop 是"实现 Agent 接口的默认驱动器"，就是一个<b>可以用配置换掉的普通插件</b>。每个步骤先过一道前置检查串（pre-step waterfall，各检查可以拒绝或改写输入），然后组装 prompt、<b>从日志推导出一份固定的模型历史</b>再发请求；取消操作在任何阶段都不写日志（DSH 文档 reference/index）。</div>
         </div>
       </div>
-      <p>一个有用的读法：OpenCode 和 DSH 把"可恢复"当第一公民（一切以日志为中心，DSH 甚至把它升格为运行时不变量，见 D4 节），Claude Code 和 Codex 把"流式性能"当第一公民。这不是谁对谁错，是两种服役环境的取舍。</p>
+      <p>一个有用的读法：OpenCode 和 DSH 把"可恢复"当作头等目标（一切以日志为中心，DSH 甚至把它定成运行时不变量，见 D4 节），Claude Code 和 Codex 把"流式性能"当作头等目标。这不是谁对谁错，是两种使用场景下的取舍。</p>
     </div>
 
     <div class="ha-section">
       <div class="ha-kicker">D6 · 多 agent 委派</div>
-      <h2 class="ha-h2">重头戏：委派的四种架构</h2>
-      <p class="ha-sub">这是四家差异最大的地方，也是各家工程哲学暴露得最彻底的地方。先看 Claude Code 官方给出的"谁持有计划"四分法，再看四家全景，最后逐层拆。</p>
-      <h3>先立坐标系：计划在谁手里</h3>
-      <p>Claude Code 官方文档给了一个罕见诚实的分类法——四种机制的本质区别是<b>"谁持有计划"</b>（code.claude.com/docs/en/workflows）：</p>
+      <h2 class="ha-h2">差异最大的一节：委派的四种架构</h2>
+      <p class="ha-sub">这是四家差异最大的地方，也是各家设计取向体现得最明显的地方。先看 Claude Code 官方给出的"谁持有计划"四分法，再看四家全景，最后逐层拆。</p>
+      <h3>先给分类标准：计划由谁持有</h3>
+      <p>Claude Code 官方文档给了一个难得坦率的分类法——四种机制的本质区别就一条：<b>计划由谁持有</b>（code.claude.com/docs/en/workflows）：</p>
       <div class="ha-tablewrap">
         <table>
           <tr><th>机制</th><th>谁持有计划</th><th>怎么运转</th><th>适合</th></tr>
@@ -232,8 +232,8 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         </table>
       </div>
       <div class="src">Claude Code 官方文档 workflows 页对比表改写。</div>
-      <h3>四家谱系总览</h3>
-      <p>把这个坐标系铺到四家，谱系差异一目了然：</p>
+      <h3>四家能力全景</h3>
+      <p>把这个分类铺到四家，差异一目了然：</p>
       <div class="ha-tablewrap">
         <table>
           <tr><th>能力</th><th>Claude Code</th><th>Codex</th><th>OpenCode</th><th>DeepSeek Harness</th></tr>
@@ -248,23 +248,23 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
       </div>
       <div class="src">各单元格依据见下文逐层拆解与文末数据源清单；"近似"标注的判定理由也在下文。</div>
 
-      <h3>第一层：委派原语怎么造</h3>
+      <h3>第一层：单个子 agent 怎么建</h3>
       <div class="ha-grid">
         <div class="ha-card">
           <div class="who">Claude Code：fork 出去，缓存留下</div>
-          <div class="expl">subagent 用 markdown + YAML frontmatter 定义（项目 <b>.claude/agents/</b> 或用户 <b>~/.claude/agents/</b>），每个定义声明：独立上下文窗口、自定义 system prompt、工具白名单、独立权限模式、可选模型。官方明说可以把杂活路由给 <b>Haiku 这类便宜模型</b>。三个硬细节：① 所有 subagent 描述合计超过 <b>15,000 token</b> 会在启动时告警；② spawn 是一次 <b>context fork</b>——论文拆出 6 个维度的克隆（中断控制、文件状态缓存、权限提示、拒绝追踪……），而关键优化是 <b>fork 时把父代理已渲染的 system prompt 逐字冻结传给子代理</b>，保证子代理的请求命中父代理的 prompt 缓存前缀（论文 Table 4 的签名标签："prompt-cache-sharing forks; the reference others copy"）；③ 定义里可加 <b>isolation: worktree</b>，让子代理跑在临时 git 工作树里。官方文档还支持前台/后台两种 spawn，以及按名字 resume 一个子代理。</div>
+          <div class="expl">subagent 用 markdown + YAML frontmatter 定义（项目 <b>.claude/agents/</b> 或用户 <b>~/.claude/agents/</b>），每个定义声明五样东西：独立上下文窗口、自定义 system prompt、工具白名单、独立权限模式、可选模型。官方明说可以把杂活派给 <b>Haiku 这类便宜模型</b>。三个硬细节：① 所有 subagent 的描述合计超过 <b>15,000 token</b>，启动时会告警；② spawn 的本质是一次上下文复制（context fork）。论文拆出 6 个维度的复制内容：中断控制、文件状态缓存、权限提示、拒绝追踪等。关键优化在 system prompt 上：fork 时把父代理已渲染好的 system prompt 逐字冻结、原样传给子代理，让子代理的请求能命中父代理已建立的 prompt 缓存前缀，省下重复计算的钱（论文 Table 4 给它的标签是"prompt-cache-sharing forks"，并称其他系统只是照抄，the reference others copy）；③ 定义里可加 <b>isolation: worktree</b>，让子代理跑在临时 git 工作树里。官方文档还支持前台/后台两种 spawn，以及按名字恢复（resume）一个子代理。</div>
         </div>
         <div class="ha-card">
           <div class="who">Codex：一切皆线程</div>
-          <div class="expl">Codex 的委派原语是 <b>agent thread</b>：subagent 拥有自己的线程，用户可用 <b>/agent</b> 命令随时切进某个线程查看（官方文档 subagents 页）。源码研究拆出三件套：中央 <b>AgentControl</b>（spawn 控制面）、<b>AgentRegistry</b>（session 树内全部存活 agent 的元数据）、以及带 fork 模式的 spawn 流程——<b>SpawnAgentForkMode</b> 决定子代理继承多少历史：全量，或只取最近 N 轮，且继承时会过滤消息，只保留 system/developer/user 与最终答案，<b>剔除中间工具调用与推理</b>，防止上下文膨胀。代理间通信用类型化的 <b>InterAgentCommunication</b> 记录（Spawn/Message/Followup/Result）；工具本身有两代（multi_agents 与 multi_agents_v2），<b>按模型元数据选择用哪一代</b>。子代理角色可以用 TOML 文件声明（explorer/worker）——论文称之为"Codex 对 Claude Code agent definitions 的回答"（官方文档 + 论文 §11.3）。</div>
+          <div class="expl">Codex 的委派基本构件是 <b>agent thread</b>（代理线程）：subagent 拥有自己的线程，用户可用 <b>/agent</b> 命令随时切进某个线程查看（官方文档 subagents 页）。源码研究拆出三件套：中央 <b>AgentControl</b>（spawn 控制面）、<b>AgentRegistry</b>（session 树内全部存活 agent 的元数据）、带 fork 模式的 spawn 流程。<b>SpawnAgentForkMode</b> 决定子代理继承多少历史——全量，或只取最近 N 轮；继承时会过滤消息：只保留 system/developer/user 与最终答案，把中间的工具调用和推理过程全部剔除，防止上下文膨胀。代理间通信用类型化的 <b>InterAgentCommunication</b> 记录（Spawn/Message/Followup/Result）。工具本身有两代（multi_agents 与 multi_agents_v2），<b>按模型元数据选择用哪一代</b>。子代理角色可以用 TOML 文件声明（explorer/worker）——论文称之为"Codex 对 Claude Code agent definitions 的回答"（官方文档 + 论文 §11.3）。</div>
         </div>
         <div class="ha-card">
           <div class="who">OpenCode：子代理就是子会话</div>
-          <div class="expl">OpenCode 的 subagent <b>不是独立引擎，而是带 parentID 的 child session</b>，跑同一个 loop（论文 §11.9）。结果以 <code>&lt;task_result&gt;</code> XML 包裹返回，后台完成的结果作为<b>合成 user 消息</b>注入对话。两个反差极大的细节：① <b>containment 不对称——子代理只继承父代理的 deny 规则</b>，allow 不继承；② 递归委派默认关闭（子代理调 task 工具会被自动拒绝），按 agent 定义 opt-in 之后<b>没有数字深度上限</b>。还有一个四家独一份：让 <b>LLM 现场生成 agent 定义</b>（用结构化输出生成 identifier / whenToUse / systemPrompt），不用写配置文件就能"变出"一个子代理。官方文档侧：内置 subagent 有 General、Explore、Scout 等，可用 <b>@ 提及</b>显式点名，也会按描述自动匹配。</div>
+          <div class="expl">OpenCode 的 subagent <b>不是独立引擎，而是带 parentID 的子会话（child session）</b>，跑同一个 loop（论文 §11.9）。结果以 <code>&lt;task_result&gt;</code> XML 包裹返回，后台完成的结果作为一条<b>合成 user 消息</b>注入对话。两个反差极大的细节：① <b>权限继承不对称——子代理只继承父代理的拒绝（deny）规则</b>，允许（allow）规则不继承；② 递归委派默认关闭（子代理再调 task 工具会被自动拒绝），在 agent 定义里显式开启后<b>没有数字深度上限</b>。还有四家独一份的：让 <b>LLM 现场生成 agent 定义</b>（用结构化输出生成 identifier / whenToUse / systemPrompt），不写配置文件就能"变出"一个子代理。官方文档侧：内置 subagent 有 General、Explore、Scout 等，可用 <b>@ 提及</b>显式点名，也会按描述自动匹配。</div>
         </div>
         <div class="ha-card">
           <div class="who">DeepSeek Harness：委派是注册表，后端随便换</div>
-          <div class="expl">DSH 的 subagent 是一个 <b>可选能力 seam</b>（DSH 架构术语，指"可替换的能力槽位"：接口声明、实现提供、使用消费三种角色分离，运行时可整体换实现），不属于 agent loop 主干，实现为<b>具名提供方注册表</b>，同一上下文可共存多个后端（DSH 文档 subsystems/subagent）。官方列出六个提供方：进程内 spawn（不继承上下文）、进程内 fork（以父日志已完成轮次的平衡前缀作种子）、ACP（进程外）、<b>codex 后端、claude-code 后端</b>（把两个竞品当子代理，经 subprocess 生成）、独立 dsh SDK 运行时。子代理分两类：<b>one-shot</b>（一次性前台，返回单结果）与 <b>continuable</b>（持久子 Session + 至多一个进程内 Activation，可跑多轮、可冷恢复）；消息<b>只允许直接父子之间</b>，兄弟、隔代、自指一律拒绝。请求可携带 outputSchema（强制 JSON 结构化输出）、maxDepth（委派深度上限）、toolFilter（对子代理的工具可见性过滤——文档强调这是"可见性而非权限"，被过滤的工具从 prompt 消失且拒绝执行）。能力不匹配的请求返回 UNSUPPORTED_CAPABILITY，"fail loud, no silent degradation"。</div>
+          <div class="expl">DSH 的 subagent 是一个 <b>可选能力 seam</b>。seam 是 DSH 的架构术语，意思是"可替换的能力槽位"：一个能力只声明接口，实现单独提供，运行时可以整体换掉，所以它不属于 agent loop 主干。实现方式是<b>按名字注册的提供方注册表</b>，同一个上下文里可以共存多个后端（DSH 文档 subsystems/subagent）。官方列出六个提供方：进程内 spawn（不继承上下文）、进程内 fork（拿父日志里已完成轮次的一段稳定前缀当起点）、ACP（进程外）、<b>codex 后端、claude-code 后端</b>（把两个竞品当子代理，经 subprocess 生成）、独立 dsh SDK 运行时。子代理分两类：<b>one-shot</b>（一次性前台调用，返回单个结果）与 <b>continuable</b>（持久子 Session + 至多一个进程内激活，可跑多轮、可冷恢复）；消息<b>只允许直接父子之间传递</b>，兄弟、隔代、自己调自己一律拒绝。请求可带 outputSchema（强制 JSON 结构化输出）、maxDepth（委派深度上限）、toolFilter（过滤子代理能看见哪些工具——文档强调这是"控制可见性"而不是"控制权限"：被过滤的工具从 prompt 里消失，调用了也会拒绝执行）。能力不匹配的请求返回 UNSUPPORTED_CAPABILITY，原则是宁可大声报错、绝不静默降级。</div>
         </div>
       </div>
 
@@ -273,19 +273,19 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
       <div class="ha-grid">
         <div class="ha-card">
           <div class="who">Claude Code：模型写 JavaScript</div>
-          <div class="expl">Workflows 机制：Claude 写一段 JS 脚本（agent()、parallel()、pipeline()、phase()、log()），runtime 在后台执行它、主 session 保持响应。硬上限：<b>16 个并发、单次运行 1000 个 agent</b>、单条 pipeline 4096 项。最精妙的是扇出时的缓存经济学：<b>第一个 agent 先跑，其余 agent 读它焐热的缓存前缀，间隔 5 秒错峰启动</b>——把 prompt caching 直接编进了编排语义。脚本可保存为斜杠命令分发、可恢复（官方文档 workflows 页）。</div>
+          <div class="expl">Workflows 机制：Claude 写一段 JS 脚本（agent()、parallel()、pipeline()、phase()、log()），runtime 在后台执行它、主 session 保持响应。硬上限：<b>16 个并发、单次运行 1000 个 agent</b>、单条 pipeline 4096 项。最精妙的是并行扇出时的缓存处理：<b>第一个 agent 先启动，把 prompt 缓存前缀建立起来，其余 agent 间隔 5 秒错峰启动，直接复用这份缓存</b>——等于把 prompt caching 写进了编排规则本身。脚本可保存为斜杠命令分发、可恢复（官方文档 workflows 页）。</div>
         </div>
         <div class="ha-card">
-          <div class="who">DeepSeek Harness：同构，且承认对齐</div>
-          <div class="expl">DSH 的 workflow 工具让模型运行"会启动 subagent 的编排脚本"：script（纯 JS 函数体）、meta、args。引擎跑在 <b>node:worker_threads 的 vm 上下文</b>里，提供 parallel()/pipeline() 组合器与 maxTotalAgents 总量上限。两个特色：meta 块的字段词汇<b>官方文档注明与 Claude Code 动态工作流的 meta 块一致</b>；失败纪律是"拼错的选项必须 fatal 报错，绝不静默消融成普通失败"（DSH 文档 subsystems/workflow）。另有内置的 <b>ralph 工具</b>（固定前台工作流，每轮启动一个全新结构化子级，即 Ralph 循环模式）。</div>
+          <div class="who">DeepSeek Harness：同款结构，官方文档承认保持一致</div>
+          <div class="expl">DSH 的 workflow 工具让模型运行"会启动 subagent 的编排脚本"：script（纯 JS 函数体）、meta、args。引擎跑在 <b>node:worker_threads 的 vm 上下文</b>里，提供 parallel()/pipeline() 组合器与 maxTotalAgents 总量上限。两个特色：meta 块的字段命名，<b>官方文档注明与 Claude Code 动态工作流的 meta 块保持一致</b>；失败纪律是"拼错的选项必须直接报错（fatal），绝不静默降级成普通失败"（DSH 文档 subsystems/workflow）。另有内置的 <b>ralph 工具</b>（固定前台工作流，每轮启动一个全新结构化子级，即 Ralph 循环模式）。</div>
         </div>
         <div class="ha-card">
           <div class="who">Codex：不写脚本，写数据</div>
-          <div class="expl">Codex 的答案不是自由编排脚本，而是<b>结构化批量扇出</b>：spawn_agents_on_csv 对每一行 CSV 生成一个子代理，共享一个 JSON Schema 结果契约，带并发上限与结果回收（论文 §11.3）。委派本身受模型治理：新的 <b>ultra 推理档</b>在模型目录里的描述是"maximum reasoning with automatic sub-agent task delegation"——论文指出这是全部语料中<b>唯一改变编排行为的 effort 档</b>；本地 Codex 文档则说明触发条件是用户直接要求，或 AGENTS.md / skill 指令请求。</div>
+          <div class="expl">Codex 的答案不是自由编排脚本，而是<b>结构化批量扇出</b>：spawn_agents_on_csv 对 CSV 的每一行生成一个子代理，全部共享同一个 JSON Schema 结果契约，带并发上限与结果回收（论文 §11.3）。委派本身也受模型治理：新的 <b>ultra 推理档</b>在模型目录里的描述是"maximum reasoning with automatic sub-agent task delegation"（最高强度推理、自动把任务委派给子 agent）——论文指出，这是研究的全部系统里<b>唯一会改变编排行为的推理档</b>；本地 Codex 文档则说明触发条件是用户直接要求，或 AGENTS.md / skill 指令请求。</div>
         </div>
         <div class="ha-card">
           <div class="who">OpenCode：不给编排层</div>
-          <div class="expl">OpenCode 的多 agent 全部 = task 工具 + child session 树 + 快捷键导航（child_first/child_cycle/parent 在会话树里移动）。没有 workflow 引擎、没有团队、没有扇出原语。这是设计选择而不是缺失——它的定位是轻量中立客户端，把重编排让位给上层。</div>
+          <div class="expl">OpenCode 的多 agent 全部 = task 工具 + child session 树 + 快捷键导航（child_first/child_cycle/parent 在会话树里移动）。没有 workflow 引擎、没有团队、没有扇出机制。这是设计选择而不是缺东西没做——它的定位是轻量中立客户端，把重编排留给上层。</div>
         </div>
       </div>
 
@@ -296,7 +296,7 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         <ol>
           <li><b>结构</b>：一个 lead session（你正在对话的这个）spawn 出多个 <b>teammates，每个是完全独立的 Claude Code session</b>——加载自己的 CLAUDE.md、MCP 与 skills，但不继承 lead 的对话历史。四件套：lead、teammates、<b>共享任务列表</b>、<b>mailbox</b>（实为磁盘上的 JSON 文件：<code>~/.claude/teams/{team-name}/inboxes/{agent-name}.json</code>）。</li>
           <li><b>任务板</b>：任务三态（pending / in progress / completed）+ 依赖关系；lead 完成被依赖任务后自动解锁下游；<b>多代理抢单用文件锁防竞争</b>。</li>
-          <li><b>权限纪律</b>：teammate 继承 lead 的权限模式（dontAsk 模式除外）；teammate 的权限提示<b>冒泡到 lead 由你批</b>；teammate <b>不能替另一个 teammate 批权限</b>，被拒的动作也不能通过别的 teammate 中继绕过检查。</li>
+          <li><b>权限纪律</b>：teammate 继承 lead 的权限模式（dontAsk 模式除外）；teammate 的权限提示<b>会上抛给 lead，由你来批</b>；teammate <b>不能替另一个 teammate 批权限</b>，被拒的动作也不能借别的 teammate 中转绕过检查。</li>
           <li><b>质量门</b>：TeammateIdle / TaskCreated / TaskCompleted 三个 hook 可用 exit code 2 拦截并给反馈。</li>
           <li><b>硬限制（官方 Limitations 节）</b>：实验性、默认关闭（需设 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1）；无嵌套团队；一个 session 只有一个 team；lead 固定不可转移；in-process teammate 不能再开后台 subagent；/resume 不恢复 teammates。</li>
           <li><b>官方定位</b>：启用前先问"更轻的选项够不够"——subagent 在单 session 内就能干，cross-session messaging 能在你自己开的多个 session 之间传话。</li>
@@ -306,23 +306,23 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
       <div class="ha-grid">
         <div class="ha-card">
           <div class="who">DeepSeek Harness 的团队层</div>
-          <div class="expl">同样标实验、<b>默认禁用</b>（dsh-base 里关着，官方提供 profile patch 启用）。工具面 9 个：spawn_teammate、send_message、wait_agent、interrupt_agent、list_agents、team_task_* 四件。两个更精细的物件：<b>任务板是 compare-and-swap</b>（revision 递增）+ blockedBy 维护无环 DAG；每个任务的 writeScopes 是"提示性路径前缀"，官方文档直接注明<b>"不是锁"</b>（DSH 文档 subsystems/agent-team）。</div>
+          <div class="expl">同样标实验、<b>默认禁用</b>（dsh-base 里关着，官方提供 profile patch 启用）。工具面 9 个：spawn_teammate、send_message、wait_agent、interrupt_agent、list_agents、team_task_* 四件。两个更精细的设计：<b>任务板更新用 compare-and-swap</b>（每次修改版本号递增，防止并发互相覆盖），blockedBy 字段维护任务依赖（构成无环 DAG）；每个任务的 writeScopes 是"提示性的路径前缀"，官方文档直接注明<b>"不是锁"</b>（DSH 文档 subsystems/agent-team）。</div>
         </div>
         <div class="ha-card">
-          <div class="who">Codex 与 OpenCode：用别的原语替代团队</div>
+          <div class="who">Codex 与 OpenCode：用别的机制替代团队</div>
           <div class="expl">Codex 没有常驻团队，它的"多实例并行"答案是<b>产品化的 git worktrees</b>：每个 chat 可跑在独立 worktree（$CODEX_HOME/worktrees、detached HEAD、默认保留 15 个），<b>Handoff</b> 命令把 chat 在本地与 worktree 之间搬（官方文档 git-worktrees 页）。OpenCode 的答案是用户自己多开 session。两家都把"协调"留给人类。</div>
         </div>
       </div>
 
       <h3>第三层半：不开实验开关的轻量并行</h3>
-      <p>顺带补齐 Claude Code 谱系里不需要任何实验开关的两个机制：<b>agent view</b> 让你自己并行开多个 Claude Code session，在一块面板里监控全部会话的状态、收割结果；<b>cross-session messaging</b> 让你自己开的多个 session 之间互相传话。官方把这两个机制列在 agent teams 之前，作为启用团队前"先看看更轻的选项够不够"的推荐路径——它们的定位是<b>人来驱动并行</b>，而不是 agent 自动协调。</p>
+      <p>顺带补齐 Claude Code 这套机制里不需要任何实验开关的两个机制：<b>agent view</b> 让你自己并行开多个 Claude Code session，在一块面板里监控全部会话的状态、收割结果；<b>cross-session messaging</b> 让你自己开的多个 session 之间互相传话。官方把这两个机制列在 agent teams 之前，作为启用团队前"先看看更轻的选项够不够"的推荐路径——它们的定位是<b>由人来驱动并行</b>，而不是 agent 自动协调。</p>
 
       <h3>第四层：成本与模型路由</h3>
       <p>多 agent 的账单问题，四家的态度差异极大：</p>
       <div class="ha-grid g4">
         <div class="ha-card">
           <div class="who">Claude Code</div>
-          <div class="expl">把缓存经济学贯彻到委派：fork 冻结 system prompt 保缓存命中；官方文档明确 subagent 可路由给 Haiku 省钱；in-process teammate 的请求落在<b>独立的缓存 TTL 桶</b>（默认 5 分钟，可用 subagentPromptCacheTtl 调到 1 小时，代价是更贵的缓存写入价）。官方 agent teams 页多处明确警告"token 显著更多"。</div>
+          <div class="expl">把缓存省钱逻辑贯彻到委派层：fork 冻结 system prompt 保缓存命中；官方文档明确 subagent 可派给 Haiku 省钱；in-process teammate 的请求有<b>独立的缓存过期计时</b>（TTL 默认 5 分钟，可用 subagentPromptCacheTtl 调到 1 小时，代价是缓存写入价更贵）。官方 agent teams 页多处明确警告"token 显著更多"。</div>
         </div>
         <div class="ha-card">
           <div class="who">Codex</div>
@@ -338,35 +338,35 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         </div>
       </div>
       <div class="ha-callout warn">
-        <div class="ttl">给"多 agent 焦虑"的一盆冷水</div>
-        <p style="margin:0">源码研究的设计建议 12 原文值得抄录："保持单 agent，直到你能指出一个具体的<b>广度优先探索阶段</b>、并行上下文隔离明确胜过串行搜索"——因为多 agent 约多耗 <b>15 倍 token</b>（论文特意注明：这个 15 倍的对比基准是单次 chat 对话，不是优化过的单 agent 管线），而"most coding tasks involve fewer truly parallelizable tasks than research"（大多数编码任务的真实可并行段，比调研类任务少得多）。研究同时观察到 coordinator-worker 架构在多家独立涌现（观察 7）——涌现说明它有用，但四家的优化目标各不相同：Claude Code 优化成本，Codex 优化隔离与规模。判断你的场景到底有没有真并行段，比选哪家 harness 更重要。</p>
+        <div class="ttl">多 agent 的冷静提醒</div>
+        <p style="margin:0">源码研究的设计建议 12 值得抄录：<b>保持单 agent，直到你能指出一个具体的广度优先探索阶段、并行带来的上下文隔离明确好过串行搜索</b>——因为多 agent 约多耗 <b>15 倍 token</b>（论文特意注明：这个 15 倍的对比基准是单次 chat 对话，不是优化过的单 agent 管线），而且大多数编码任务里真正能并行执行的段落，比调研类任务少得多。研究同时观察到 coordinator-worker（主控-工人）架构在多家独立出现（观察 7）——这说明它有用，但四家的优化目标各不相同：Claude Code 优化成本，Codex 优化隔离与规模。判断你的场景到底有没有真正可并行的段落，比选哪家 harness 更重要。</p>
       </div>
 
-      <h3>第五层：跨 harness 委派——最有想象力的一步</h3>
-      <p>回到上面谱系表最后一行。DSH 的六后端里有两个竞品后端（dsh-subagent-codex 与 dsh-subagent-claude-code），设计决策有专门的设计记录（仓库 .agents/notes/ 内 2026-08-04 的 Agent Note）。这件事的意义是：<b>委派层的抽象一旦做对，吃掉的不只是模型层，还有别家整个 harness 的生态位</b>——DSH 用户可以在一个会话里把"探索仓库"派给 Codex、"安全审查"派给 Claude Code，各自带着自己家的工具链和 prompt。</p>
-      <p>协议层的背景同样重要。论文观察到 ACP（Agent Client Protocol）已进入 6/11 个系统，并长出了设计者没预料的第二个角色：<b>harness hosting</b>——OpenHands 通过 ACP 把 Claude Code、Codex、Gemini CLI 当作可互换的"大脑"接进自己的对话（论文金句："The protocol built for editors turned out to be the interface for hosting"）。但同时，9 个有多 agent 能力的系统里 8 个的<b>自家 subagent 仍是进程内原语</b>，跨进程的也绕开标准协议（Pi 用私有 JSONL，Hermes 用 SQLite 黑板）；唯一把子代理协调走标准协议的是 OpenClaw。论文给出的工程指导是：对外发布 ACP server（一次吃到 IDE、host、meta-orchestrator 三类消费者），对内 subagent 保持 in-process——<b>委派的护城河在 fork 隔离、缓存共享、权限冒泡这些进程内细节，不在协议</b>（§13.3）。</p>
+      <h3>第五层：跨 harness 委派——最出人意料的一步</h3>
+      <p>回到上面全景表最后一行。DSH 的六后端里有两个竞品后端（dsh-subagent-codex 与 dsh-subagent-claude-code），设计决策有专门的设计记录（仓库 .agents/notes/ 内 2026-08-04 的 Agent Note）。这件事的意义是：<b>委派层这层抽象一旦做对，能调动的就不只是模型，还有别家 harness 的整套能力</b>——DSH 用户可以在一个会话里把"探索仓库"派给 Codex、把"安全审查"派给 Claude Code，它们各自带着自己家的工具链和 prompt。</p>
+      <p>协议层的背景同样重要。论文观察到 ACP（Agent Client Protocol）已进入 6/11 个系统，还出现了设计者没预料到的第二种用途：<b>托管其他 harness（harness hosting）</b>——OpenHands 通过 ACP 把 Claude Code、Codex、Gemini CLI 当作可互换的"大脑"接进自己的对话（论文的原话：为编辑器设计的协议，最后成了托管用的接口）。但同时，9 个有多 agent 能力的系统里，8 个的自家 subagent 仍是<b>进程内实现</b>，跨进程的也绕开标准协议（Pi 用私有 JSONL，Hermes 用 SQLite 共享存储）；唯一把子代理协调走标准协议的是 OpenClaw。论文给出的工程指导是：对外发布 ACP server（一次服务 IDE、宿主程序、上层编排器三类调用方），对内 subagent 保持进程内——<b>委派的竞争力在 fork 隔离、缓存共享、权限上抛这些进程内细节，不在协议</b>（§13.3）。</p>
     </div>
 
     <div class="ha-section alt">
       <div class="ha-kicker">D2 · Prompt 动态组装</div>
-      <h2 class="ha-h2">四种拼法，一个问题：哪些字节进缓存前缀</h2>
-      <p class="ha-sub">prompt 组装表面上是字符串拼接，实际是在回答一个工程问题：每次请求里，哪些部分保持稳定（吃 prompt 缓存），哪些必须逐轮变化。四家的答案完全是四条路。</p>
+      <h2 class="ha-h2">四种做法，一个问题：请求里哪些部分保持不变</h2>
+      <p class="ha-sub">prompt 组装表面上是拼字符串，实际是在回答一个工程问题：每次发请求，哪些部分保持不变（不变的部分能命中缓存、省 token），哪些部分必须每轮都变。四家的答案完全是四条路。</p>
       <div class="ha-grid">
         <div class="ha-card">
           <div class="who">Claude Code：静态/动态边界</div>
-          <div class="expl">system prompt 由 12–15 个命名 section 组成，以 <b>SYSTEM_PROMPT_DYNAMIC_BOUNDARY</b> 标记一分为二：边界之前（身份、系统规则、任务指引、工具模式、语气）是<b>静态区</b>，做 Blake2b 哈希跨 session 缓存；边界之后（会话指引、memory、环境、MCP 指令、语言、scratchpad）是<b>动态区</b>，按轮计算并 memoize（论文 §7.2.3）。配合 fork 冻结继承，缓存边界贯穿了它整个产品。</div>
+          <div class="expl">system prompt 由 12–15 个命名 section 组成，以 <b>SYSTEM_PROMPT_DYNAMIC_BOUNDARY</b> 标记一分为二：边界之前（身份、系统规则、任务指引、工具模式、语气）是<b>静态区</b>，做 Blake2b 哈希（内容没变就直接复用），缓存跨 session 生效；边界之后（会话指引、memory、环境、MCP 指令、语言、scratchpad）是<b>动态区</b>，按轮计算并记住结果（memoize）（论文 §7.2.3）。配合 fork 冻结继承，这套缓存边界设计贯穿它的所有功能。</div>
         </div>
         <div class="ha-card">
           <div class="who">Codex：prompt 是服务端数据</div>
-          <div class="expl">Codex 走得最远：<b>prompt 不在代码里</b>。operative prompt 是 model manifest（models.json，本地兜底 + 远端 /models 端点 + ETag 缓存）里的 base_instructions 字段，按模型代际下发，还带 <code>{{ personality }}</code> 模板变量。论文测出了内容漂移：GPT-5.2 的 prompt 开头是"You are GPT-5.2 running in the Codex CLI…"，GPT-5.5 缩为"You are Codex, a coding agent based on GPT-5…"，5.6 再缩为"You are Codex, an agent based on GPT-5"，并<b>删掉了 no-commit 规则与全部防镀金指令</b>——原来写在 prompt 里的行为策略，改成了 codex_git_commit 这类 feature flag（论文 §7.2.4）。</div>
+          <div class="expl">Codex 走得最远：<b>prompt 不在代码里</b>。operative prompt 是 model manifest（models.json，本地兜底 + 远端 /models 端点 + ETag 缓存）里的 base_instructions 字段，按模型代际下发，还带 <code>{{ personality }}</code> 模板变量。论文测出了内容漂移：GPT-5.2 的 prompt 开头是"You are GPT-5.2 running in the Codex CLI…"，GPT-5.5 缩为"You are Codex, a coding agent based on GPT-5…"，5.6 再缩为"You are Codex, an agent based on GPT-5"，并<b>删掉了 no-commit 规则与全部防止过度设计的指令</b>——原来写在 prompt 里的行为策略，改成了 codex_git_commit 这类功能开关（feature flag）（论文 §7.2.4）。</div>
         </div>
         <div class="ha-card">
           <div class="who">OpenCode：按模型家族发九份 prompt</div>
-          <div class="expl">OpenCode 按 model-id 子串派发 9 份 base prompt——给 Claude 系模型的开头是"You are OpenCode, the best coding agent on the planet."。system prompt 刻意压到<b>最多两条 message</b> 以匹配缓存槽；同时把 6 种 prompt-cache 方言<b>同时发射</b>给不同提供方（cache-dialect fanout 模式）。底层委托 Vercel AI SDK——论文注明这是全部语料中<b>唯一内层用第三方 SDK 的系统</b>，自研 client 藏在 flag 后待命（论文 §7.2.8）。</div>
+          <div class="expl">OpenCode 按 model-id 子串派发 9 份 base prompt——给 Claude 系模型的开头是"You are OpenCode, the best coding agent on the planet."。system prompt 刻意压到<b>最多两条 message</b>，以匹配缓存槽；同时把 6 种 prompt-cache 协议格式<b>各发一份</b>给不同提供方（cache-dialect fanout：同一份缓存标记按各家的格式各包一次）。底层委托 Vercel AI SDK——论文注明，这是研究的全部系统里<b>唯一内层用第三方 SDK 的</b>，自研的替代 client 藏在 flag 后面随时可切换（论文 §7.2.8）。</div>
         </div>
         <div class="ha-card">
           <div class="who">DeepSeek Harness：prompt 是历史里的一条消息</div>
-          <div class="expl">DSH 的组装面分四类注册：section（静态或动态文本）、context（运行时上下文）、tools provider（每次组装评估可见工具 schema）、variable。最独特的设计（有 2026-09-02 的设计记录）：<b>系统提示词以 system/message 节点而非请求字段到达模型</b>——首步追加为 surface 第 0 号节点，渲染文本变化时原地替换，对 KV cache 前缀友好且完全可从日志重建（DSH 文档 subsystems/system-prompt）。</div>
+          <div class="expl">DSH 的组装面分四类注册：section（静态或动态文本）、context（运行时上下文）、tools provider（每次组装时评估可见工具 schema）、variable。最独特的设计（有 2026-09-02 的设计记录）：<b>系统提示词不作为请求字段，而是作为历史里的一条 system/message 节点发给模型</b>——首步追加为第 0 号节点，文本变化时就地替换，前面的缓存不用重算（对 KV cache 前缀友好），而且完全可以从日志重建（DSH 文档 subsystems/system-prompt）。</div>
         </div>
       </div>
       <h3>AGENTS.md：四家全吃的指令文件</h3>
@@ -390,30 +390,30 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
       <div class="ha-grid g4">
         <div class="ha-card">
           <div class="who">工具面有多大</div>
-          <div class="expl"><b>Claude Code：43 个</b>类型化工具（论文对 3 月快照统计）。<b>Codex：25–30 个</b>（论文）。<b>OpenCode：官方文档列 13 个内置</b>（bash/edit/write/read/grep/glob/lsp/apply_patch/skill/todowrite/webfetch/websearch/question——lsp 需实验开关，另加 task 委派与 3 个隐藏系统 agent；论文按 first-party 口径计 17 个）。<b>DSH：默认启用约 30 余个</b>（全表另有选择启用的 terminal、会话查询、agent-team、cordis 七件套等）；目录由脚本真实启动每个工具插件读 schema 生成，CI 保证不缺文档。</div>
+          <div class="expl"><b>Claude Code：43 个</b>类型化工具（论文对 3 月快照统计）。<b>Codex：25–30 个</b>（论文）。<b>OpenCode：官方文档列 13 个内置</b>（bash/edit/write/read/grep/glob/lsp/apply_patch/skill/todowrite/webfetch/websearch/question——lsp 需实验开关，另加 task 委派与 3 个隐藏系统 agent；论文按第一方工具的统计标准计 17 个）。<b>DSH：默认启用约 30 余个</b>（全表另有选择启用的 terminal、会话查询、agent-team、cordis 七件套等）；工具目录不是手写文档，而是脚本把每个工具插件真实启动一遍、读它的 schema 生成的，CI 保证文档不缺。</div>
         </div>
         <div class="ha-card">
           <div class="who">按需加载</div>
-          <div class="expl">工具多了 prompt 就爆。Claude Code 是 <b>deferred loading 的发明者</b>：标记 shouldDefer 的工具不进初始 prompt，模型用工具搜索工具按需发现，初始 prompt 约缩 <b>40%</b>；Codex <b>独立收敛</b>出同款（BM25 词法索引驱动的 tool_search）——论文视之为"竞争特色的半衰期以周计"的证据（观察 + §14.5）。OpenCode 13 个工具不需要；DSH 用 tools provider 每次组装时评估，并区分"拼写错误"与"有意隐藏"。</div>
+          <div class="expl">工具多了 prompt 就爆。Claude Code 是 <b>deferred loading（延迟加载）的发明者</b>：标记 shouldDefer 的工具不进初始 prompt，模型用一个"搜工具"的工具按需找到它们，初始 prompt 约缩 <b>40%</b>；Codex 在互不知情的情况下<b>独立做出同款</b>（BM25 词法索引驱动的 tool_search）——论文拿它当"竞争特色只能领先几周"的证据（观察 + §14.5）。OpenCode 13 个工具不需要；DSH 用 tools provider 每次组装时评估，并区分"拼写错误"与"有意隐藏"。</div>
         </div>
         <div class="ha-card">
           <div class="who">并发怎么切</div>
-          <div class="expl">Claude Code：isConcurrencySafe <b>默认 false</b>，安全默认、显式声明才并行。DSH：<b>只有精确为 true 才进并行组</b>，其余形成排序屏障（exclusive）。两家不同代码库给出的答案几乎逐字相同——独立趋同。</div>
+          <div class="expl">Claude Code：isConcurrencySafe <b>默认 false</b>，宁可串行、安全优先，显式声明安全才并行。DSH：<b>只有精确为 true 才进并行组</b>，其余形成排序屏障（exclusive）。两家不同代码库给出的答案几乎逐字相同——互不知情，各自得出。</div>
         </div>
         <div class="ha-card">
           <div class="who">OpenCode 的按模型换面板</div>
-          <div class="expl">OpenCode 会<b>按模型族换工具集</b>：GPT 系拿到 Codex 式的 apply_patch 工具，同时<b>完全失去</b>字符串替换编辑工具（论文 §8.3）——工具面板本身是模型条件的函数。</div>
+          <div class="expl">OpenCode 会<b>按模型族换工具集</b>：GPT 系拿到 Codex 式的 apply_patch 工具，同时<b>完全失去</b>字符串替换编辑工具（论文 §8.3）——给哪个模型，就配哪套工具。</div>
         </div>
       </div>
-      <h3>编辑契约：SWE agent 准确率的命门</h3>
+      <h3>编辑契约：决定 SWE agent 准确率的关键</h3>
       <p>论文把文件编辑策略列为"决定 SWE agent 修改准确率的最重要因素之一"（观察 4）。四家契约：</p>
       <div class="ha-tablewrap">
         <table>
           <tr><th>Harness</th><th>编辑契约</th><th>失败兜底</th></tr>
           <tr><td>Claude Code</td><td><b>精确唯一子串替换</b> + Zod schema 校验</td><td>失败时把上下文喂回去重试</td></tr>
           <tr><td>Codex</td><td>自定义 <b>patch DSL</b>（Begin/End Patch 标记，Lark 文法约束变体）</td><td>hunk 级重试</td></tr>
-          <tr><td>OpenCode</td><td>按模型切换：string-replacement 或 apply_patch；匹配是 <b>9 级回退级联</b>（精确→行修剪→块锚定→空白/转义归一……Levenshtein 0.65），源码注释致谢 Cline 与 Gemini CLI</td><td>区分"没找到"与"多处匹配"两种错误；每次编辑结果附加 LSP 诊断（约 25 个自动下载的 LSP server）</td></tr>
-          <tr><td>DeepSeek Harness</td><td><b>str_replace_editor</b>（view/create/str_replace/insert——与 Claude Code 同款编辑器动词），另有 read/write/edit 基于 fs seam，先读后写策略由事件门禁插件施加</td><td>超限结果经 spill 落盘（见下节）</td></tr>
+          <tr><td>OpenCode</td><td>按模型切换：string-replacement 或 apply_patch；匹配是 <b>9 级逐步放宽的回退</b>（先试精确匹配，一路放宽到空白归一化、模糊匹配 Levenshtein 0.65），源码注释致谢 Cline 与 Gemini CLI</td><td>区分"没找到"与"多处匹配"两种错误；每次编辑结果附加 LSP 诊断（约 25 个自动下载的 LSP server）</td></tr>
+          <tr><td>DeepSeek Harness</td><td><b>str_replace_editor</b>（view/create/str_replace/insert——与 Claude Code 同款编辑器动词），另有 read/write/edit 基于 fs seam，先读后写的规则由插件挂在事件检查点上强制执行</td><td>超限结果经 spill 落盘（见下节）</td></tr>
         </table>
       </div>
       <div class="src">论文 §8.4 与 Table 7；DSH 工具目录（tool-catalog）。</div>
@@ -421,9 +421,9 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         <div class="ttl">四家的"独门工具"</div>
         <ul>
           <li><b>Claude Code</b>：工具搜索工具（deferred loading 的钥匙）、TodoWrite（任务清单进上下文）。</li>
-          <li><b>Codex</b>：code mode——模型直接写 V8 脚本对 MCP 工具目录编程执行，论文签名评价"tool calls as V8-executed code"（工具调用升格为代码）。</li>
+          <li><b>Codex</b>：code mode——模型直接写 V8 脚本，对 MCP 工具目录编程执行，论文的评价是"把工具调用变成可执行的代码"。</li>
           <li><b>OpenCode</b>：question 工具（中途向用户提问）、websearch 免 API key（后端托管）。</li>
-          <li><b>DSH</b>：两个方向都激进——对内，<b>PTC 模式的 run_code</b>（模型写 TypeScript 函数体编排其他工具调用，子调用重入完整守卫流水线；上篇榜单里 DSH 的 PTC 预设，在工具目录里的对应物就是它）；对外，<b>cordis define、inspect×3、run、stop、undefine 七件套</b>让模型在会话内动态定义、加载、热换、卸载插件，动态包还能注册新的模型可见工具（需审批，跑在 vm 沙箱）——自我改造是产品能力。未知工具调用返回结构化错误（UNKNOWN_TOOL）<b>且不终止轮次</b>。</li>
+          <li><b>DSH</b>：两个方向都激进——对内，<b>PTC 模式的 run_code</b>（模型写 TypeScript 函数体来编排其他工具调用；函数体里发起的每个子调用都会重新过一遍完整的权限检查流程；上篇榜单里 DSH 的 PTC 预设，在工具目录里的对应物就是它）；对外，<b>cordis define、inspect×3、run、stop、undefine 七件套</b>让模型在会话内动态定义、加载、热换、卸载插件，动态包还能注册新的模型可见工具（需审批，跑在 vm 沙箱）——自我改造是产品能力。未知工具调用返回结构化错误（UNKNOWN_TOOL）<b>且不终止轮次</b>。</li>
         </ul>
       </div>
     </div>
@@ -431,51 +431,51 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
     <div class="ha-section alt">
       <div class="ha-kicker">D4 · 记忆与上下文</div>
       <h2 class="ha-h2">上下文压缩：循环里的，和循环外的</h2>
-      <p class="ha-sub">上下文快满时怎么办、跨会话记什么，是 2026 年上下文工程的两条战线。论文的判断：压缩设计已经收敛，真正的分化点在记忆的写路径（观察 5）。</p>
+      <p class="ha-sub">上下文快满时怎么办、跨会话记什么，是 2026 年上下文工程的两个核心问题。论文的判断：上下文压缩各家做法已经趋同；真正分出高下的，是记忆怎么写入（观察 5）。</p>
       <div class="ha-tablewrap">
         <table>
           <tr><th>Harness</th><th>触发</th><th>摘要策略</th><th>独有细节</th></tr>
           <tr><td>Claude Code</td><td>有效窗口下方 <b>13,000 token</b> 缓冲即触发</td><td>剥离图片→按轮分组→LLM 生成摘要→SystemCompactBoundary 分隔</td><td>压缩后有 <b>50,000 token 恢复预算</b>（最多重读 5 个文件）；skills 截到每 skill 25K（论文 §9.5）</td></tr>
-          <tr><td>Codex</td><td>token limit 双路触发（本地端点 + model_auto_compact_token_limit）</td><td>摘要压缩</td><td>rollout token budget 余量提醒、耗尽即中止——预算是一等公民（论文 §9.5/9.6）</td></tr>
-          <tr><td>OpenCode</td><td>chars÷4 估算（<b>全代码树无 tokenizer</b>），输入额度减预留输出触发</td><td><b>增量合并</b>：把前一份摘要装进 previous-summary 块，回传给一个隐藏的、全工具拒绝的 compaction agent 合并（"保留仍真实的，删除过时的"），输出强制五段 Markdown 结构</td><td>保留最近 2 条用户消息原文；剪枝只在可回收 &gt;20K 且保护最近 40K 时触发；每项目 <b>shadow git 仓库</b> 逐步快照，支持"会话+文件系统"整体回滚（论文 §9.5）</td></tr>
-          <tr><td>DeepSeek Harness</td><td>四入口：压力触发（pre-step 瀑布内）、上下文溢出恢复时、空闲手动、显式范围</td><td><b>先剪枝后摘要</b>：先按字符数（Unicode 码点）对超预算的工具结果做头/中/尾剪枝，并写一条记账事件（让其他组件无需全局状态就能从自己的账上扣掉省下的 token），再摘要</td><td>压缩是可选 seam 非 loop 主干；摘要是唯一的 surface 变更（replace 操作）；区域边界保持<b>工具调用/结果配对</b>；超限全文经 <b>spill 落盘</b>返回不透明定位符（0700 私有目录、排他写防符号链接）</td></tr>
+          <tr><td>Codex</td><td>token limit 双路触发（本地端点 + model_auto_compact_token_limit）</td><td>摘要压缩</td><td>rollout token budget 余量提醒、耗尽即中止——预算是硬约束（论文 §9.5/9.6）</td></tr>
+          <tr><td>OpenCode</td><td>用字符数÷4 估算 token（<b>全代码树没引入 tokenizer</b>），输入额度减预留输出触发</td><td><b>增量合并</b>：把前一份摘要装进 previous-summary 块，交给一个隐藏的、所有工具都被禁用的 compaction agent 去合并——保留仍然成立的内容、删除已过时的，输出强制为五段式 Markdown</td><td>保留最近 2 条用户消息原文；剪枝只在可回收 &gt;20K 且保护最近 40K 时触发；每项目另有一个<b>影子 git 仓库（shadow git）</b>逐步打快照，支持"会话+文件系统"整体回滚（论文 §9.5）</td></tr>
+          <tr><td>DeepSeek Harness</td><td>四入口：压力触发（pre-step 检查串内）、上下文溢出恢复时、空闲手动、显式范围</td><td><b>先剪枝后摘要</b>：先按字符数（Unicode 码点）对超预算的工具结果做头/中/尾剪枝，并写一条记账事件（其他组件看到这条事件就能扣掉对应的 token 数，不用维护全局状态），然后再摘要</td><td>压缩是可选 seam，不属于循环主干；压缩只做一种改动：把摘要替换进上下文（replace）；区域边界保持<b>工具调用/结果配对</b>；超长内容转存到磁盘（spill），只返回一个不含内容本身的引用句柄（目录权限 0700、独占写、防符号链接）</td></tr>
         </table>
       </div>
       <div class="src">论文 §9.5（触发参数、OpenCode 增量摘要、shadow git）；DSH 文档 subsystems/compaction、subsystems/spill。</div>
       <h3>真正的分水岭：记忆由谁维护</h3>
       <div class="ha-def">
         <div class="sym">M</div>
-        <div class="body"><b>Codex 是全部语料中第一个"长期记忆由 agent 而非代码维护"的系统</b>（论文 §9.6 原话："the first system in the corpus whose long-term memory is maintained by an agent rather than by code"）。它的记忆管线是后台两阶段：先把每个 rollout 的内容用 LLM 抽取进 SQLite（带租约任务、重试退避、密钥脱敏），再由一个<b>沙箱化的内部 subagent</b>（无审批、无网络、只本地写）审阅工作区 diff，把值得记的整合进 <b>git 管理的 ~/.codex/memories/</b>；新会话注入记忆时带引用追踪与使用度排序。</div>
+        <div class="body"><b>Codex 是研究的全部系统里第一个"长期记忆由 agent 而非代码维护"的系统</b>（论文 §9.6 原话："the first system in the corpus whose long-term memory is maintained by an agent rather than by code"）。它的记忆管线是后台两阶段：第一阶段把每个 rollout 的内容用 LLM 抽取进 SQLite（后台任务带租约防重复执行、失败重试有退避、写入前给密钥脱敏）；第二阶段由一个<b>沙箱化的内部 subagent</b>（无审批、无网络、只允许本地写）审阅工作区 diff，把值得记的内容整合进 <b>git 管理的 ~/.codex/memories/</b>；新会话注入记忆时带引用追踪与使用度排序。</div>
       </div>
-      <p>其余三家的记忆姿态：Claude Code 是 CLAUDE.md 三层 scope + 自动记忆目录（写路径由约定治理）；OpenCode 干脆没有持久记忆治理——它的持久化就是会话底座本身（可恢复、可查询），加上 AGENTS.md 这类上下文文件约定；DSH 的方向是"会话引用"——在对话里提及另一个会话，其有界只读快照即成为上下文，另有记忆 MCP 插件。论文观察到四种记忆写路径治理模型正在分化：agent 维护（Codex）、人类审批（Gemini CLI 的 patch inbox）、模型直写但有界（Hermes 的字符上限快照；OpenHands、Claude Code 的上下文文件约定）、回合前主动召回（OpenClaw）——并且 <b>11 家没有一个用 embedding 做主记忆底座</b>，生产上限是 SQLite 全文检索（观察 5）。</p>
+      <p>其余三家对记忆的处理：Claude Code 是 CLAUDE.md 三层 scope + 自动记忆目录（写什么靠约定来管）；OpenCode 干脆没有独立的持久记忆系统——它的持久化就是会话系统本身（可恢复、可查询），加上 AGENTS.md 这类上下文文件约定；DSH 的方向是"会话引用"——在对话里提及另一个会话，那个会话的有界只读快照就成为上下文，另有记忆 MCP 插件。论文观察到四种"记忆由谁写、怎么管"的模式正在分化：agent 维护（Codex）、人类审批（Gemini CLI 的 patch inbox）、模型直接写但有限制（Hermes 的字符上限快照；OpenHands、Claude Code 的上下文文件约定）、每回合前主动召回（OpenClaw）——并且 <b>11 家没有一个用 embedding 做记忆的主存储</b>，生产实现里最重的也只是 SQLite 全文检索（观察 5）。</p>
       <div class="ha-callout eng">
         <div class="ttl">DSH 的运行时不变量："模型可见即已记录"</div>
-        <p style="margin:0">DSH 把上下文工程做成了可断言的不变量：抵达模型请求的一切都必须能从会话日志重建（Model-visible ⟺ logged），由运行时断言强制；日志 append-only、分代迁移（vN→vN+1 各一个迁移包，已提交代绝不重写），配 SQLite 全文检索与投影缓存。压缩、fork、会话引用全部建立在这一层之上——这是把 OpenCode 的"日志即队列"推到了逻辑终点。</p>
+        <p style="margin:0">DSH 把上下文工程做成了一条可以机器检查的不变量：凡是出现在模型请求里的内容，都必须能从会话日志重建出来（模型可见 ⟺ 已记录），运行时负责强制检查。日志只追加不修改、按代迁移（vN→vN+1 各配一个迁移包，已提交的代绝不重写），配 SQLite 全文检索与投影缓存。压缩、fork、会话引用全部建立在这一层之上——这是把 OpenCode 的"日志即队列"做到了极致。</p>
       </div>
     </div>
 
     <div class="ha-section">
       <div class="ha-kicker">D5 · 安全与权限</div>
       <h2 class="ha-h2">权限与沙箱：四种安全观</h2>
-      <p class="ha-sub">安全是各家投入差距最大的子系统——论文观察 6 的结论：OS 级沙箱是语料中代码最昂贵的能力之一，且"是选择而非规模的结果"（最大的系统未必有沙箱，见 OpenCode）。</p>
+      <p class="ha-sub">安全是各家投入差距最大的子系统——论文观察 6 的结论：OS 级沙箱是研究系统里代码最昂贵的能力之一，而且要不要它纯属设计选择、跟系统规模无关（最大的系统 OpenCode 反而没有沙箱）。</p>
       <div class="ha-tablewrap">
         <table>
           <tr><th></th><th>Claude Code</th><th>Codex</th><th>OpenCode</th><th>DeepSeek Harness</th></tr>
-          <tr><td>审批链</td><td><b>三层</b>：静态 hook 规则（最快）→ LLM 权限分类器（allow/ask/deny）→ 用户对话框（最可靠）</td><td><b>四层</b>：Starlark 执行 policy → 生命周期 hooks → <b>Guardian 审批 agent</b> → 原生 OS 沙箱</td><td>默认<b>极少询问</b>：项目内全放行，只对外部目录访问、.env 读取、doom loop 询问</td><td>工具流水线的 ask 瀑布 + <b>fail-closed 审批</b>（结果类型封闭，异常一律按拒绝）</td></tr>
-          <tr><td>命令粒度</td><td>hook 对 PreToolUse 做 pattern 匹配</td><td>prefix_rule / network_rule，规则可携带<b>解析时校验的测试样例</b>（"策略文件里的可执行测试用例"）</td><td><b>语法感知</b>：每条 bash 命令用 tree-sitter 解析，"always allow"按参数元数（arity）限定——产出 <code>git commit *</code> 式授权而非全量放行</td><td>消费方交出<b>精确 argv</b>，沙箱包装后返回带"拒比方言"（bwrap 的 EROFS / Landlock 的 EACCES / Seatbelt 的 EPERM）的受限命令</td></tr>
+          <tr><td>审批链</td><td><b>三层</b>：静态 hook 规则（最快）→ LLM 权限分类器（allow/ask/deny）→ 用户对话框（最可靠）</td><td><b>四层</b>：Starlark 执行 policy → 生命周期 hooks → <b>Guardian 审批 agent</b> → 原生 OS 沙箱</td><td>默认<b>极少询问</b>：项目内全放行，只对外部目录访问、.env 读取、doom loop 询问</td><td>工具流水线的 ask 检查串 + <b>fail-closed 审批</b>（拿不到明确批准就当拒绝；结果类型封闭，异常一律按拒绝）</td></tr>
+          <tr><td>命令粒度</td><td>hook 对 PreToolUse 做 pattern 匹配</td><td>prefix_rule / network_rule，规则可携带<b>解析时校验的测试样例</b>（"策略文件里的可执行测试用例"）</td><td><b>语法感知</b>：每条 bash 命令用 tree-sitter 解析成语法树，"总是允许"的规则按参数个数（arity）限定——产出的是只授权 <code>git commit *</code> 这一种形式的规则，而不是整类命令全放行</td><td>消费方交出<b>精确 argv</b>，沙箱包装后返回受限版命令，被拒时各后端报各自的错误码（bwrap 报 EROFS、Landlock 报 EACCES、Seatbelt 报 EPERM）</td></tr>
           <tr><td>OS 沙箱</td><td>opt-in（沙箱运行时 + worktree）</td><td><b>三平台原生</b>：Linux vendored Bubblewrap（只读根+断网）、macOS Seatbelt、Windows 受限令牌+ACL</td><td><b>无</b>（代码里的"sandbox"实际是 git worktrees）</td><td><b>三平台 seam</b>：与 Codex 同款后端清单（bwrap/Landlock、Seatbelt、Windows ACL 受限令牌），无后端即抛错，"受限策略下静默透传永远不合法"</td></tr>
-          <tr><td>哲学一句话</td><td>纵深防御，越快越糙、越慢越准</td><td>policy 是代码，审批也是 agent（Guardian 超时或输出畸形即 fail-closed，带拒绝熔断）</td><td>信任默认 + 语法换粒度（v2 已反转为 deny-by-default）</td><td>一切 fail-closed；凭据只存引用、UI 只见脱敏描述符；SAFETY.md 明言未经安全审计、不得视为生产就绪，且不得作为不可信工作负载的唯一安全控制</td></tr>
+          <tr><td>哲学一句话</td><td>纵深防御，越快越糙、越慢越准</td><td>policy 是代码，审批也是 agent（Guardian 超时或输出畸形即 fail-closed，带拒绝熔断）</td><td>默认信任 + 用语法分析换取更细的授权粒度（v2 已反转成默认拒绝）</td><td>一切 fail-closed；凭据只存引用、UI 只见脱敏描述符；SAFETY.md 明言未经安全审计、不得视为生产就绪，且不得作为不可信工作负载的唯一安全控制</td></tr>
         </table>
       </div>
       <div class="src">论文 §10（CC 三层、Codex 四层、OpenCode 语法感知与 arity 字典——约 130 条 LLM 生成的命令元数字典、last-match-wins 规则链）；DSH 文档 subsystems/sandbox、subsystems/approval、SAFETY.md。</div>
       <div class="ha-grid">
         <div class="ha-card">
           <div class="who">最优雅 vs 最重</div>
-          <div class="expl">论文称 Claude Code 的三层是"the most architecturally elegant safety system"；同时点出关键限制：<b>后台/forked subagent 只有前两层</b>，它的权限提示一律按拒绝处理，未决情形升级回父协调者。每个 async agent 维护独立的拒绝状态，防止跨 agent 污染。</div>
+          <div class="expl">论文称 Claude Code 的三层是"架构上最优雅的安全系统"；同时点出关键限制：<b>后台/forked subagent 只有前两层</b>，它的权限提示一律按拒绝处理，拿不准的情形升级回父协调者。每个 async agent 维护独立的拒绝状态，防止一个 agent 的拒绝影响另一个。</div>
         </div>
         <div class="ha-card">
           <div class="who">OpenCode 的"工具可见性即权限"</div>
-          <div class="expl">OpenCode 对某工具 deny "*" 的效果是<b>把该工具从模型视野整个移除</b>——工具可见性本身就是权限的导数（论文 §10.9）。配合"plan mode = 一组权限规则 + system-reminder 注入而非架构叠加"（§11.9），它的权限系统是语法问题，不是隔离问题。</div>
+          <div class="expl">OpenCode 对某个工具 deny "*" 的效果，<b>不是拦截调用，而是把这个工具从模型能看到的列表里整个删掉</b>——看不见，就等于不可用（论文 §10.9）。配合"plan mode 只是一组权限规则加 system-reminder 注入，不是架构上的独立层"（§11.9），它的权限系统是语法问题，不是隔离问题。</div>
         </div>
       </div>
     </div>
@@ -483,7 +483,7 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
     <div class="ha-section alt">
       <div class="ha-kicker">D7 · 插件与生态</div>
       <h2 class="ha-h2">扩展面：互操作不是靠协议，是靠采纳</h2>
-      <p class="ha-sub">论文最横向的发现：扩展标准的采纳率（skills 9/11 > MCP 8/11，hooks 从 Claude Code 独有变成 9/11，ACP 6/11），以及——互操作的真实机制是"直接读竞品的格式"。</p>
+      <p class="ha-sub">论文最横向的发现：扩展标准的采纳率（skills 9/11 > MCP 8/11，hooks 从 Claude Code 独有变成 9/11，ACP 6/11），以及——互操作的真实机制是"直接采用竞品的格式"。</p>
       <div class="ha-grid g4">
         <div class="ha-card">
           <div class="num">9<span style="font-size:16px;color:var(--muted)">/11</span></div>
@@ -493,7 +493,7 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         <div class="ha-card">
           <div class="num">.claude<span style="font-size:16px;color:var(--muted)">-plugin</span></div>
           <div class="lbl">事实标准的格式</div>
-          <div class="expl">Claude Code 的插件清单格式被 Codex 与 OpenHands 双双采纳（后者 loader 直接接受 .claude-plugin 扩展名——论文称之为"语料中最清晰的互操作-by-采纳案例"）。</div>
+          <div class="expl">Claude Code 的插件清单格式被 Codex 与 OpenHands 双双采纳（后者 loader 直接接受 .claude-plugin 扩展名——论文称之为"研究里最清晰的靠采纳竞品格式实现互操作的案例"）。</div>
         </div>
         <div class="ha-card">
           <div class="num">1<span style="font-size:16px;color:var(--muted)"> 份 importer</span></div>
@@ -507,16 +507,16 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         </div>
       </div>
       <div class="ha-callout eng">
-        <div class="ttl">"Convergence became imitation"——四月的趋同是各自发现，七月的趋同是可溯源的模仿</div>
+        <div class="ttl">从"各自发现"到"有据可查的模仿"</div>
         <p>论文纵向对比了 8 个系统一个季度的源码演化（§14.5），最有说服力的证据链：</p>
         <ol>
           <li>Codex 的 hooks 事件词表<b>近乎逐字来自 Claude Code</b>（PreToolUse/PostToolUse/PreCompact……外加一个 CC 没有的 PostCompact）；</li>
           <li>OpenCode 的 skills 目录<b>刻意搜索竞品主目录</b>（~/.claude/skills），官方文档明说"为 Claude Code 装的 skills 在 OpenCode 原样可用"；</li>
           <li>OpenHands 采纳 CC 的插件格式、任务工具签名、静态/动态缓存边界；</li>
-          <li>Hermes 在源码注释里公开致谢 OpenCode（编辑匹配）、Codex（智能审批）、OpenClaw（编排 prompt）——"Cross-harness lineage is now written in the code itself"；</li>
+          <li>Hermes 在源码注释里公开致谢 OpenCode（编辑匹配）、Codex（智能审批）、OpenClaw（编排 prompt）——各家之间的借鉴关系现在直接写进了代码注释里；</li>
           <li>以及上文那枚 Codex 写的 CC importer。</li>
         </ol>
-        <p style="margin:8px 0 0">"竞争特色的半衰期目前以周为单位。"（§14.5）——这意味着功能清单上的差异比看起来更短命，下面的理念画像比上面的功能表格更保值。</p>
+        <p style="margin:8px 0 0">一家做出的特色，别家几周内就会学走（§14.5）。这意味着功能差异活不长，而下面四家的设计取向，比上面的功能表格耐久得多。</p>
       </div>
       <h3>四家的扩展哲学</h3>
       <div class="ha-grid">
@@ -526,7 +526,7 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         </div>
         <div class="ha-card">
           <div class="who">Codex</div>
-          <div class="expl">marketplace 插件管线（GitHub/git/URL 来源 + <b>模型可调用的 request_plugin_install 会话内审批工具</b>）+ skills 的隐式触发识别 + 配置栈向上延伸到 MDM/企业托管——论文称"语料中最企业治理导向的配置模型"。</div>
+          <div class="expl">marketplace 插件管线（GitHub/git/URL 来源 + <b>模型可调用的 request_plugin_install 会话内审批工具</b>）+ skills 的隐式触发识别 + 配置栈向上延伸到 MDM/企业托管——论文称"研究里最偏企业治理的配置模型"。</div>
         </div>
         <div class="ha-card">
           <div class="who">OpenCode</div>
@@ -534,20 +534,20 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         </div>
         <div class="ha-card">
           <div class="who">DeepSeek Harness</div>
-          <div class="expl">扩展不是机制，是<b>范式</b>：一切皆插件（含 loop、含 system-prompt 组装器），Cordis 保证"注册即副作用、卸载即撤销"；运行实例 = profile → bundle → patch 层叠出来的插件树，<b>树上任何条目都能被自己的 patch 替换</b>（dump-config 可打印全树）。连它的桌面应用（Electron）都不开端口，走 dsh-app:// 协议。</div>
+          <div class="expl">扩展不是机制，是<b>范式</b>：一切皆插件（包括 loop、包括 system-prompt 组装器）；Cordis 保证"注册即生效、卸载即全部撤销"；运行实例是 profile → bundle → patch 一层层叠出来的插件树，<b>树上任何条目都能用自己的 patch 替换</b>（dump-config 可打印全树）。连它的桌面应用（Electron）都不开端口，走 dsh-app:// 协议。</div>
         </div>
       </div>
     </div>
 
     <div class="ha-section">
       <div class="ha-kicker">横向发现</div>
-      <h2 class="ha-h2">两个零、一次平台化转身</h2>
+      <h2 class="ha-h2">两个零、一次从工具到平台的转变</h2>
       <h3>Twin Absences：400 万行代码里的两个反直觉的零</h3>
-      <p>论文最被引用的发现（§13.2）：把 11 个系统的依赖清单全部检查、对全部源码树 grep 框架名——LangChain、LangGraph、LlamaIndex、AutoGen、CrewAI、Pydantic AI、Genkit、Haystack、Semantic Kernel、Google ADK、Smolagents、Swarm、Agno——<b>零命中</b>。几个注脚很有味道：</p>
+      <p>论文最被引用的发现（§13.2）：把 11 个系统的依赖清单全部检查、对全部源码树 grep 框架名——LangChain、LangGraph、LlamaIndex、AutoGen、CrewAI、Pydantic AI、Genkit、Haystack、Semantic Kernel、Google ADK、Smolagents、Swarm、Agno——<b>零命中</b>。几个注脚值得单独说：</p>
       <div class="ha-grid">
         <div class="ha-card">
           <div class="who">连自家的都不用</div>
-          <div class="expl">Gemini CLI 不用 Google 自家的 Genkit 与 ADK。作者写明："我们预期至少能找到一些使用……寻找反例（vendored 依赖、动态 import、转译产物）花了几周才接受结果。"</div>
+          <div class="expl">Gemini CLI 不用 Google 自家的 Genkit 与 ADK。作者写明：他们本来预期至少能找到几个，专门找过反例（vendored 依赖、动态 import、转译产物这些隐蔽形式），花了几周才接受"真的是零"。</div>
         </div>
         <div class="ha-card">
           <div class="who">两个"差点算"的例外</div>
@@ -555,17 +555,17 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         </div>
         <div class="ha-card">
           <div class="who">第二个零：代码不用向量检索</div>
-          <div class="expl">向量库/embedding 关键词全语料零命中（检索代码这件事）。替代方案：ripgrep、glob、tree-sitter、LSP。唯一 embedding 默认开启的是 OpenClaw 的<b>记忆</b>插件——且只用于聊天召回，从不用于读源码树；Hermes 反着选：会话检索刻意词法化（SQLite FTS5），"no LLM calls anywhere"。</div>
+          <div class="expl">向量库/embedding 关键词在研究的 11 个系统里全部零命中（检索代码这件事）。替代方案：ripgrep、glob、tree-sitter、LSP。唯一 embedding 默认开启的是 OpenClaw 的<b>记忆</b>插件——且只用于聊天召回，从不用于读源码树；Hermes 反着选：会话检索刻意词法化（SQLite FTS5），全程不用 LLM。</div>
         </div>
         <div class="ha-card">
           <div class="who">为什么</div>
-          <div class="expl">论文给的三条：代码有稠密的确定性结构元数据（路径、LSP、类型），语义相似检索复制不了；代码分钟级变化使预索引过期；每个编码环境自带近最优检索（ripgrep/find）。结论句："Production harnesses operate on a different complexity budget from generic LLM applications."</div>
+          <div class="expl">论文给的三条：代码自带大量确定性的结构信息（路径、LSP、类型），向量相似度算不出这些；代码分钟级变化，预建索引很快过期；每个编码环境都自带几乎够用的检索工具（ripgrep/find）。结论句：生产 harness 的复杂度预算，和普通 LLM 应用根本不在一个量级。</div>
         </div>
       </div>
       <h3>从工具到平台：竞争单位变了</h3>
-      <p>论文的主线论点：2026 上半年，coding harness 完成了从 tool 到 platform 的转向。证据俯拾即是：每家都发了 SDK（Claude Agent SDK、Codex SDK、OpenCode SDK——前三者见论文 §14.2；DSH 甚至有 Python SDK，打包原生运行时 wheel，<b>普通运行连系统 Node.js 都不需要</b>，DSH 文档）；marketplace 与企业托管配置（MDM）齐备；出现了 Omnigent 这样的 meta-harness——从上层编排 11 家厂商 harness、"自己不实现任何编辑循环"；甚至有系统冒充第一方 harness 身份去骑乘其订阅后端（论文列的 Harness Mimicry 模式）。结论句值得原样抄录：<b>"The competitive unit of the field is no longer the agent loop; it is the ecosystem surface around it."</b></p>
-      <h3>地板有多低：90 行的最小可行 harness</h3>
-      <p>论文附了一个约 90 行 Python 的 minimum-viable-harness（§16.10）：一个 Model 协议、四个工具（bash/read/write/search_replace，替换唯一性校验）、从根到叶的 AGENTS.md 发现、阈值压缩（保留尾部 30% 原文）、成本与步数上限。它直接实现了 18 条设计建议中的 10 条，作者猜想它跑前沿模型可以追平 Mini-SWE-Agent 的 SWE-bench 数字——"the floor is low"。生产系统与地板的差距不在能不能过题，而在安全、恢复、成本治理与平台面——<b>这也解释了为什么本篇前面那些"多余"的子系统全都值钱</b>。</p>
+      <p>论文的主线论点：2026 上半年，coding harness 完成了从 tool 到 platform 的转向。证据到处都是：每家都发了 SDK（Claude Agent SDK、Codex SDK、OpenCode SDK——前三者见论文 §14.2；DSH 甚至有 Python SDK，打包原生运行时 wheel，<b>普通运行连系统 Node.js 都不需要</b>，DSH 文档）；marketplace 与企业托管配置（MDM）齐备；出现了 Omnigent 这样的 meta-harness——从上层编排 11 家厂商 harness、"自己不实现任何编辑循环"；甚至有系统冒充某第一方 harness 的身份，去用它的订阅后端（论文列的 Harness Mimicry 模式）。结论句值得原样抄录：<b>这个领域的竞争单位已经不再是 agent 循环本身，而是它周围的生态接口面</b>。</p>
+      <h3>下限有多低：90 行的最小可行 harness</h3>
+      <p>论文附了一个约 90 行 Python 的 minimum-viable-harness（§16.10）：一个 Model 协议、四个工具（bash/read/write/search_replace，替换唯一性校验）、从根到叶的 AGENTS.md 发现、阈值压缩（保留尾部 30% 原文）、成本与步数上限。它直接实现了 18 条设计建议中的 10 条，作者猜想它跑前沿模型可以追平 Mini-SWE-Agent 的 SWE-bench 数字——下限就是这么低。生产系统与这个下限的差距不在能不能过题，而在安全、恢复、成本治理与平台面——<b>这也解释了为什么本篇前面那些看似"多余"的子系统全都值钱</b>。</p>
     </div>
 
     <div class="ha-section alt">
@@ -575,17 +575,17 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
       <h3>先把账摆正：四个方向一致的数据点</h3>
       <div class="ha-tablewrap">
         <table>
-          <tr><th>评测</th><th>Codex 的成绩</th><th>读这个数必须带的口径</th></tr>
-          <tr class="hl"><td>FrontierHarness v1.0<br>（Runta · 工业受控）</td><td><b>66.7% 全场第一</b>，$3.47/任务贴近中位，Runta 给的"安全默认"</td><td>钉死 Kimi K3——它在<b>客场</b>拿的第一。但 66.7% 对 63.3%（Claude Code、DSH Creator）只差 1 题，30 题单次样本属"打平档"</td></tr>
+          <tr><th>评测</th><th>Codex 的成绩</th><th>读这个数必须知道的前提</th></tr>
+          <tr class="hl"><td>FrontierHarness v1.0<br>（Runta · 工业受控）</td><td><b>66.7% 全场第一</b>，$3.47/任务贴近中位，Runta 给的"安全默认"</td><td>测试模型钉死为 <b>Kimi K3</b>——它是在非自家模型上拿的第一。但 66.7% 对 63.3%（Claude Code、DSH Creator）只差 1 题，30 题的单次样本属于"打平档"</td></tr>
           <tr><td>Terminal-Bench 2.0 排行榜<br>（社区榜）</td><td><b>#4 / 82.2%</b>（同榜 Claude Code #47 / 58.0%、OpenCode #60 / 51.7%）</td><td>原生组合、开放提交——差距里混着模型贡献，不能全记在执行层头上</td></tr>
-          <tr><td>Terminal-Bench 论文<br>（6 agent × 21 模型）</td><td>Codex CLI 最佳 <b>62.9%</b></td><td>受控学术口径下的头部</td></tr>
-          <tr><td>Harness-Bench<br>（北大 · 106 任务）</td><td>参考系 <b>80.4 分</b>；分项：完成度 86.5、稳健性 91.6、<b>轮次 5.0 全场最少之一、token 86.1K 全场第三低</b></td><td>GPT-5.4 后端、模型绑定单列——与 8 模型池不同口径，不能直接横比</td></tr>
+          <tr><td>Terminal-Bench 论文<br>（6 agent × 21 模型）</td><td>Codex CLI 最佳 <b>62.9%</b></td><td>受控学术测试下的头部</td></tr>
+          <tr><td>Harness-Bench<br>（北大 · 106 任务）</td><td>参考系 <b>80.4 分</b>；分项：完成度 86.5、稳健性 91.6、<b>轮次 5.0 全场最少之一、token 86.1K 全场第三低</b></td><td>GPT-5.4 后端、模型绑定单列——统计前提与 8 模型池不同，不能直接横比</td></tr>
         </table>
       </div>
       <div class="src">FrontierHarness 与 Terminal-Bench 数字见本站前两篇（Runta 博客、frontierharness.org、tbench.ai，均 2026-09-14 快照）；Harness-Bench 见 arXiv 2605.27922 表 2（本站前篇）。</div>
-      <p>单个数字各有口径问题，但四份评测、三种出品方（其中两份同属 Terminal-Bench 家族）、四种口径，方向一致——在"inventory claims 以周为单位过期"的领域里，这是最接近可复现的信号。需要克制的是程度表述：真正拉开显著差距的只有 tbench 2.0 的 24.2 个百分点（且含模型贡献）；FrontierHarness 内部其实是打平档。所以诚实的说法是 <b>"Codex 的下限稳"，而不是"显著碾压全场"</b>。</p>
+      <p>单个数字各有统计前提的问题，但四份评测、三种出品方（其中两份同属 Terminal-Bench 家族）、四套统计前提，方向一致——在功能清单以周为单位过期的领域里，这是最接近可复现的信号。需要克制的是程度表述：真正拉开显著差距的只有 tbench 2.0 的 24.2 个百分点（且含模型贡献）；FrontierHarness 内部其实是打平档。所以诚实的说法是 <b>"Codex 的下限稳"，而不是"显著碾压全场"</b>。</p>
       <h3>对症归因：两大死因接口上的最严格设计</h3>
-      <p>Harness-Bench 的失败解剖给出了归因坐标系：失败轨迹的 36.4% 死于<b>契约/格式</b>（产物不合机器可校验的规格）、24.6% 死于<b>工具/恢复</b>（报错后未修正方案）——两个接口合计 61%。该论文同时声明结果是"配置级而非因果级"，无法把分差归到具体机制。所以下面做的是<b>对症归因</b>：Codex 恰好在这两个最大死因的接口上，给出了四家里严格端最完整的一套设计。四条机制按证据强度排序：</p>
+      <p>Harness-Bench 的失败解剖给出了归因线索：失败轨迹的 36.4% 死于<b>契约/格式</b>（产物不合机器可校验的规格）、24.6% 死于<b>工具/恢复</b>（报错后未修正方案）——两个接口合计 61%。该论文同时声明结果是"配置级而非因果级"，无法把分差归到具体机制。所以下面做的是<b>对症归因</b>：Codex 恰好在这两个最大死因的接口上，给出了四家里严格端最完整的一套设计。四条机制按证据强度排序：</p>
       <div class="ha-grid g4">
         <div class="ha-card">
           <div class="who">① 编辑契约：文法 + 重试</div>
@@ -593,29 +593,29 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         </div>
         <div class="ha-card">
           <div class="who">② 工具面克制 + 按需检索</div>
-          <div class="expl">25–30 个工具（Claude Code 43 个），配 BM25 词法索引的 tool_search 按需调出——选择面小、误用概率低、工具选择精度高。这条与 Claude Code <b>独立收敛</b>（deferred loading 的发明者与复现者互不知情），收敛本身就是"它值钱"的证据。</div>
+          <div class="expl">25–30 个工具（Claude Code 43 个），配 BM25 词法索引的 tool_search 按需调出——选择面小、误用概率低、工具选择精度高。这条与 Claude Code 互不知情地各自做出同款（deferred loading 的发明者与复现者互不知情），这种撞车本身就是"它值钱"的证据。</div>
         </div>
         <div class="ha-card">
-          <div class="who">③ 失败显式回灌：fail-closed 全家</div>
-          <div class="expl">24.6% 的死因是"报错没被当反馈消费掉、硬着头皮往下走"。Codex 的解法是一族 fail-closed：<b>Guardian 审批 agent 超时或输出畸形一律拒绝</b>（带拒绝熔断）；Starlark policy 规则携带<b>解析时校验的可执行测试样例</b>。错误要么被显式拒绝、要么带结构化原因回灌——没有静默通过。</div>
+          <div class="who">③ 失败显式返回：fail-closed 全家</div>
+          <div class="expl">24.6% 的死因是"报错没被当成反馈用上，硬着头皮继续错下去"。Codex 的解法是一族 fail-closed：<b>Guardian 审批 agent 超时或输出畸形一律拒绝</b>（带拒绝熔断）；Starlark policy 规则携带<b>解析时校验的可执行测试样例</b>。错误要么被显式拒绝、要么带着结构化的原因返回给模型——没有静默通过。</div>
         </div>
         <div class="ha-card">
-          <div class="who">④ prompt 与模型咬合</div>
-          <div class="expl">行为策略与提示词跟模型版本一起维护：base_instructions 按模型从服务端下发（models.json + ETag）、委派工具分两代按模型元数据选择（multi_agents / multi_agents_v2）、行为规则 feature flag 化（no-commit → codex_git_commit）。FrontierHarness 的 K3 客场第一说明优势<b>不完全是同厂模型咬合</b>带来的。</div>
+          <div class="who">④ prompt 与模型配套维护</div>
+          <div class="expl">行为策略与提示词跟模型版本一起维护：base_instructions 按模型从服务端下发（models.json + ETag）、委派工具分两代按模型元数据选择（multi_agents / multi_agents_v2）、行为规则 feature flag 化（no-commit → codex_git_commit）。FrontierHarness 的 K3 第一说明，优势<b>不完全是自家模型配套调优带来的</b>。</div>
         </div>
       </div>
-      <p>再放一个对照进光谱：编辑契约的<b>宽容度</b>上，OpenCode 站在另一端——9 级回退级联（精确匹配一路回退到 Levenshtein 0.65 模糊匹配），这是"多模型中立"的代价：弱模型也改得上文件，但改错位置的风险也高。论文的建议恰好把这个权衡写死：<b>"前沿模型用精确唯一子串，弱模型配模糊级联"</b>。Codex 站在光谱的严格端——在前沿模型的语境里，严格端就是为准确率选的那一端。</p>
+      <p>再放一个对照：编辑契约的<b>宽容度</b>上，OpenCode 站在另一端——9 级逐步放宽的回退（从精确匹配一路放宽到 Levenshtein 0.65 模糊匹配），这是"支持多模型"的代价：弱模型也改得上文件，但改错位置的风险也高。论文的建议直接把这个权衡写成规则：<b>"前沿模型用精确唯一子串，弱模型配模糊级联"</b>。Codex 站在严格的一端——在前沿模型的世界里，严格就是为准确率选的那一端。</p>
       <div class="ha-callout warn">
         <div class="ttl">先排除五个看似合理的解释</div>
         <ol>
-          <li><b>不是记忆。</b>Codex 的 agent 自维护记忆是语料第一，但 FrontierHarness 每任务从 golden checkpoint 冷启动（环境快照还原，每次试验全新）——记忆在该榜<b>完全不生效</b>。至少在这个口径里，它的优势来自"每一轮的执行质量"，不是跨会话积累。这反而让归因更干净。</li>
-          <li><b>不是缓存。</b>88.0% 的中位缓存命中影响的是 $3.47 的价格，不是 66.7% 的分数——那是成本口径的变量。</li>
-          <li><b>不是"靠磨"。</b>Harness-Bench 里它平均 5.0 轮（全场最少之一）、86.1K token（全场第三低，仅次于 NanoBot 68.7K 与 OpenClaw 82.1K——后者省了 token 却只拿 52.4 分，省与出活是两回事）；FrontierHarness 最难的状态机题上它跑了 187 轮、$5.97 通过（Pi 90 轮、$2.50）。平时不浪费、难题不放弃——<b>韧性本身也有成本</b>，只是花在了刀刃上。</li>
+          <li><b>不是记忆。</b>Codex 的 agent 自维护记忆是研究里第一个，但 FrontierHarness 每任务从 golden checkpoint 冷启动（环境快照还原，每次试验全新）——记忆在该榜<b>完全不生效</b>。至少在这个榜单里，它的优势来自"每一轮的执行质量"，不是跨会话积累。这反而让归因更干净。</li>
+          <li><b>不是缓存。</b>88.0% 的中位缓存命中影响的是 $3.47 的价格，不是 66.7% 的分数——那是成本侧的变量。</li>
+          <li><b>不是"靠磨"。</b>Harness-Bench 里它平均 5.0 轮（全场最少之一）、86.1K token（全场第三低，仅次于 NanoBot 68.7K 与 OpenClaw 82.1K——后者省了 token 却只拿 52.4 分，省 token 和干出活是两回事）；FrontierHarness 最难的状态机题上它跑了 187 轮、$5.97 通过（Pi 90 轮、$2.50）。平时不浪费、难题不放弃——<b>韧性本身也有成本</b>，只是花在了刀刃上。</li>
           <li><b>不是"显著碾压"。</b>单榜内 1–3 题的差距在 30 题单次样本下是噪声档；且本节全部归因是"配置级对症"——Harness-Bench 明言无法因果归因到单一机制。这份清单的价值是<b>排除法 + 对症</b>，不是因果证明。</li>
-          <li><b>不是（也不全是）模型——但这一条排不掉。</b>四个数据点里只有 FrontierHarness 把模型钉死成 K3；Harness-Bench 是 GPT-5.4 绑定、tbench 是原生组合，模型贡献混在里面。所以本节归因的对象是"执行层设计"，结论强度以 FrontierHarness 为锚——它至少证明了这套设计在非同厂模型上也成立。</li>
+          <li><b>不是（也不全是）模型——但这一条排不掉。</b>四个数据点里只有 FrontierHarness 把模型钉死成 K3；Harness-Bench 是 GPT-5.4 绑定、tbench 是原生组合，模型贡献混在里面。所以本节归因的对象是"执行层设计"，结论强度以 FrontierHarness 为基准——它至少证明了这套设计在非同厂模型上也成立。</li>
         </ol>
       </div>
-      <p>收进理念层，四条机制其实是同一句话：Codex 在模型与世界的每个接口上都<b>把不确定性消灭在契约里</b>——补丁过文法、规则带测试、审批 fail-closed、委派带 JSON Schema 契约与 typed records。每一步要么显式成功、要么显式失败可重试，没有静默路径。准确率是这个哲学在"改文件"这个最高频动作上的投影，也与下一节画像里"平台与企业治理"的定位同源——治理层是它准确率的来源之一，不是附加面。</p>
+      <p>上升到设计哲学，四条机制其实是同一句话：Codex 在模型与外部世界的每个接口上都<b>用契约消灭不确定性</b>——补丁过文法、规则带测试、审批 fail-closed、委派带 JSON Schema 契约与类型化记录。每一步要么明确成功、要么明确失败且可重试，没有静默通过的路径。准确率，就是这个哲学在"改文件"这个最高频动作上的体现；它和下一节画像中"平台与企业治理"的定位也是一致的——治理层就是它准确率的来源之一，不是额外补的东西。</p>
     </div>
 
     <div class="ha-section">
@@ -626,7 +626,7 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         <div class="ha-card">
           <div class="who">Claude Code · 被模仿的参考系</div>
           <div class="lbl">"the reference others copy"</div>
-          <div class="expl">缓存经济学贯穿一切（静态边界、fork 冻结、独立 TTL 桶）；多 agent 谱系四家最全（subagent → view → teams → workflows）；hooks 词表与插件格式输出成了行业接口。哲学：<b>把多 agent 做成缓存友好的经济学。</b></div>
+          <div class="expl">缓存省钱设计贯穿一切（静态边界、fork 冻结、独立缓存过期计时）；多 agent 机制四家最全（subagent → view → teams → workflows）；hooks 词表与插件格式输出成了行业接口。哲学：<b>把多 agent 做成缓存友好的省钱设计。</b></div>
         </div>
         <div class="ha-card">
           <div class="who">Codex · 平台与企业治理</div>
@@ -636,12 +636,12 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
         <div class="ha-card">
           <div class="who">OpenCode · 提供商中立派</div>
           <div class="lbl">多提供商是产品核心</div>
-          <div class="expl">Vercel AI SDK + 1400 行 per-vendor 变换矩阵 + 9 份按模型家族的 prompt + 6 种缓存方言同时发射；client/server 架构（论文注：约五分之三代码是客户端而非 harness 本体）；权限做成语法问题（tree-sitter + arity 字典），零 OS 沙箱；生态直接吃竞品格式。哲学：<b>把中立做成功能，把权限做成语法。</b></div>
+          <div class="expl">Vercel AI SDK + 1400 行 per-vendor 变换矩阵 + 9 份按模型家族的 prompt + 6 种缓存协议格式各发一份；client/server 架构（论文注：约五分之三代码是客户端而非 harness 本体）；权限做成语法问题（tree-sitter + arity 字典），零 OS 沙箱；生态直接采用竞品格式。哲学：<b>把中立做成功能，把权限做成语法。</b></div>
         </div>
         <div class="ha-card">
           <div class="who">DeepSeek Harness · 形式化激进派</div>
           <div class="lbl">Everything is a Plugin</div>
-          <div class="expl">Cordis 演算落地（temporal + spatial composability，arXiv 2608.25512）：卸载即撤销是运行时保证；一切皆插件（loop 也是）；委派层是六后端注册表、直接吃下两个竞品当子代理；"模型可见即已记录"不变量 + prompt 即消息；Windows 一等公民（pwsh 逐项对应 bash）+ Web-first + Agent Note 设计记录制度。哲学：<b>插件化不是扩展机制，是编程范式。</b></div>
+          <div class="expl">Cordis 演算落地（时间、空间两个维度的可组合性，arXiv 2608.25512）：卸载即全部撤销，这是运行时保证；一切皆插件（loop 也是）；委派层是六后端注册表、直接把两个竞品当子代理；"模型可见即已记录"不变量 + prompt 即消息；Windows 一等公民（pwsh 逐项对应 bash）+ Web-first + Agent Note 设计记录制度。哲学：<b>插件化不是扩展机制，是编程范式。</b></div>
         </div>
       </div>
     </div>
@@ -651,11 +651,10 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
       <h2 class="ha-h2">给初级 AI 工程师的六条</h2>
       <div class="ha-steps">
         <div class="ha-step"><div class="n"></div><div class="t"><b>想自己攒 agent：从 90 行开始，别用框架。</b>11 个生产 harness、400 万行代码，零框架依赖不是巧合——手写 async loop 才是主流。要"全家桶"就直接用 harness SDK（Claude Agent SDK、Codex SDK 等），不要用编排框架拼。</div></div>
-        <div class="ha-step"><div class="n"></div><div class="t"><b>别为代码建向量检索。</b>ripgrep + glob + tree-sitter/LSP 就是生产答案；embedding 只在会话记忆里有先例。RAG 的收益在代码场景高度存疑，而维护成本以分钟为半衰期。</div></div>
-        <div class="ha-step"><div class="n"></div><div class="t"><b>工具面：先一个 bash，超 15 个再做按需加载。</b>CC 与 Codex 在互不知情的情况下独立收敛出同款方案，这个阈值可以当经验法则。编辑契约跟模型档位匹配：前沿模型用精确唯一子串，弱模型配模糊级联。</div></div>
-        <div class="ha-step"><div class="n"></div><div class="t"><b>压缩：固定缓冲阈值 + 保留原文尾巴 + 增量合并。</b>不要每次从头重新摘要——把旧摘要喂回合并（OpenCode 模式）。预算进恢复：压缩后给文件重读预算（Claude Code 的 50K）比省那点 token 值。</div></div>
-        <div class="ha-step"><div class="n"></div><div class="t"><b>多 agent：先证明有真并行段，再谈架构。</b>约 15× token 是入场费。一条务实的升级路径是：单次委派 → 可恢复子代理 → 脚本编排 → 常驻团队。团队层目前两家都标"实验、默认关"——这不是谦虚，是 token 账单和协调开销的诚实。</div></div>
-        <div class="ha-step"><div class="n"></div><div class="t"><b>选型看哲学，不看功能清单。</b>深度绑定单厂生态 → Claude Code / Codex；多提供商中立 + 轻量 → OpenCode；要"一切可替换"、Windows 一等公民、或想把别家 harness 当子代理调度 → DeepSeek Harness；企业治理与审计 → Codex 的 MDM 栈目前最重。功能会以周为单位被抄走，哲学以年为单位不变。</div></div>
+        <div class="ha-step"><div class="n"></div><div class="t"><b>别为代码建向量检索。</b>ripgrep + glob + tree-sitter/LSP 就是生产答案；embedding 只在会话记忆里有先例。RAG 的收益在代码场景高度存疑，而且代码一变、预建索引几分钟内就过期，维护成本极高。</div></div>
+        <div class="ha-step"><div class="n"></div><div class="t"><b>工具面：先一个 bash，超 15 个再做按需加载。</b>CC 与 Codex 在互不知情的情况下各自做出同款方案，这个阈值可以当经验法则。编辑契约跟模型档位匹配：前沿模型用精确唯一子串，弱模型配模糊级联。</div></div>
+        <div class="ha-step"><div class="n"></div><div class="t"><b>压缩：固定缓冲阈值 + 保留原文尾巴 + 增量合并。</b>不要每次从头重新摘要——把旧摘要喂回合并（OpenCode 模式）。把预算花在恢复上：压缩后给文件重读预算（Claude Code 的 50K），比省那点 token 划算。</div></div>
+        <div class="ha-step"><div class="n"></div><div class="t"><b>多 agent：先证明有真并行段，再谈架构。</b>约 15× token 是入场费。一条务实的升级路径是：单次委派 → 可恢复子代理 → 脚本编排 → 常驻团队。团队层目前两家都标"实验、默认关"——这不是谦虚，是对 token 账单和协调开销的诚实。</div></div>        <div class="ha-step"><div class="n"></div><div class="t"><b>选型看哲学，不看功能清单。</b>深度绑定单厂生态 → Claude Code / Codex；多提供商中立 + 轻量 → OpenCode；要"一切可替换"、Windows 一等公民、或想把别家 harness 当子代理调度 → DeepSeek Harness；企业治理与审计 → Codex 的 MDM 栈目前最重。功能会以周为单位被抄走，哲学以年为单位不变。</div></div>
       </div>
 
       <div class="ha-src">
@@ -669,7 +668,7 @@ description: 以四家官方文档与 arXiv 2609.00006 源码解剖论文为据�
           <li><b>arXiv 2608.25512</b>（Cordis：A Programming Paradigm for Spatiotemporal Composability）—— DSH 插件模型的形式化基础。</li>
           <li><b>本站前篇</b>：<a href="/harness-bench-paper-report/">Harness-Bench 论文解读</a>、<a href="/frontier-harness-eval-report/">FrontierHarness 榜单解读</a>（四家版本锚点与发现 4 快照/归因边界讨论的出处；"追问 Codex"一节的全部榜单数字——FrontierHarness、Terminal-Bench 排行榜与论文、Harness-Bench 表 2 及失败分类——均引自这两篇）。</li>
         </ol>
-        <div class="src" style="margin-top:10px">抓取与核对时间：2026-09-14。按上文口径警告，功能清单级信息（工具数、上限值、实验开关名）在此之后随时可能过期；结构性结论相对耐用。发现具体数字与官方现行文档不符时，以官方文档为准。</div>
+        <div class="src" style="margin-top:10px">抓取与核对时间：2026-09-14。按上文的数据前提警告，功能清单级信息（工具数、上限值、实验开关名）在此之后随时可能过期；结构性结论相对耐用。发现具体数字与官方现行文档不符时，以官方文档为准。</div>
       </div>
     </div>
 
