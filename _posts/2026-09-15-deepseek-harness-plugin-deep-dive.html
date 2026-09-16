@@ -1,0 +1,561 @@
+---
+layout: main
+title: DeepSeek Harness 源码级拆解 — "一切皆插件"到底怎么转，附可运行的长期记忆/自我进化插件 Demo
+description: 以官方架构文档、Cordis 论文与 npm 包源码实测为据，拆解 DeepSeek Harness 的一切皆插件架构：Cordis 五大机制、五种事件派发模式、profile/bundle 分层、turn 流转与"模型可见=已落日志"不变式；给出一个零 API key 可跑的 mini-harness Demo（长期记忆插件 + 错误驱动自我进化插件，含热卸载回滚验证），附 cordis 4.0.0-rc 四个实测踩坑；最后对比 Claude Code、Codex、OpenCode 的扩展面并给出工程上值得照抄的七条。
+---
+
+<style>
+  .dh{--ink:#20303c;--ink-2:#3b4d5a;--accent:#0c7ac0;--accent-deep:#0a5f92;--accent-soft:#e9f4fb;--line:#e0e8ec;--bg:#ffffff;--bg-soft:#f5f9fb;--text:#2a3742;--muted:#5d6f7c;--warn:#b3541e;--warn-soft:#fdf1e7;--good:#0e7a5f;--good-soft:#e9f6f1;
+       font-family:"Lato","Helvetica Neue",Arial,sans-serif;color:var(--text);line-height:1.78;font-size:16px;min-width:0;overflow-wrap:anywhere;}
+  .dh *{box-sizing:border-box;}
+  .dh code{overflow-wrap:anywhere;word-break:break-word;background:var(--bg-soft);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:.88em;color:var(--ink);}
+  .dh .wrap{max-width:900px;margin:0 auto;padding:0 12px;}
+  .dh a{color:var(--accent);text-decoration:underline;text-decoration-color:rgba(12,122,192,.4);}
+  .dh a:hover{text-decoration-color:var(--accent);}
+
+  .dh-hero{padding:50px 0 38px;background:linear-gradient(180deg,#e7f3fb 0%,#fbfdff 92%);border-bottom:1px solid var(--line);}
+  .dh-hero .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;letter-spacing:1.5px;color:var(--accent);font-weight:700;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;}
+  .dh-hero h1{font-family:"PT Serif",Georgia,serif;font-size:36px;line-height:1.3;color:var(--ink);margin:16px 0 12px;font-weight:700;text-wrap:balance;}
+  .dh-hero h1 em{font-style:normal;color:var(--accent);}
+  .dh-hero .lede{font-size:17.5px;color:var(--ink-2);max-width:740px;}
+  .dh-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;}
+  .dh-meta span{font-size:13px;color:var(--ink-2);background:#fff;border:1px solid var(--line);padding:5px 11px;border-radius:8px;}
+
+  .dh-nums{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px;}
+  .dh-nums .n{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
+  .dh-nums .n b{display:block;font-family:"PT Serif",Georgia,serif;font-size:26px;color:var(--accent);line-height:1.15;}
+  .dh-nums .n .l{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.55;}
+
+  .dh-section{padding:52px 0;border-top:1px solid var(--line);}
+  .dh-section.alt{background:var(--bg-soft);}
+  .dh-kicker{font-size:12.5px;letter-spacing:2px;color:var(--accent);font-weight:700;}
+  .dh-h2{font-family:"PT Serif",Georgia,serif;font-size:27px;color:var(--ink);margin:8px 0 14px;font-weight:700;text-wrap:balance;}
+  .dh-sub{color:var(--muted);font-size:15.5px;max-width:780px;margin:0 0 26px;}
+  .dh p{margin:0 0 14px;}
+  .dh-section > p{max-width:800px;}
+  .dh h3{font-family:"PT Serif",Georgia,serif;font-size:19.5px;color:var(--ink);margin:28px 0 10px;}
+  .dh h4{font-size:15.5px;color:var(--ink);margin:20px 0 8px;}
+  .dh ul,.dh ol{margin:0 0 14px;padding-left:22px;}
+  .dh li{margin:6px 0;}
+  .dh b,.dh strong{color:var(--ink);}
+
+  .dh-def{display:flex;gap:14px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:16px 20px;margin:20px 0;}
+  .dh-def .sym{font-family:"PT Serif",Georgia,serif;font-size:24px;color:var(--accent);font-weight:700;line-height:1.1;flex:none;}
+  .dh-def .body{font-size:15px;color:var(--ink-2);}
+  .dh-def .body b{color:var(--ink);}
+
+  .dh-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin:22px 0;}
+  .dh-grid.g3{grid-template-columns:repeat(3,1fr);}
+  .dh-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;min-width:0;}
+  .dh-card .who{font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.5px;margin-bottom:6px;}
+  .dh-card .lbl{font-family:"PT Serif",Georgia,serif;font-size:17px;font-weight:700;color:var(--ink);}
+  .dh-card .expl{font-size:14.5px;color:var(--ink-2);margin-top:8px;line-height:1.65;}
+  .dh-card .expl b{color:var(--ink);}
+
+  .dh-tablewrap{overflow-x:auto;margin:22px 0;}
+  .dh table{border-collapse:collapse;width:100%;font-size:14px;background:#fff;border:1px solid var(--line);}
+  .dh th,.dh td{border:1px solid var(--line);padding:9px 12px;text-align:center;vertical-align:top;}
+  .dh th{background:var(--bg-soft);color:var(--ink);font-size:13px;}
+  .dh td:first-child,.dh th:first-child{text-align:left;font-weight:700;color:var(--ink);}
+  .dh td{color:var(--ink-2);}
+  .dh table tr.hl td{background:var(--accent-soft);}
+  .dh .src{font-size:12.5px;color:var(--muted);margin-top:8px;}
+
+  .dh-callout{border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:24px 0;font-size:15px;color:var(--ink-2);background:#fff;}
+  .dh-callout .ttl{font-weight:700;color:var(--ink);margin-bottom:8px;font-size:15.5px;}
+  .dh-callout.eng{background:#fff;border-left:4px solid var(--accent);}
+  .dh-callout.eng .ttl{color:var(--accent);}
+  .dh-callout.warn{background:var(--warn-soft);border-color:#f0d9c4;border-left:4px solid var(--warn);}
+  .dh-callout.warn .ttl{color:var(--warn);}
+  .dh-callout.good{background:var(--good-soft);border-color:#cfe8de;border-left:4px solid var(--good);}
+  .dh-callout.good .ttl{color:var(--good);}
+  .dh-callout ol,.dh-callout ul{margin:6px 0 0;padding-left:20px;}
+  .dh-callout li{margin:5px 0;}
+
+  .dh-flow{display:grid;gap:10px;margin:22px 0;}
+  .dh-flow .node{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 16px;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;}
+  .dh-flow .node .k{font-size:11.5px;font-weight:700;letter-spacing:1px;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:2px 8px;white-space:nowrap;}
+  .dh-flow .node b{font-size:14.5px;color:var(--ink);}
+  .dh-flow .node small{font-size:13px;color:var(--muted);flex-basis:100%;}
+  .dh-flow .arrow{text-align:center;color:var(--muted);font-size:13px;line-height:.6;}
+
+  .dh .code{background:#0f1c26;color:#d9e6ee;border-radius:12px;padding:16px 18px;overflow-x:auto;font-size:13.2px;line-height:1.62;margin:18px 0;font-family:Consolas,"SFMono-Regular",Menlo,monospace;}
+  .dh .code .c{color:#7c93a3;}
+  .dh .code .k{color:#7cc0ff;}
+  .dh .code .v{color:#ffd479;}
+  .dh .code .s{color:#9be5a9;}
+  .dh .code .hl{color:#ff9ec4;}
+  .dh .code .t{color:#d9e6ee;font-weight:700;}
+
+  .dh-steps{counter-reset:st;margin:22px 0;display:grid;gap:12px;}
+  .dh-step{display:grid;grid-template-columns:34px 1fr;gap:14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 18px;}
+  .dh-step .n{counter-increment:st;width:30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--ink);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .dh-step .n::before{content:counter(st);}
+  .dh-step .t{font-size:15px;color:var(--ink-2);}
+  .dh-step .t b{color:var(--ink);}
+
+  .dh-refs{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin:22px 0;}
+  .dh-refs h4{margin:0 0 10px;}
+  .dh-refs ol{margin:0;padding-left:20px;font-size:14px;color:var(--ink-2);}
+  .dh-refs li{margin:5px 0;}
+
+  @media (max-width:760px){
+    .dh-nums{grid-template-columns:repeat(2,1fr);}
+    .dh-grid{grid-template-columns:1fr;}
+    .dh-hero h1{font-size:28px;}
+  }
+</style>
+
+<div class="dh">
+  <div class="dh-hero">
+    <div class="wrap">
+      <span class="kicker">DSH DEEP DIVE · 源码级</span>
+      <h1>DeepSeek Harness 拆解：<em>一切皆插件</em>到底怎么转，以及一个真的能跑的记忆/自我进化插件 Demo</h1>
+      <p class="lede">DeepSeek 开源的 agent harness（dsh）把"连 agent 循环本身都只是插件"当作架构第一原则。本文以官方架构文档、Cordis 论文、npm 包源码实测为据，把插件协作的机制拆到底，再用一个零 API key 的可运行 Demo 把"长期记忆 + 自我进化"两个插件挂上 mini-harness——含热卸载回滚验证与四个实测踩坑。</p>
+      <div class="dh-meta">
+        <span>deepseek-ai/deepseek-harness</span>
+        <span>TypeScript · MIT · developer preview</span>
+        <span>底层框架 Cordis（arXiv 2608.25512）</span>
+        <span>本文全部机制均经 cordis 4.0.0-rc.10 实机验证</span>
+      </div>
+      <div class="dh-nums">
+        <div class="n"><b>225k</b><span class="l">GitHub stars（2026-09-15 仓库页）</span></div>
+        <div class="n"><b>17,177</b><span class="l">commits —— 迭代强度在四家里最高</span></div>
+        <div class="n"><b>5</b><span class="l">种事件派发模式，是公开 API 契约</span></div>
+        <div class="n"><b>0</b><span class="l">API key —— 本文 Demo 本地即可运行</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ 01 定位 ═══════════════ -->
+  <div class="dh-section">
+    <div class="wrap">
+      <div class="dh-kicker">01 / WHAT</div>
+      <h2 class="dh-h2">它是什么：一个"没有内核"的 harness</h2>
+      <p class="dh-sub">先把名词钉死：DeepSeek Harness（命令名 dsh）是 DeepSeek AI 开源的 agent harness——与 Claude Code、Codex CLI、OpenCode 同类。它的仓库自述只有一句话的定位："DeepSeek Harness: Everything is a Plugin"。</p>
+      <p>Harness（马具/挽具）指围绕 LLM 的那层工程脚手架：工具循环、上下文管理、权限审批、会话持久化。四家 harness 的差异不在"能不能调工具"，而在<b>这些能力的所有权归谁</b>。dsh 的回答最极端：<b>内核里几乎不剩任何不可替换的东西</b>。官方架构文档的原话是——</p>
+      <div class="dh-def">
+        <div class="sym">»</div>
+        <div class="body">"Every part of the product is a plugin, including the model adapter, the tool registry, the session log, and the agent loop itself, so each is replaceable from configuration. <b>There is no privileged core to patch</b>: you extend dsh by mounting a plugin beside the others, and registrations are effects that unwind when their plugin unloads."（产品每个部分都是插件——模型适配器、工具注册表、会话日志、乃至 agent 循环本身——每一个都能从配置替换。没有特权内核可打补丁：扩展 dsh 的方式是把插件挂到别的插件旁边，注册都是插件卸载时会反向解除的副作用。）</div>
+      </div>
+      <p>这段话三个信息量点，后面逐个展开：① <b>循环是插件</b>——意味着"换掉整个大脑"是配置层面的操作；② <b>没有特权内核</b>——官方插件和你的插件走同一条挂载路径，不存在只有官方代码能用的后门；③ <b>注册即副作用</b>——所有注册（工具、prompt 片段、事件监听）都是可逆的，插件卸载时自动退回，这是热重载和崩溃清理的地基。</p>
+      <p>底层驱动这一切的是一个叫 <b>Cordis</b> 的插件框架（dsh 文档里称 vendored——以内嵌方式进了仓库），设计思想来自论文《A Programming Paradigm for Spatiotemporal Composability》（arXiv 2608.25512）。Cordis 同时独立发布在 npm 上（4.0.0-rc.10，MIT，周下载约 1.6 万），所以下面的 Demo 可以直接 <code>npm i cordis</code> 跑起来，不需要装整个 dsh。</p>
+      <div class="dh-callout warn">
+        <div class="ttl">先泼官方自己的冷水</div>
+        <p style="margin:0">仓库 README 用加粗标注：项目处于 <b>developer preview</b>，"未来将出现破坏兼容性的变更"；SAFETY.md 明说未经安全审计、不算生产就绪。本文讲的所有 API 形态以 2026-09-15 的 master 分支和 cordis 4.0.0-rc.10 为准——这也是为什么我坚持全部机制实机验证一遍再写。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ 02 五大机制 ═══════════════ -->
+  <div class="dh-section alt">
+    <div class="wrap">
+      <div class="dh-kicker">02 / MECHANISM</div>
+      <h2 class="dh-h2">"一切皆插件"的五个机械件</h2>
+      <p class="dh-sub">Cordis 官方 primer 把范式压缩成五条思想。每一条我都对应到 npm 包源码里验证过的 API 形态——下面这张表不是转述文档，是实跑过的。</p>
+      <div class="dh-grid">
+        <div class="dh-card">
+          <div class="who">件 1 · 插件 = Service 的实现者</div>
+          <div class="lbl">插件就是一个对象</div>
+          <div class="expl">三种形态任选：函数（带可选 <code>name/inject/provide</code> 属性字段）、对象（<code>{ name, inject, apply(ctx) }</code>）、类（继承 <code>Service</code>，构造时 <code>super(ctx, '服务名')</code> 即自动注册服务）。dsh 的官方教程从最小插件到 greet 工具插件全是这条路径。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">件 2 · ctx = 服务仓库</div>
+          <div class="lbl">找服务靠 key，不靠 import</div>
+          <div class="expl">服务声明一个稳定键位（<code>ctx.tools</code>、<code>ctx.llm</code>、<code>ctx.sessions</code>、<code>ctx.systemPrompt</code>），别的插件按 key 取用而不是导入具体实现——依赖是<b>数据</b>不是代码引用。这就是"换模型 = 换一个插件"成立的原理。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">件 3 · inject = 依赖声明</div>
+          <div class="lbl">加载顺序不用人管</div>
+          <div class="expl">插件声明 <code>inject: ['tools', 'systemPrompt']</code>，框架等这些服务就绪后才挂载它——启动顺序是<b>从需求推导出来的</b>，不是写死的 boot 序列。实测：注册表插件先挂，消费者插件自动等 <code>ctx.tools</code> 出现才执行 apply。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">件 4 · 类型化事件 = 通信总线</div>
+          <div class="lbl">五种派发模式是契约</div>
+          <div class="expl">事件用 TypeScript declaration merging 声明，派发方式有五种（emit/parallel/serial/bail/waterfall），<b>派发模式本身是事件的公开契约</b>——新事件要打 <code>@mode</code> 标签，生成的目录会校验声明与调用点一致。见下表。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">件 5 · 注册 = 可逆副作用</div>
+          <div class="lbl">一切注册自带 disposer</div>
+          <div class="expl">工具 schema、prompt 片段、事件监听全部经 <code>ctx.effect()</code>/<code>ctx.on()</code> 注册（<code>ctx.on</code> 内部就是 <code>fiber.effect</code>——我在源码 index.js:344 验证过）。插件卸载时按注册的逆序退回。官方 cookbook 的说法是："every registration is a ctx.effect → vendored HMR just works"（每次注册都是 effect，热重载白拿）。</div>
+        </div>
+      </div>
+      <h3>五种派发模式：事件不是"广播"，是五种不同的合同</h3>
+      <p>这是理解 dsh 插件协作的钥匙——同一个事件系统，五种语义。监听者怎么写、能不能短路、有没有返回值，全由模式决定：</p>
+      <div class="dh-tablewrap">
+        <table>
+          <tr><th>模式</th><th>等待？</th><th>顺序</th><th>返回值</th><th>dsh 里的真实用途（实例）</th></tr>
+          <tr><td>emit</td><td>否</td><td>按注册序观察</td><td>无</td><td style="text-align:left"><code>session/event</code> 会话日志广播——所有观察者只看不动</td></tr>
+          <tr class="hl"><td>waterfall</td><td>否</td><td>中间件链</td><td>有</td><td style="text-align:left"><code>tools/pre-execute</code> 权限门、<code>agent/pre-step</code> 输入裁决、<code>system-prompt/assemble</code>——"要么加工后 next() 委托，要么短路"</td></tr>
+          <tr><td>parallel</td><td>是（全并行）</td><td>同时观察</td><td>无</td><td style="text-align:left">互不依赖的旁路观察者</td></tr>
+          <tr><td>serial</td><td>是（依次）</td><td>按注册序</td><td>有</td><td style="text-align:left"><code>agent/turn-stopping</code> 轮次收口（无 next，不能短路）</td></tr>
+          <tr><td>bail</td><td>否</td><td>到第一个 bail 为止</td><td>有</td><td style="text-align:left">快速裁决类事件——有人给出答案就停</td></tr>
+        </table>
+      </div>
+      <div class="dh-callout eng">
+        <div class="ttl">waterfall 的协作礼仪（primer 原则 + 实测补充）</div>
+        <p style="margin:0">监听者收到 <code>(...args, next)</code>。官方推荐"加工共享对象后 <code>return next()</code>"——合作型监听者改写同一个请求/决策对象再委托；决策型监听者可以不调 <code>next()</code> 直接短路返回。一个实测细节：npm 上的 cordis 4.0.0-rc.10 里 <code>next()</code> <b>不接收值参数</b>，值传播靠 mutate 共享对象 + 调用侧终止闭包，比 dsh 文档里 vendored 版的"值经 next() 返回值传播"更朴素——写跨版本兼容代码时按 mutate 风格最稳。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ 03 流程怎么转 ═══════════════ -->
+  <div class="dh-section">
+    <div class="wrap">
+      <div class="dh-kicker">03 / TURN FLOW</div>
+      <h2 class="dh-h2">流程怎么转：一轮对话里插件协作的完整时序</h2>
+      <p class="dh-sub">dsh 的 turn（轮）= 一次用户输入驱动的完整循环；step（步）= 一次模型请求 + 它点名的工具执行。一轮可以有很多步。下面是官方架构文档的 turn flow，按"哪些环节哪些插件能插手"重排：</p>
+      <div class="dh-flow">
+        <div class="node"><span class="k">turn/start</span><b>开轮</b><small>用户输入进入队列，循环认领一条消息</small></div>
+        <div class="arrow">↓</div>
+        <div class="node"><span class="k">waterfall</span><b>agent/pre-step —— 输入裁决门</b><small>任何插件可改写或拒绝本条输入；被拒绝/改空 → 本轮无步直接收口（记忆注入类插件在这里排队上下文）</small></div>
+        <div class="arrow">↓</div>
+        <div class="node"><span class="k">assemble</span><b>system-prompt/assemble —— 拼系统提示词</b><small>所有插件注册的 section（静态/动态 provider）、工具 schema、变量参与组装；组装结果过一道协作 waterfall——此刻记忆插件渲染的记忆段、进化插件渲染的规则段全部生效</small></div>
+        <div class="arrow">↓</div>
+        <div class="node"><span class="k">log</span><b>system/message + user/message 落日志</b><small>运行时不变式："模型看得见的，日志里一定有"——提示词进历史而不是请求字段，改 prompt 只替换 0 号节点，前缀缓存照常命中</small></div>
+        <div class="arrow">↓</div>
+        <div class="node"><span class="k">llm/stream</span><b>agent/request → 模型流式响应</b><small>模型历史由日志推导（deriveMessages），请求是不可变快照；流式 chunk 经 agent/assistant-stream 转发给 UI 插件</small></div>
+        <div class="arrow">↓</div>
+        <div class="node"><span class="k">tools</span><b>tools/pre-execute → execute → post-execute</b><small>每个工具调用先过权限/校验 waterfall；未知工具返回结构化错误（UNKNOWN_TOOL）且不终止本轮——模型下一轮还能修正自己</small></div>
+        <div class="arrow">↓</div>
+        <div class="node"><span class="k">loop</span><b>step/end → 还有工具调用？→ 下一步 or 收口</b><small>工具结果作为消息进日志，驱动下一个 step；没有工具调用则 serial 的 agent/turn-stopping 收口 → turn/end 落日志</small></div>
+      </div>
+      <p>注意两个设计后果：<b>① 一切可观察</b>——每个环节都有事件出口，UI 插件、遥测插件、记忆插件都是纯观察者，不需要改循环一行代码；<b>② 一切可拦截</b>——输入门、权限门、组装、收口全是 waterfall/serial 监听位。官方 cookbook 用一张"feature → mechanism map"把每个产品功能映射到具体扩展点（例如权限系统 = tools/pre-execute 返回 ask；压缩 = ctx.compaction seam；MCP = 每服务器一插件转注册进 ctx.tools），并称之为"让微内核主张可检验"——<b>声称自己是微内核的框架很多，把每个功能列成可对账清单的是第一个</b>。</p>
+      <h3>插件从哪里长出来：profile → bundle → patch 三层叠装</h3>
+      <p>插件在运行时怎么组织成"一个产品"？dsh 的答案是<b>分层组合</b>，启动时从空配置逐层叠加：</p>
+      <div class="dh-grid">
+        <div class="dh-card">
+          <div class="who">bundle</div>
+          <div class="lbl">能力包</div>
+          <div class="expl">Cordis 配置行 + 它挂载的代码的发布单元。<code>dsh-base</code> 是共享底层（模型适配、工具、持久化、沙箱、审批、设置）；<code>dsh-web-app</code> 加浏览器应用；<code>dsh-headless</code> 加一次性运行器；<code>dsh-sdk-app</code> 加 JSON-RPC 服务。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">profile</div>
+          <div class="lbl">产品形态</div>
+          <div class="expl">命名组合（web / headless / sdk / sdk-minimal / acp 五个出厂模板），列自己叠哪些 bundle，持有用户的外挂插件和 <code>cordis.patch.yml</code>。<code>dsh web</code> 就是 <code>--profile web</code> 的别名。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">patch</div>
+          <div class="lbl">可对账的覆盖层</div>
+          <div class="expl">按行 id 定位，可整行替换、可插新行。应用顺序：bundle（按 profile 列出的顺序）→ profile 的 patch → home 级 patch → 命令行 <code>--patch</code> 叠加。<code>dsh --profile web --dump-config</code> 能打印整机插件树，<b>任意一行你都能用 patch 换掉</b>。</div>
+        </div>
+      </div>
+      <p>这个设计的锋利之处：<b>定制一个产品 = 写一段 YAML，而不是 fork 一份代码</b>。web profile 支持 patch 热重载（live reload）；一次性 profile 在启动时叠完即冻结。外部插件的安装入口是 <code>dsh plugin --profile &lt;name&gt; &lt;pnpm args&gt;</code>——本质上是把 pnpm 装进 profile 目录，让你的插件在下一层生效。</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════ 04 DEMO ═══════════════ -->
+  <div class="dh-section alt">
+    <div class="wrap">
+      <div class="dh-kicker">04 / DEMO</div>
+      <h2 class="dh-h2">Demo：给 mini-harness 装上"长期记忆 + 自我进化"插件</h2>
+      <p class="dh-sub">目标：零 API key、单目录、<code>npm i cordis</code> 就能跑。做法是把 dsh 的内核插件逐个缩小复刻（接口形态与真实包一一对应），再把两个真正要研究的插件挂上去。所有代码在 cordis 4.0.0-rc.10 + Node 24 实测通过。</p>
+      <div class="dh-def">
+        <div class="sym">M</div>
+        <div class="body">官方 cookbook 对 Memory 的标准答案是两个注册：<b>一个 prompt section provider + 一个工具</b>（"Memory: section provider + tool"）。本 Demo 忠实这个范式：记忆插件注册 section（让模型"想起"）+ 注册 memory_save/search 工具（让模型主动存取）；自我进化插件则复用同一套挂点——观察工具错误 → 反思生成规则 → 规则作为另一个 section 注入 → 下一轮模型行为改变。这是"CLAUDE.md 自我更新"模式的最小可运行版。</div>
+      </div>
+      <h3>第 0 步：五件"内核插件"（每个都对应真实 dsh 包）</h3>
+      <p>mini-harness 的核心层。接口刻意与真实 dsh 同构，方便读完后无缝切换到真框架：</p>
+      <div class="dh-tablewrap">
+        <table>
+          <tr><th>Demo 插件</th><th>对应真实包</th><th>复刻的关键机制</th></tr>
+          <tr><td>SessionLog</td><td>dsh-session</td><td style="text-align:left">append-only 事件日志；模型历史 <code>deriveMessages()</code> 从日志推导；"模型可见 = 已落日志"</td></tr>
+          <tr><td>SystemPromptService</td><td>dsh-system-prompt</td><td style="text-align:left"><code>section({name, order, text})</code> 注册；<code>assemble()</code> 排序渲染 + 组装 waterfall</td></tr>
+          <tr><td>ToolRegistry</td><td>dsh-tools</td><td style="text-align:left">注册即 effect（卸载自动消失）；<code>execute()</code> 过 pre-execute waterfall；UNKNOWN_TOOL 结构化报错不终止本轮</td></tr>
+          <tr><td>MockLlm</td><td>dsh-llm</td><td style="text-align:left">adapter seam；async generator 流式输出；<b>真的读组装后的 prompt 做决策</b>（见下）</td></tr>
+          <tr><td>agentLoop</td><td>dsh-agent-loop</td><td style="text-align:left">turn = 若干 step；每动作先落日志；循环本身也只是插件（可整体替换）</td></tr>
+        </table>
+      </div>
+      <p>核心层里最值得看的是"注册即副作用"的落法——工具注册表的两行：</p>
+<pre class="code"><span class="c">// ToolRegistry（对应 dsh-tools）：注册挂到"调用方插件"的 fiber 上，插件卸载时自动回滚</span>
+register(def) {
+  <span class="k">return</span> <span class="k">this</span>.ctx.fiber.effect(() => {
+    <span class="k">this</span>.defsByName.set(def.name, def)
+    <span class="k">return</span> () => <span class="k">this</span>.defsByName.delete(def.name)   <span class="c">// disposer：与插件同生共死</span>
+  })
+}</pre>
+      <p>以及组装系统提示词时，为什么插件们"自动出现在正确位置"：</p>
+<pre class="code"><span class="c">// SystemPromptService（对应 dsh-system-prompt）</span>
+assemble(assembleCtx = {}) {
+  <span class="k">const</span> assembly = { sections: [] }
+  <span class="k">for</span> (<span class="k">const</span> def of [...<span class="k">this</span>.sectionMap.values()].sort((a, b) => a.order - b.order)) {
+    <span class="k">const</span> text = <span class="k">typeof</span> def.text === <span class="hl">'function'</span> ? def.text(assembleCtx) : def.text  <span class="c">// 动态 provider：每次组装实时求值</span>
+    <span class="k">if</span> (text) assembly.sections.push(<span class="s">`## ${def.name}\n${text}`</span>)      <span class="c">// 空贡献不占 prompt</span>
+  }
+  <span class="k">return</span> <span class="k">this</span>.ctx.waterfall(<span class="s">'system-prompt/assemble'</span>, assembly, () => assembly)
+}                <span class="c">// ↑ 与真实 dsh 同名同模式：协作 waterfall，监听者可加工整份组装结果</span></pre>
+      <h3>第 1 步：长期记忆插件（三件事：听、注、给工具）</h3>
+      <p>三个注册，一个回读，全部走官方 Memory 范式：</p>
+<pre class="code"><span class="k">export const</span> memoryPlugin = {
+  name: <span class="s">'long-term-memory'</span>,
+  inject: [<span class="s">'sessions'</span>, <span class="s">'systemPrompt'</span>, <span class="s">'tools'</span>],  <span class="c">// 声明依赖：三项就绪才挂载</span>
+  apply(ctx) {
+    <span class="c">// ---- 0. 启动回读：保存 → 重启 → 回读 的闭环在这 ----</span>
+    <span class="k">let</span> memories = existsSync(MEMORY_FILE) ? JSON.parse(readFileSync(MEMORY_FILE, <span class="s">'utf8'</span>)) : []
+    <span class="k">const</span> persist = () => writeFileSync(MEMORY_FILE, JSON.stringify(memories, <span class="k">null</span>, <span class="v">2</span>))
+
+    <span class="c">// ---- 1. 听：观察会话事件流，出现"记住：X"自动提取（产品版换成 LLM 提取）</span>
+    ctx.on(<span class="s">'session/event'</span>, (session, ev) => {
+      <span class="k">if</span> (ev.type === <span class="s">'user/message'</span> &amp;&amp; /记住[:：]/.test(ev.data.content)) store.add(ev.data.content)
+    })
+
+    <span class="c">// ---- 2. 注：prompt section（动态 provider）—— 模型由此"想起" ----</span>
+    ctx.systemPrompt.section({
+      name: <span class="s">'long-term-memory'</span>, order: <span class="v">50</span>,
+      text: () =&gt; store.all().length
+        ? [<span class="s">'与用户长期协作中确认的事实：'</span>, ...store.all().map((m) =&gt; <span class="s">`- ${m.content}`</span>)].join(<span class="s">'\n'</span>)
+        : <span class="s">''</span>,                       <span class="c">// 空记忆不占 prompt</span>
+    })
+
+    <span class="c">// ---- 3. 给工具：memory_save / memory_search，模型可主动存取 ----</span>
+    ctx.tools.register({ name: <span class="s">'memory_save'</span>, description: <span class="s">'把一条用户偏好/事实存入长期记忆库。'</span>,
+      parameters: { content: { type: <span class="s">'string'</span>, required: <span class="k">true</span> } },
+      <span class="k">async</span> execute({ content }) { store.add(content); <span class="k">return</span> <span class="s">`已存入长期记忆：${content}`</span> } })
+    ctx.tools.register({ name: <span class="s">'memory_search'</span>, <span class="c">/* 按关键词检索，略 */</span> })
+  },
+}</pre>
+      <p>三个注册里有两个技术要点值得点破：<b>① "听"的是日志事件流而不是对话对象</b>——append-only 日志是唯一事实源，任何插件都从同一个 firehose 取数据，不需要互相认识；<b>② "注"是动态 provider</b>——不是启动时拼一次字符串，而是每次组装 prompt 时实时求值，记忆库更新下一轮立刻生效。<b>两条路径汇聚同一个去重记忆库</b>（自动提取与模型主动存都过同一个 <code>store.add</code> 的去重），这是产品版记忆系统必须处理的双写问题。</p>
+      <h3>第 2 步：自我进化插件（观察错误 → 反思 → 规则注入）</h3>
+<pre class="code"><span class="k">export const</span> evolvePlugin = {
+  name: <span class="s">'self-evolve'</span>,
+  inject: [<span class="s">'sessions'</span>, <span class="s">'systemPrompt'</span>],
+  apply(ctx) {
+    <span class="k">let</span> rules = readRulesFromDisk()                 <span class="c">// 进化跨重启持续</span>
+    <span class="k">const</span> MAX_RULES = <span class="v">12</span>                            <span class="c">// 防膨胀上限：规则宁少勿多</span>
+
+    <span class="c">// 反思函数：Demo 用"错误类别 → 规则"启发式映射；产品版换成一次 LLM 反思调用</span>
+    <span class="k">const</span> reflect = (errorText) =&gt; {
+      <span class="k">if</span> (errorText.includes(<span class="s">'UNKNOWN_TOOL'</span>))
+        <span class="k">return</span> <span class="s">'工具名必须与清单精确匹配：调用前逐字核对可用工具列表，绝不凭记忆拼写工具名。'</span>
+      <span class="k">return null</span>                                    <span class="c">// 未知错误不硬造规则</span>
+    }
+
+    <span class="c">// 观察：工具结果落日志 → 广播 → 这里反思 → 去重后追加规则并落盘</span>
+    ctx.on(<span class="s">'session/event'</span>, (session, ev) =&gt; {
+      <span class="k">if</span> (ev.type !== <span class="s">'tool/result'</span> || !ev.data.result.isError) <span class="k">return</span>
+      <span class="k">const</span> rule = reflect(ev.data.result.text)
+      <span class="k">if</span> (!rule || rules.includes(rule) || rules.length &gt;= MAX_RULES) <span class="k">return</span>
+      rules.push(rule); persistRules(rules)        <span class="c">// 写 rules.md —— 与 CLAUDE.md 自我更新同构</span>
+    })
+
+    <span class="c">// 注入：规则作为另一个 prompt section —— 进化的落点</span>
+    ctx.systemPrompt.section({
+      name: <span class="s">'evolved-rules'</span>, order: <span class="v">60</span>,
+      text: () =&gt; rules.length
+        ? [<span class="s">'AGENTS RULES（从历史错误中自我进化而来，必须遵守）：'</span>,
+           ...rules.map((r) =&gt; <span class="s">`- RULE-EVOLVED: ${r}`</span>)].join(<span class="s">'\n'</span>) : <span class="s">''</span>,
+    })
+  },
+}</pre>
+      <div class="dh-callout eng">
+        <div class="ttl">为什么这个闭环是"真的"而不是演的</div>
+        <p style="margin:0">Mock 模型不是打印预定的剧本——它的决策函数<b>真的读组装后的 system prompt</b>：prompt 里没有规则时它就凭记忆幻觉工具名（模拟真实模型的高频错误）；有 RULE-EVOLVED 规则时逐字核对。所以"规则注入 → 行为改变"这条因果链是由框架机制真实传导的，与接真模型时的传导路径完全相同——把 MockLlm 换成 DeepSeek adapter（同样一个插件位），闭环不变。</p>
+      </div>
+      <h3>第 3 步：装配与运行</h3>
+      <p>装配代码就是 dsh 精神的浓缩——<b>内核与扩展一律 plugin()，没有特权代码路径</b>：</p>
+<pre class="code"><span class="k">async function</span> boot() {
+  <span class="k">const</span> root = <span class="k">new</span> Context()
+  <span class="k">const</span> fibers = {
+    session: root.plugin(SessionLog),          <span class="c">// 日志</span>
+    prompt:  root.plugin(SystemPromptService), <span class="c">// prompt 组装</span>
+    tools:   root.plugin(ToolRegistry),         <span class="c">// 工具</span>
+    llm:     root.plugin(MockLlm),             <span class="c">// 模型适配器（换真模型 = 换这一个插件）</span>
+    loop:    root.plugin(agentLoop),          <span class="c">// agent 循环 —— 也只是插件</span>
+    memory:  root.plugin(memoryPlugin),        <span class="c">// 扩展 1：长期记忆</span>
+    evolve:  root.plugin(evolvePlugin),        <span class="c">// 扩展 2：自我进化</span>
+  }
+  <span class="k">await</span> Promise.all(Object.values(fibers))    <span class="c">// fiber 异步加载；inject 依赖自动排队</span>
+  <span class="k">return</span> { root, fibers }
+}</pre>
+      <p>三个验证场景的实际运行输出（有删节）。细心的读者会注意到场景 A 里 <code>[evolve]</code> 的规则行打印在它所响应的错误<b>之前</b>——这不是剪辑错了：所有插件（包括负责打印的驱动脚本）都是 <code>session/event</code> 的监听者，事件落日志时按注册顺序同步触发，进化插件注册得比打印机早，于是它的日志行先于打印机的错误行出现。<b>整个系统里没有任何组件"调用"任何其他组件，大家只是围在同一条事件流边上</b>：</p>
+<pre class="code"><span class="t">═══ 场景 A：模型幻觉工具名 → 工具门拒绝 → 进化插件生成规则 → 下轮修正 ═══</span>
+┌ 用户: 记住：我的部署环境是 k8s 生产集群，别用 docker-compose
+  [memory] 存入记忆 #1: 我的部署环境是 k8s 生产集群…
+  [evolve] ⚡ 从错误学到新规则 #1：工具名必须与清单精确匹配…
+  │   tool/call    memory_sav                              <span class="c">← 幻觉拼写</span>
+  │   tool/result  ❌ UNKNOWN_TOOL: memory_sav（可用工具: memory_save, memory_search）
+  │   assistant: （我调用的工具不存在，这轮先记下来了……）
+
+┌ 用户: 请保存这条偏好：构建一律用 pnpm
+  [memory] 存入记忆 #2: 构建一律用 pnpm…
+  │   tool/call    memory_save                             <span class="c">← 规则生效：逐字核对</span>
+  │   tool/result  ✅ 已存入长期记忆：构建一律用 pnpm
+  │   assistant: 好的，已存入长期记忆：构建一律用 pnpm。
+
+<span class="t">═══ 场景 B：进程"重启"——记忆与规则从磁盘回读，行为在线 ═══</span>
+  [evolve] 回读 1 条历史规则
+  [memory] 回读 2 条持久记忆
+
+┌ 用户: 我的部署环境是什么？
+  │   assistant: 根据长期记忆：我的部署环境是 k8s 生产集群，别用 docker-compose。
+                                                <span class="c">↑ 答案只能来自回读的 section，不是查上下文</span>
+<span class="t">═══ 场景 C：热卸载 memory 插件 —— 注册的 section 与工具全部自动消失 ═══</span>
+  卸载前：工具清单 = memory_save, memory_search
+  卸载前：prompt sections = long-term-memory | evolved-rules
+  卸载后：工具清单 = (空)
+  卸载后：prompt sections = evolved-rules          <span class="c">← evolve 未卸载，它的注册仍在（正确！）</span>
+┌ 用户: 我的部署环境是什么？
+  │   assistant: 我没有任何关于你环境的记忆。       <span class="c">← 卸载即回滚，没有残留状态</span></pre>
+      <p>运行方式（全部代码五个文件约 400 行，<code>package.json</code> 只需一个依赖）：</p>
+<pre class="code">npm init -y &amp;&amp; npm pkg set type=module &amp;&amp; npm i cordis
+node run.js          <span class="c"># 三个场景一气跑完，无需任何 API key</span></pre>
+      <h3>顺带交一份实测踩坑账单（cordis 4.0.0-rc.10）</h3>
+      <p>这些是文档没写、源码里翻出来的行为。写跨版本插件的人应该知道：</p>
+      <div class="dh-steps">
+        <div class="dh-step"><span class="n"></span><div class="t"><b>函数插件不要 return 值。</b>apply 返回对象时，本插件 apply 期间注册的全部 effect 会被丢弃——症状是"注册没报错但什么都没生效"。实测把 <code>return { store }</code> 删掉立刻恢复。</div></div>
+        <div class="dh-step"><span class="n"></span><div class="t"><b>ctx 是 Proxy，服务属性别用 "_" 前缀。</b>下划线前缀撞了框架内部命名空间（fiber._store 等），经 ctx 访问服务方法时属性会被路由到别处——用普通名（<code>this.defsByName</code>）。</div></div>
+        <div class="dh-step"><span class="n"></span><div class="t"><b>WeakMap 存服务状态会失效。</b>经 ctx 调用方法时 this 是 traceable Proxy，与构造时的原实例不是同一个对象，WeakMap 的 key 对不上——状态放普通属性。</div></div>
+        <div class="dh-step"><span class="n"></span><div class="t"><b>waterfall 的值传播靠 mutate。</b>rc 版 <code>next()</code> 不接收值参数；监听者加工共享对象、调用侧用终止闭包取回。与 dsh 文档描述的 vendored 版语义有差异。</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ 05 接到真 dsh ═══════════════ -->
+  <div class="dh-section">
+    <div class="wrap">
+      <div class="dh-kicker">05 / TO REAL DSH</div>
+      <h2 class="dh-h2">从 Demo 到真 dsh：同一套心智模型，换真实的挂点</h2>
+      <p class="dh-sub">Demo 里每个机制在真实 dsh 里都有名字。写真正插件时，按这张表对号入座：</p>
+      <div class="dh-tablewrap">
+        <table>
+          <tr><th>你想要什么</th><th>Demo 的做法</th><th>真实 dsh 的挂点（官方文档）</th></tr>
+          <tr><td>注册模型可见工具</td><td style="text-align:left"><code>ctx.tools.register(def)</code></td><td style="text-align:left"><code>ctx.tools.register(defineTool({...}))</code>——defineTool 给参数类型推断和输出 schema；schema 自动进 prompt 组装</td></tr>
+          <tr><td>注入系统提示词片段</td><td style="text-align:left"><code>ctx.systemPrompt.section({name, order, text})</code></td><td style="text-align:left">同款 API，另有 <code>context()</code>（落为持久 user 快照）、<code>tools()</code> provider、<code>variable()</code>；order 有集中分配的命名槽位</td></tr>
+          <tr><td>观察对话/提取记忆</td><td style="text-align:left"><code>ctx.on('session/event', ...)</code></td><td style="text-align:left">同名事件，durable 事实广播；另有 live 的 <code>agent/assistant-stream</code>（流式 chunk）</td></tr>
+          <tr><td>中途注入上下文</td><td style="text-align:left">（未演示）</td><td style="text-align:left"><code>agent.inject()</code>——落到下个被认领的请求（官方给 subdir AGENTS.md 刷新、cron 通知用的就是它）</td></tr>
+          <tr><td>权限/校验门</td><td style="text-align:left"><code>tools/pre-execute</code> waterfall</td><td style="text-align:left">同款事件，返回类型化决策（allow/deny/ask）；官方 cookbook 的权限门示例十几行</td></tr>
+          <tr><td>换掉模型</td><td style="text-align:left">换掉 llm 插件</td><td style="text-align:left">在 <code>ctx.llm</code> 上 <code>registerAdapter</code>（LlmAdapter 子类）</td></tr>
+          <tr><td>装载你的插件</td><td style="text-align:left"><code>root.plugin(...)</code></td><td style="text-align:left">开发期：<code>cordis.yml</code> overlay + <code>dsh web --patch</code>；长期：<code>dsh plugin --profile &lt;name&gt; &lt;pnpm args&gt;</code>；插件仓打 <code>dsh-plugin</code> topic 进生态目录</td></tr>
+          <tr><td>核对整机插件树</td><td style="text-align:left">（未演示）</td><td style="text-align:left"><code>dsh --profile web --dump-config</code>——打印组合树，任意一行可被你的 patch 替换</td></tr>
+        </table>
+      </div>
+      <p>官方插件的最小形态（develop/basic 教程原文骨架），与 Demo 的 object form 完全同构：</p>
+<pre class="code"><span class="k">import type</span> { Context } <span class="k">from</span> <span class="s">'@deepseek-ai/cordis'</span>
+<span class="k">import</span> { defineTool } <span class="k">from</span> <span class="s">'@deepseek-ai/dsh-tools'</span>
+
+<span class="k">export const</span> name = <span class="s">'greet-tool'</span>
+<span class="k">export const</span> inject = [<span class="s">'tools'</span>]          <span class="c">// 框架等 tool registry 就绪后才挂载</span>
+
+<span class="k">export function</span> apply(ctx: Context) {
+  ctx.tools.register(defineTool({
+    name: <span class="s">'greet'</span>,
+    description: <span class="s">'Greet someone by name.'</span>,
+    parameters: { name: { type: <span class="s">'string'</span>, required: <span class="k">true</span> } },
+    output: { schema: { type: <span class="s">'string'</span> }, render: (_args, value) =&gt; [{ type: <span class="s">'text'</span>, text: value }] },
+    <span class="k">async</span> execute(args) { <span class="k">return</span> <span class="s">`Hello, ${args.name}!`</span> },
+  }))
+}</pre>
+      <p>也就是说：读完 Demo 的人去写真插件，需要补的只有 <code>defineTool</code> 的类型细节和打包配置，<b>心智模型零迁移成本</b>——这是"一切皆插件"最实际的好处：学一次挂载协议，扩展整个产品。</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════ 06 评价 ═══════════════ -->
+  <div class="dh-section alt">
+    <div class="wrap">
+      <div class="dh-kicker">06 / VERDICT</div>
+      <h2 class="dh-h2">冷静评价：这套架构强在哪、弱在哪，该学什么</h2>
+      <p class="dh-sub">先声明证据边界：dsh 处于 developer preview，官方 BENCHMARK.md 目前只给了运行说明、没有公开对照数据；下文的横向对比基于四家公开文档、此前两篇源码解剖（见文末关联），不引用无法核实的性能数字。</p>
+      <h3>优点：四条真正的护城河</h3>
+      <div class="dh-grid">
+        <div class="dh-card">
+          <div class="who">① 可逆副作用是热重载、崩溃清理、A/B 插件的共同地基</div>
+          <div class="expl">"每次注册都是 effect"意味着：插件可以运行中卸载再装回（demo 场景 C 验证过零残留）、崩溃恢复时能精确回滚半完成的注册、"试运行一个插件"不需要重启进程。其他三家的扩展点（hook/脚本/子进程）都没有这种<b>结构性保证</b>——它们靠约定和文档，dsh 靠类型系统。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">② 事件语义是 API 契约，不是实现细节</div>
+          <div class="expl">五种 dispatch mode 是事件的公开合同，<code>@mode</code> 标签 + 生成目录自动校验"声明与调用点一致"。对比之下，多数框架的事件只是"调了就调了"——监听者该不该有返回值、能不能短路，全靠读源码。把派发语义提升到契约层，插件生态的协作才可预测。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">③ "模型可见 = 已落日志"式的不变式设计</div>
+          <div class="expl">上下文工程最容易烂在"prompt 是哪次拼的、内容哪来的"上。dsh 把软约定升级为运行时硬规则（模型收到的一切必须可从日志重建，并有断言检查），这让审计、回放、压缩、fork 全部建立在同一地基上。Demo 里记忆/规则插件能"零协调"协作，正是因为大家都只跟日志流打交道。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">④ 组合是声明式的，而且可对账</div>
+          <div class="expl">产品 = bundle 层 + profile 层 + patch 层的有序叠加，<code>--dump-config</code> 能打印整棵插件树。定制一个产品 = 一段 YAML 而不是一次 fork；官方和第三方插件走完全相同的挂载路径（无特权内核），微内核主张用 feature→mechanism map 变成<b>可审计的清单</b>而非营销话术。</div>
+        </div>
+      </div>
+      <h3>缺点：四条真实代价</h3>
+      <div class="dh-grid">
+        <div class="dh-card">
+          <div class="who">① API 在流沙上</div>
+          <div class="expl">官方预告破坏性变更；底层 cordis 是 4.0.0-<b>rc</b>（npm 自述"API 尚不稳定"）。本文实测就撞到 vendored 版与 npm 版的行为差异（waterfall 值传播）。在 preview 阶段为它写生产插件，等于接受随时重写。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">② Proxy 魔法有税</div>
+          <div class="expl">ctx 是运行时代理："_" 前缀撞内部命名空间、this 身份漂移让 WeakMap 失效、函数插件返回值吞掉注册——三个坑 TypeScript 编译期全拦不住。框架的灵活性是拿"遇到诡异 bug 时要读框架源码"换的。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">③ 一切皆插件的抽象税</div>
+          <div class="expl">加一个小功能也要懂插件契约、事件模式、fiber 生命周期。Claude Code 的 hook 是"抄一段 JSON 就能用"的插槽，dsh 的插件是"先学一个范式"。对偶尔写个 hook 的用户，门槛差一个数量级——这是微内核与有限插槽的经典取舍。</div>
+        </div>
+        <div class="dh-card">
+          <div class="who">④ 生态在零点附近</div>
+          <div class="expl">225k stars 的关注度 ≠ 可用插件的规模；<code>dsh-plugin</code> topic 刚起步，官方配置目录里现成的只有 review webhook、schedule、memory MCP 等寥寥几类。对比 Claude Code 已成事实标准的 skills/hooks 格式——生态位差距比代码质量差距大得多。</div>
+        </div>
+      </div>
+      <h3>与 Claude Code / Codex / OpenCode 的扩展面对比</h3>
+      <div class="dh-tablewrap">
+        <table>
+          <tr><th>维度</th><th>Claude Code</th><th>Codex</th><th>OpenCode</th><th>DeepSeek Harness</th></tr>
+          <tr><td>内核哲学</td><td style="text-align:left">特权内核 + 官方规定的有限插槽（hooks/skills/subagents）</td><td style="text-align:left">Rust 内核，扩展以配置为主（策略文件/hooks），编译期锁死错误处理</td><td style="text-align:left">TS 内核，插件 API + MCP，定位轻量中立客户端</td><td class="hl" style="text-align:left"><b>微内核：连 agent loop 都是插件，无特权代码路径</b></td></tr>
+          <tr><td>扩展单元</td><td style="text-align:left">hook 命令（exit code 2 拦截）、SKILL.md、markdown+YAML 的 agent 定义</td><td style="text-align:left">hooks 事件、TOML、Starlark 策略</td><td style="text-align:left">TS 插件、MCP server、@提及子代理</td><td class="hl" style="text-align:left"><b>统一插件对象：Service/ctx/inject/事件/effect 一种范式全覆盖</b></td></tr>
+          <tr><td>注册可逆性</td><td style="text-align:left">hook 无结构化回滚；skill 是静态文件</td><td style="text-align:left">配置重载即换，无运行中回滚语义</td><td style="text-align:left">插件可启停，但注册不都是 disposer</td><td class="hl" style="text-align:left"><b>每次注册都挂 fiber effect，卸载按逆序退回（结构性保证）</b></td></tr>
+          <tr><td>热重载</td><td style="text-align:left">无（改配置要重启会话粒度）</td><td style="text-align:left">无</td><td style="text-align:left">开发期有，无统一注册回滚</td><td class="hl" style="text-align:left"><b>profile patch 热重载是默认能力（web profile live）</b></td></tr>
+          <tr><td>记忆挂点</td><td style="text-align:left">CLAUDE.md 三层注入 + 自动记忆目录（约定式）</td><td style="text-align:left">agent 维护的 SQLite 记忆（研究称第一个）</td><td style="text-align:left">会话持久化本身即记忆，无独立系统</td><td class="hl" style="text-align:left"><b>不由内核决定：Memory = section provider + tool，是插件自己的事</b></td></tr>
+          <tr><td>自我修改</td><td style="text-align:left">模型可写 CLAUDE.md（约定允许）</td><td style="text-align:left">模型写 memories 目录（沙箱 subagent 审阅）</td><td style="text-align:left">模型写 AGENTS.md</td><td class="hl" style="text-align:left"><b>产品能力：cordis define、inspect×3、run、stop、undefine 七件套，模型可在会话内定义/热换/卸载插件（vm 沙箱+审批）</b></td></tr>
+          <tr><td>兼容策略</td><td style="text-align:left">格式被别人采纳（skills 9/11、.claude-plugin）</td><td style="text-align:left">内置 CC 会话/配置迁移器</td><td style="text-align:left">刻意搜竞品 skills 目录原样可用</td><td class="hl" style="text-align:left"><b>架构级兼容：Codex 与 Claude Code 是官方 subagent 后端；hooks 桥两套；AGENTS.md/CLAUDE.md 都认</b></td></tr>
+          <tr><td>稳定性</td><td style="text-align:left">产品级，小版本快速迭代</td><td style="text-align:left">产品级</td><td style="text-align:left">积极迭代</td><td class="hl" style="text-align:left"><b>最弱：developer preview + rc 底座 + 官方预告 breaking changes</b></td></tr>
+        </table>
+      </div>
+      <div class="dh-callout">
+        <div class="ttl">一句话读法</div>
+        <p style="margin:0">四家在"扩展面所有权"上给出四个答案：<b>Claude Code 把扩展收窄成产品插槽</b>（最稳、生态最强、但换不了循环）；<b>Codex 把扩展压成配置与策略</b>（编译期纪律最强）；<b>OpenCode 把扩展留给插件与协议但不管编排</b>（最轻）；<b>DSH 把扩展做成唯一的存在方式</b>（最彻底、最可组合、也最年轻）。这不是排名，是四组不同的取舍——你的场景里"要不要换循环"出现得越频繁，DSH 的架构越值钱；你越需要"明天就能用、别坏"，它今天越不合适。</p>
+      </div>
+      <h3>我们该学什么（可照抄的七条）</h3>
+      <div class="dh-steps">
+        <div class="dh-step"><span class="n"></span><div class="t"><b>注册必须自带 disposer。</b>任何框架/平台的扩展点设计，注册函数的返回值都应该是"如何撤销我"。这一条同时买到热重载、崩溃清理和沙箱化试运行——demo 场景 C 的零残留就是它的直接收益。</div></div>
+        <div class="dh-step"><span class="n"></span><div class="t"><b>把派发语义写进 API 合同。</b>观察、拦截、并行、串行裁决、快速短路是五种不同的需求——用类型化事件 + 模式标签让监听者"知道自己被承诺了什么"，并让 CI 校验声明与调用点一致。</div></div>
+        <div class="dh-step"><span class="n"></span><div class="t"><b>把软约定升级为运行时不变式。</b>"模型可见 = 已落日志"值得每个 agent 框架抄：凡是给模型的输入，都必须可从持久事实重建。审计、回放、压缩、fork 从此共享一个地基，上下文工程不再是玄学。</div></div>
+        <div class="dh-step"><span class="n"></span><div class="t"><b>依赖声明替代启动顺序。</b>inject 数组让"谁先谁后"从 boot 脚本退化成声明式约束——小型系统无所谓，插件一多这是维护性的分水岭。</div></div>
+        <div class="dh-step"><span class="n"></span><div class="t"><b>组合产物可打印、可对账。</b>--dump-config / feature→mechanism map 两招本质相同：让"我的系统现在由什么组成"永远可回答。微内核不是宣称出来的，是对账清单撑起来的。</div></div>
+        <div class="dh-step"><span class="n"></span><div class="t"><b>互操作靠采纳，不靠发明协议。</b>DSH 把竞品后端、竞品 hooks、竞品指令文件全部直接认下来——历史上赢的从来不是新协议，是兼容面最宽的那个实现。</div></div>
+        <div class="dh-step"><span class="n"></span><div class="t"><b>诚实是架构的一部分。</b>developer preview 加粗警告、SAFETY.md 自曝未审计、BENCHMARK.md 不放没跑过的数字——在一个大家习惯宣传"遥遥领先"的品类里，可验证的克制本身就是竞争力。</div></div>
+      </div>
+      <div class="dh-callout warn">
+        <div class="ttl">关于"自我进化"的最后一盆冷水</div>
+        <p style="margin:0">Demo 的反思函数是十五行启发式——真实产品的自我进化要面对三道额外的门：<b>① 反思质量</b>（错误 → 规则的映射换成 LLM 后，错误规则比没有规则更糟）；<b>② 规则治理</b>（去重、上限、过期、冲突检测——规则库膨胀的 agent 会比没有记忆的 agent 更快失控）；<b>③ 安全边界</b>（让模型写"自己下次要遵守的规则"等于间接 prompt 注入的入口，生产系统必须有审批层，就像 Codex 用沙箱 subagent 审阅记忆写入）。闭环跑通是第一天，治理才是余生。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ 07 来源 ═══════════════ -->
+  <div class="dh-section">
+    <div class="wrap">
+      <div class="dh-kicker">07 / SOURCES</div>
+      <h2 class="dh-h2">来源与关联阅读</h2>
+      <div class="dh-refs">
+        <h4>一手来源（本文全部机制性断言的出处）</h4>
+        <ol>
+          <li>deepseek-ai/deepseek-harness 仓库 README 与 README.zh.md（master 分支，2026-09-15）：定位、运行方式、developer preview 警告</li>
+          <li>docs/architecture.md：无特权内核论述、profile/bundle/patch 分层、turn flow 全序列、核心包表、"Where new behavior goes" 扩展点表</li>
+          <li>docs/cordis-primer.md：Cordis 五大思想、五种 dispatch 模式表、waterfall 协作礼仪</li>
+          <li>docs/subsystems/system-prompt.md：PromptSection 契约与 assemble waterfall 的生成 API 目录</li>
+          <li>docs/subsystems/session.md：SessionEventMap、append-only、deriveMessages、"Model-visible means logged"</li>
+          <li>docs/cookbook/extension-cookbook.md：权限门示例、feature→mechanism map（Memory = section provider + tool 等 30 行映射）</li>
+          <li>docs/user/develop/basic/index.md 与 tool.md：插件最小形态、inject、ctx.effect、defineTool DSL、--patch 装载</li>
+          <li>apps/cli/README.md：dsh plugin 子命令与 profile 组合规则、--dump-config</li>
+          <li>cordis 4.0.0-rc.10（npm 与 GitHub cordiverse/cordis）：.d.ts 与 lib/index.js 源码实测——Service/provide、Fiber 生命周期、事件派发实现、四个踩坑的第一手记录</li>
+          <li>arXiv 2608.25512《A Programming Paradigm for Spatiotemporal Composability》：Cordis 的设计论文</li>
+        </ol>
+        <h4 style="margin-top:16px">本站关联阅读</h4>
+        <ol>
+          <li><a href="/harness-anatomy-comparison/">四个 Agent 运行时的解剖 — Claude Code、Codex、DeepSeek Harness、OpenCode 实现差异对比</a>（四家横向对比的展开版：多 agent 委派、prompt 组装、工具系统、上下文压缩、权限沙箱、插件生态）</li>
+          <li><a href="/frontier-harness-eval-report/">前沿 Harness 评测报告</a>（四家在真实任务上的表现数据）</li>
+          <li><a href="/harness-bench-paper-report/">Harness Bench 论文研读</a>（四家 harness 的学术视角解剖）</li>
+        </ol>
+        <h4 style="margin-top:16px">诚实声明</h4>
+        <p style="font-size:13.5px;color:var(--muted);margin:6px 0 0">本文 Demo 在 cordis 4.0.0-rc.10 + Node v24.14.1（Windows）实测通过；因该包处于 rc 阶段，文内 API 形态可能随版本变化。Demo 的 mock 模型用于演示"注入 → 行为改变"的因果传导，不能替代真实模型的行为评测——换接真实 DeepSeek adapter 时，提取与反思两处启发式应替换为 LLM 调用并补齐治理层（文中已标注位置）。</p>
+      </div>
+    </div>
+  </div>
+</div>
