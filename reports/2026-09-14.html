@@ -204,9 +204,6 @@
     .bench th:nth-child(4),
     .bench th:nth-child(5),
     .bench th:nth-child(6) { width: 14.6%; }
-    .audit th:nth-child(1) { width: 24%; }
-    .audit th:nth-child(2) { width: 25%; }
-    .audit th:nth-child(3) { width: 51%; }
     .flow {
       display: grid;
       grid-template-columns: repeat(6, minmax(100px, 1fr));
@@ -259,6 +256,7 @@
     .code .comment { color: #8da5ba; }
     .code .command { color: #8dccff; }
     .code .flag { color: #f4c97a; }
+    code { font: .92em Consolas, "SFMono-Regular", Menlo, monospace; background: #f0f3f6; padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
     .code:focus-visible, .table-wrap:focus-visible, .timeline-wrap:focus-visible {
       outline: 3px solid #8ab4ff;
       outline-offset: 3px;
@@ -268,20 +266,6 @@
       color: var(--muted);
       font-size: 14px;
     }
-    .source-link { white-space: nowrap; font-size: 13px; }
-    .source-log { margin-top: 14px; }
-    .source-log summary {
-      display: inline-block;
-      padding: 7px 10px;
-      border: 1px solid var(--line);
-      border-radius: 5px;
-      background: var(--paper);
-      color: var(--blue-dark);
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 700;
-    }
-    .source-log summary:focus-visible { outline: 3px solid #8ab4ff; outline-offset: 3px; }
     .checklist {
       counter-reset: phase;
       display: grid;
@@ -350,7 +334,7 @@
 <body>
   <main class="page">
     <header class="masthead">
-      <p class="eyebrow">AI 工程日报 / 2026-09-14</p>
+      <p class="eyebrow">人工智能（AI）工程技术日报 / 2026-09-14 · ISSUE 00</p>
       <h1>代码审查 Agent 的关键不在提示词：OpenCodeReview v1.12.0 的专用流水线</h1>
       <p class="dek">9 月 12 日发布的 OpenCodeReview v1.12.0 值得关注，不是因为又多了一个代码审查入口，而是因为它把 Agent 最容易失控的环节拆了出来：流程由确定性工程控制，模型只负责需要语义判断的部分。</p>
       <div class="meta">
@@ -381,7 +365,7 @@
       </div>
       <ul>
         <li><span class="label fact">来源事实</span>OpenCodeReview 是一个 CLI（命令行界面）代码审查工具：读取 Git diff，通过带工具调用能力的 Agent 将变更交给可配置的 LLM（大型语言模型），输出带行级定位的结构化审查意见；它也提供全文件扫描和 JSON（JavaScript Object Notation，JavaScript 对象表示法）输出。[<a href="#source-ocr-readme">README</a>]</li>
-        <li><span class="label fact">来源事实</span>9 月 7-14 日的发布记录和主分支提交显示，项目在补齐 Rego 规则、流式用量、预览一致性、会话比较、输出原子性、分组性能和提交绑定等工程细节，而不只是增加模型名称。[<a href="#source-release-1120">发布记录</a>] [<a href="#source-main-commits">主分支提交</a>]</li>
+        <li><span class="label fact">来源事实</span>9 月 7-14 日的发布记录和主分支提交显示，项目在补齐 Rego（OPA 生态的策略规则语言）规则、流式用量、预览一致性、会话比较、输出原子性、分组性能和提交绑定等工程细节，而不只是增加模型名称。[<a href="#source-release-1120">发布记录</a>] [<a href="#source-main-commits">主分支提交</a>]</li>
         <li><span class="label inference">本文判断</span>真正值得复用的是边界设计：文件选择、规则匹配、上下文分组、评论定位和恢复交给程序；跨文件语义理解、工具检索和缺陷判断交给 Agent。它把“审查结果好不好”转化为可测量的质量、成本、延迟和可靠性问题。</li>
       </ul>
     </section>
@@ -441,7 +425,7 @@
 
       <h3>一个具体的边界例子</h3>
       <p>假设 PR 同时修改了 Java 服务、配置文件和测试。模型可以判断“配置缺失会不会导致生产错误”，但不应该自行决定“只审服务文件”。前者是语义判断，后者属于审查范围，应由程序根据 Git 状态、路径规则和配置先确定。</p>
-      <pre class="code" tabindex="0" aria-label="OpenCodeReview 命令示例"><code><span class="comment"># OCR 负责范围、规则和输出；Agent 负责语义审查</span>
+      <pre class="code" tabindex="0" aria-label="OpenCodeReview 命令示例"><code><span class="comment"># OCR（OpenCodeReview 的命令行工具）负责范围、规则和输出；Agent 负责语义审查</span>
 <span class="command">ocr</span> review <span class="flag">--from</span> main <span class="flag">--to</span> feature-branch
 <span class="command">ocr</span> review <span class="flag">--format</span> json <span class="flag">--output</span> result.json
 <span class="command">ocr</span> review <span class="flag">--resume</span> &lt;session-id&gt;
@@ -488,7 +472,7 @@
       <div class="callout warning">
         <strong>证据边界：</strong>基准图的最近一次公开提交是 2026-08-05，图中工具版本是 OCR v1.3.1，而 <a href="https://registry.npmjs.org/@alibaba-group%2fopen-code-review" target="_blank" rel="noopener">npm registry 元数据</a>显示当前包版本是 v1.12.0（2026-09-12）。这是项目方公开基准，不是 v1.12.0 的独立复测，也不是跨供应商完全相同配置的对照实验。最稳妥的结论是“专用流水线可能显著降低噪声和成本”，而不是“生产效果必然达到某个比例”。
       </div>
-      <p><span class="label fact">来源事实</span>公开评测框架把数据加载、审查执行和评估编排成一条管线，支持固定随机种子、每次运行独立目录、路径/侧别/行号/语义四阶段匹配，并允许多轮评估；但公开基准图没有给出本次运行的重复次数、完整配置和波动范围。[<a href="#source-aacr-eval">评测框架说明</a>]</p>
+      <p><span class="label fact">来源事实</span>公开评测框架把数据加载、审查执行和评估编排成一条管线，支持固定随机种子、每次运行独立目录、路径/侧别/行号/语义四阶段匹配，并允许多轮评估；但公开基准图没有给出评测运行的重复次数、完整配置和波动范围。[<a href="#source-aacr-eval">评测框架说明</a>]</p>
       <p><span class="label inference">本文判断</span>这个基准最值得借鉴的地方不是排名，而是指标组合：准确率、召回率、F1、平均耗时和平均 Token 同时出现。代码审查产品如果只展示“发现了多少问题”，就无法判断它是在提高质量，还是在制造更多需要人工筛选的噪声。</p>
     </section>
 
@@ -591,73 +575,38 @@
 
     <section id="sources">
       <h2>数据源</h2>
-      <p class="lead-note">以下页面于 2026-09-14 检查。文章事实主要来自 OpenCodeReview、AACR-Bench 及竞品官方文档；来源状态表用于记录本次对规定来源的实际访问情况。带“来源事实”的内容是页面明确写出的信息，带“本文判断”的内容是基于来源事实的工程推断。</p>
+      <p class="lead-note">文章事实主要来自 OpenCodeReview、AACR-Bench 及竞品官方文档，数据截至 2026-09-14（Asia/Shanghai）。带“来源事实”的内容是页面明确写出的信息，带“本文判断”的内容是基于来源事实的工程推断。本文的能力描述均来自项目公开文档与发布记录，未包含作者实测数据。</p>
 
       <h3>本文直接使用的原始材料</h3>
       <div class="table-wrap" role="region" tabindex="0" aria-label="直接使用的原始材料表">
         <table>
           <caption class="small">本文直接使用的原始材料及其用途</caption>
-          <thead><tr><th scope="col">标题</th><th scope="col">发布方与日期</th><th scope="col">用途</th></tr></thead>
+          <thead><tr><th scope="col">#</th><th scope="col">标题</th><th scope="col">发布方与日期</th><th scope="col">用途</th></tr></thead>
           <tbody>
-            <tr id="source-ocr-readme"><td><a href="https://github.com/alibaba/open-code-review/blob/78a6978296a3c0cdfbe87d2e9ce911591032da3c/README.zh-CN.md" target="_blank" rel="noopener">OpenCodeReview README（简体中文）</a></td><td>Alibaba / 2026-09-14 主分支提交 78a6978；页面未标发布日期</td><td>工具定位、架构、命令、基准摘要、集成模式。</td></tr>
-            <tr id="source-release-1120"><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.12.0" target="_blank" rel="noopener">v1.12.0 Release</a></td><td>Alibaba / 2026-09-12</td><td>当前版本与分组、GLM-5.3 配置变化。</td></tr>
-            <tr><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.6" target="_blank" rel="noopener">v1.11.6 Release</a></td><td>Alibaba / 2026-09-07</td><td>OCaml / ReasonML 支持。</td></tr>
-            <tr><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.7" target="_blank" rel="noopener">v1.11.7 Release</a></td><td>Alibaba / 2026-09-09</td><td>输出、MCP、信号和超时相关修复。</td></tr>
-            <tr><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.8" target="_blank" rel="noopener">v1.11.8 Release</a></td><td>Alibaba / 2026-09-10</td><td>Rego 规则与流式用量。</td></tr>
-            <tr><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.9" target="_blank" rel="noopener">v1.11.9 Release</a></td><td>Alibaba / 2026-09-11</td><td>会话比较、模型修复、预览一致性。</td></tr>
-            <tr><td><a href="https://github.com/alibaba/open-code-review/blob/78a6978296a3c0cdfbe87d2e9ce911591032da3c/action.yml" target="_blank" rel="noopener">GitHub Action action.yml</a></td><td>Alibaba / 2026-09-14 主分支提交 78a6978；页面未标发布日期</td><td>CI 输入、预算、超时、权限和 fork-safe checkout 行为。</td></tr>
-            <tr id="source-benchmark-image"><td><a href="https://github.com/alibaba/open-code-review/commit/5731fd564416a90cd9600d7d9dff384aa273a271" target="_blank" rel="noopener">基准图更新提交</a> 与 <a href="https://raw.githubusercontent.com/alibaba/open-code-review/5731fd564416a90cd9600d7d9dff384aa273a271/imgs/benchmark-en.png" target="_blank" rel="noopener">benchmark-en.png</a></td><td>Alibaba / 2026-08-05</td><td>图中版本、Precision、Recall、F1、耗时与 Token 数字。</td></tr>
-            <tr id="source-aacr"><td><a href="https://huggingface.co/datasets/Alibaba-Aone/aacr-bench" target="_blank" rel="noopener">AACR-Bench 数据集卡片</a></td><td>Alibaba Aone / 页面未标发布日期</td><td>2,145 条评论、1,505 条正确和 640 条错误样本。</td></tr>
-            <tr id="source-aacr-paper"><td><a href="https://arxiv.org/abs/2601.19494v3" target="_blank" rel="noopener">AACR-Bench: Evaluating Automatic Code Review with Holistic Repository-Level Context</a></td><td>arXiv / v1：2026-01-27；v3：2026-01-30</td><td>数据集设计、跨语言与仓库级上下文的研究说明。</td></tr>
-            <tr id="source-aacr-eval"><td><a href="https://github.com/alibaba/aacr-bench/blob/68a569759289a83654a59d06db2a72910edf0a4a/evaluation/README.md" target="_blank" rel="noopener">AACR-Bench Unified Code Review Evaluation Framework</a></td><td>Alibaba Aone / 2026-08-24 主分支提交 68a5697；页面未标发布日期</td><td>复测流程、固定种子、四阶段匹配、多轮评估和运行隔离。</td></tr>
-            <tr id="source-npm"><td><a href="https://registry.npmjs.org/@alibaba-group%2fopen-code-review" target="_blank" rel="noopener">npm registry package metadata</a></td><td>npm registry / 2026-09-12 14:43:23 UTC</td><td>确认 @alibaba-group/open-code-review 的 latest 为 1.12.0。</td></tr>
-            <tr id="source-main-commits"><td><a href="https://github.com/alibaba/open-code-review/commit/494bf1c8d7a19196ab166960a06fef38d69a1d16" target="_blank" rel="noopener">分组契约提交</a>、<a href="https://github.com/alibaba/open-code-review/commit/b5fe75342cd747bd4910323276b78a1d4a78c0ca" target="_blank" rel="noopener">Action 提交</a>、<a href="https://github.com/alibaba/open-code-review/commit/813d5897cb025f329e29ed49b6e8bb2c2d15814a" target="_blank" rel="noopener">BPE 加载提交</a>、<a href="https://github.com/alibaba/open-code-review/commit/78a6978296a3c0cdfbe87d2e9ce911591032da3c" target="_blank" rel="noopener">Git 安全校验提交</a></td><td>Alibaba / 2026-09-12 至 2026-09-14</td><td>分组索引契约、评论绑定 reviewed commit、嵌入式 Token 计数加载、PATH Git 版本校验，以及当天主分支的可靠性信号。</td></tr>
-            <tr id="source-roadmap"><td><a href="https://raw.githubusercontent.com/alibaba/open-code-review/78a6978296a3c0cdfbe87d2e9ce911591032da3c/ROADMAP.md" target="_blank" rel="noopener">OpenCodeReview ROADMAP.md</a></td><td>Alibaba / 2026-09-14 主分支提交 78a6978；页面未标发布日期</td><td>计划中的插件、委托、Ultra Mode、长期记忆及明确不计划事项。</td></tr>
-            <tr id="source-assurance"><td><a href="https://raw.githubusercontent.com/alibaba/open-code-review/78a6978296a3c0cdfbe87d2e9ce911591032da3c/ASSURANCE_CASE.md" target="_blank" rel="noopener">OpenCodeReview Security Assurance Case</a></td><td>Alibaba / 2026-09-14 主分支提交 78a6978；页面未标发布日期</td><td>威胁模型、路径校验、密钥、HTTPS、响应校验和验证工具；属于项目自述。</td></tr>
-            <tr><td><a href="https://codeql.github.com/docs/" target="_blank" rel="noopener">CodeQL Documentation</a></td><td>GitHub / 官方文档</td><td>查询驱动的确定性代码分析对比。</td></tr>
-            <tr><td><a href="https://semgrep.dev/docs/" target="_blank" rel="noopener">Semgrep Documentation</a></td><td>Semgrep / 官方文档</td><td>规则驱动的静态分析对比。</td></tr>
+            <tr id="source-ocr-readme"><td>1</td><td><a href="https://github.com/alibaba/open-code-review/blob/78a6978296a3c0cdfbe87d2e9ce911591032da3c/README.zh-CN.md" target="_blank" rel="noopener">OpenCodeReview README（简体中文）</a></td><td>Alibaba / 2026-09-14（主分支提交 78a6978）</td><td>工具定位、架构、命令、基准摘要、集成模式。</td></tr>
+            <tr id="source-release-1120"><td>2</td><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.12.0" target="_blank" rel="noopener">v1.12.0 Release</a></td><td>Alibaba / 2026-09-12</td><td>当前版本与分组、GLM-5.3 配置变化。</td></tr>
+            <tr><td>3</td><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.6" target="_blank" rel="noopener">v1.11.6 Release</a></td><td>Alibaba / 2026-09-07</td><td>OCaml / ReasonML 支持。</td></tr>
+            <tr><td>4</td><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.7" target="_blank" rel="noopener">v1.11.7 Release</a></td><td>Alibaba / 2026-09-09</td><td>输出、MCP、信号和超时相关修复。</td></tr>
+            <tr><td>5</td><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.8" target="_blank" rel="noopener">v1.11.8 Release</a></td><td>Alibaba / 2026-09-10</td><td>Rego 规则与流式用量。</td></tr>
+            <tr><td>6</td><td><a href="https://github.com/alibaba/open-code-review/releases/tag/v1.11.9" target="_blank" rel="noopener">v1.11.9 Release</a></td><td>Alibaba / 2026-09-11</td><td>会话比较、模型修复、预览一致性。</td></tr>
+            <tr><td>7</td><td><a href="https://github.com/alibaba/open-code-review/blob/78a6978296a3c0cdfbe87d2e9ce911591032da3c/action.yml" target="_blank" rel="noopener">GitHub Action action.yml</a></td><td>Alibaba / 2026-09-14（主分支提交 78a6978）</td><td>CI 输入、预算、超时、权限和 fork-safe checkout 行为。</td></tr>
+            <tr id="source-benchmark-image"><td>8</td><td><a href="https://github.com/alibaba/open-code-review/commit/5731fd564416a90cd9600d7d9dff384aa273a271" target="_blank" rel="noopener">基准图更新提交</a> 与 <a href="https://raw.githubusercontent.com/alibaba/open-code-review/5731fd564416a90cd9600d7d9dff384aa273a271/imgs/benchmark-en.png" target="_blank" rel="noopener">benchmark-en.png</a></td><td>Alibaba / 2026-08-05</td><td>图中版本、Precision、Recall、F1、耗时与 Token 数字。</td></tr>
+            <tr id="source-aacr"><td>9</td><td><a href="https://huggingface.co/datasets/Alibaba-Aone/aacr-bench" target="_blank" rel="noopener">AACR-Bench 数据集卡片</a></td><td>Alibaba Aone / 数据截至 2026-09-14</td><td>2,145 条评论、1,505 条正确和 640 条错误样本。</td></tr>
+            <tr id="source-aacr-paper"><td>10</td><td><a href="https://arxiv.org/abs/2601.19494v3" target="_blank" rel="noopener">AACR-Bench: Evaluating Automatic Code Review with Holistic Repository-Level Context</a></td><td>arXiv / v1：2026-01-27；v3：2026-01-30</td><td>数据集设计、跨语言与仓库级上下文的研究说明。</td></tr>
+            <tr id="source-aacr-eval"><td>11</td><td><a href="https://github.com/alibaba/aacr-bench/blob/68a569759289a83654a59d06db2a72910edf0a4a/evaluation/README.md" target="_blank" rel="noopener">AACR-Bench Unified Code Review Evaluation Framework</a></td><td>Alibaba Aone / 2026-08-24（主分支提交 68a5697）</td><td>复测流程、固定种子、四阶段匹配、多轮评估和运行隔离。</td></tr>
+            <tr id="source-npm"><td>12</td><td><a href="https://registry.npmjs.org/@alibaba-group%2fopen-code-review" target="_blank" rel="noopener">npm registry package metadata</a></td><td>npm registry / 2026-09-12 14:43:23 UTC</td><td>确认 @alibaba-group/open-code-review 的 latest 为 1.12.0。</td></tr>
+            <tr id="source-main-commits"><td>13</td><td><a href="https://github.com/alibaba/open-code-review/commit/494bf1c8d7a19196ab166960a06fef38d69a1d16" target="_blank" rel="noopener">分组契约提交</a>、<a href="https://github.com/alibaba/open-code-review/commit/b5fe75342cd747bd4910323276b78a1d4a78c0ca" target="_blank" rel="noopener">Action 提交</a>、<a href="https://github.com/alibaba/open-code-review/commit/813d5897cb025f329e29ed49b6e8bb2c2d15814a" target="_blank" rel="noopener">BPE 加载提交</a>、<a href="https://github.com/alibaba/open-code-review/commit/78a6978296a3c0cdfbe87d2e9ce911591032da3c" target="_blank" rel="noopener">Git 安全校验提交</a></td><td>Alibaba / 2026-09-12 至 2026-09-14</td><td>分组索引契约、评论绑定 reviewed commit、嵌入式 Token 计数加载、PATH Git 版本校验，以及当天主分支的可靠性信号。</td></tr>
+            <tr id="source-roadmap"><td>14</td><td><a href="https://raw.githubusercontent.com/alibaba/open-code-review/78a6978296a3c0cdfbe87d2e9ce911591032da3c/ROADMAP.md" target="_blank" rel="noopener">OpenCodeReview ROADMAP.md</a></td><td>Alibaba / 2026-09-14（主分支提交 78a6978）</td><td>计划中的插件、委托、Ultra Mode、长期记忆及明确不计划事项。</td></tr>
+            <tr id="source-assurance"><td>15</td><td><a href="https://raw.githubusercontent.com/alibaba/open-code-review/78a6978296a3c0cdfbe87d2e9ce911591032da3c/ASSURANCE_CASE.md" target="_blank" rel="noopener">OpenCodeReview Security Assurance Case</a></td><td>Alibaba / 2026-09-14（主分支提交 78a6978）</td><td>威胁模型、路径校验、密钥、HTTPS、响应校验和验证工具；属于项目自述。</td></tr>
+            <tr><td>16</td><td><a href="https://codeql.github.com/docs/" target="_blank" rel="noopener">CodeQL Documentation</a></td><td>GitHub / 官方文档</td><td>查询驱动的确定性代码分析对比。</td></tr>
+            <tr><td>17</td><td><a href="https://semgrep.dev/docs/" target="_blank" rel="noopener">Semgrep Documentation</a></td><td>Semgrep / 官方文档</td><td>规则驱动的静态分析对比。</td></tr>
           </tbody>
         </table>
       </div>
 
-      <h3>20 个每日来源的实际检查记录</h3>
-      <details class="source-log">
-        <summary>展开查看 20 个每日来源的实际访问状态</summary>
-      <div class="table-wrap" role="region" tabindex="0" aria-label="每日来源检查记录表">
-        <table class="audit">
-          <caption class="small">20 个每日来源的实际访问状态与筛选说明</caption>
-          <thead><tr><th scope="col">来源</th><th scope="col">本次访问页面</th><th scope="col">2026-09-14 检查结果</th></tr></thead>
-          <tbody>
-            <tr><td>1. OpenAI Blog / Cookbook</td><td><a href="https://developers.openai.com/cookbook" target="_blank" rel="noopener">OpenAI Cookbook</a></td><td>可访问，200；旧入口重定向到 developers.openai.com/cookbook。本次未发现比选定主题更直接的原始材料。</td></tr>
-            <tr><td>2. Anthropic Engineering / Claude Code Changelog</td><td><a href="https://www.anthropic.com/engineering" target="_blank" rel="noopener">Engineering</a> / <a href="https://code.claude.com/docs/en/changelog" target="_blank" rel="noopener">Changelog</a></td><td>均可访问，200；用于排除同窗口内更强的同类一手变化。</td></tr>
-            <tr><td>3. Google DeepMind / Gemini Docs</td><td><a href="https://deepmind.google/blog/" target="_blank" rel="noopener">DeepMind Blog</a> / <a href="https://ai.google.dev/gemini-api/docs/changelog" target="_blank" rel="noopener">Gemini API Release Notes</a></td><td>均可访问，200；未采用未经交叉验证的榜单或宣传内容。</td></tr>
-            <tr><td>4. Hugging Face Blog / Daily Papers</td><td><a href="https://huggingface.co/blog" target="_blank" rel="noopener">Blog</a> / <a href="https://huggingface.co/papers" target="_blank" rel="noopener">Daily Papers</a></td><td>均可访问，200；AACR-Bench 数据集页作为本文直接来源。</td></tr>
-            <tr><td>5. GitHub Trending</td><td><a href="https://github.com/trending?since=daily&spoken_language_code=en" target="_blank" rel="noopener">Trending repositories today</a></td><td>可访问，200；只作候选发现，不以热度替代技术证据。</td></tr>
-            <tr><td>6. Hacker News</td><td><a href="https://news.ycombinator.com/" target="_blank" rel="noopener">Hacker News</a></td><td>可访问，200；未将讨论帖作为本文事实来源。</td></tr>
-            <tr><td>7. Reddit r/LocalLLaMA</td><td><a href="https://www.reddit.com/r/LocalLLaMA/" target="_blank" rel="noopener">r/LocalLLaMA</a></td><td>访问返回 403；未采用其内容，未用标题猜测事实。</td></tr>
-            <tr><td>8. LMSYS Chatbot Arena</td><td><a href="https://arena.ai/leaderboard" target="_blank" rel="noopener">Arena Leaderboard</a></td><td>可访问，200；原 lmarena.ai/leaderboard 重定向至 arena.ai/leaderboard。</td></tr>
-            <tr><td>9. OpenRouter Model Rankings</td><td><a href="https://openrouter.ai/rankings" target="_blank" rel="noopener">LLM Rankings</a></td><td>可访问，200；未把模型排名当作代码审查结论。</td></tr>
-            <tr><td>10. Papers with Code</td><td><a href="https://paperswithcode.com/" target="_blank" rel="noopener">Papers with Code</a></td><td>可访问，200；当前入口重定向至 Hugging Face trending papers。</td></tr>
-            <tr><td>11. arXiv cs.CL</td><td><a href="https://arxiv.org/list/cs.CL/recent" target="_blank" rel="noopener">Computation and Language</a></td><td>可访问，200；AACR-Bench 论文作为研究背景来源。</td></tr>
-            <tr><td>12. LangChain Blog</td><td><a href="https://blog.langchain.com/" target="_blank" rel="noopener">LangChain Blog</a></td><td>访问返回 403；未采用其不可访问内容。</td></tr>
-            <tr><td>13. LlamaIndex Blog</td><td><a href="https://www.llamaindex.ai/blog" target="_blank" rel="noopener">LlamaIndex Blog</a></td><td>可访问，200；未发现与选定主题证据强度相当的更直接材料。</td></tr>
-            <tr><td>14. vLLM Releases</td><td><a href="https://github.com/vllm-project/vllm/releases.atom" target="_blank" rel="noopener">vLLM release feed</a></td><td>可访问，200；观察到最新条目 v0.29.1rc0，更新时间 2026-09-12。</td></tr>
-            <tr><td>15. Ollama Releases</td><td><a href="https://github.com/ollama/ollama/releases.atom" target="_blank" rel="noopener">Ollama release feed</a></td><td>可访问，200；观察到最新正式版 v0.34.0，更新时间 2026-09-10。</td></tr>
-            <tr><td>16. Mistral Blog</td><td><a href="https://mistral.ai/news/" target="_blank" rel="noopener">Mistral News</a></td><td>可访问，200；未采用没有工程细节的产品宣传。</td></tr>
-            <tr><td>17. Qwen GitHub / Blog</td><td><a href="https://github.com/QwenLM/Qwen3" target="_blank" rel="noopener">Qwen3 GitHub</a></td><td>可访问，200；未选为当日报主题。</td></tr>
-            <tr><td>18. DeepSeek GitHub / Blog</td><td><a href="https://github.com/deepseek-ai" target="_blank" rel="noopener">DeepSeek GitHub</a></td><td>可访问，200；未选为当日报主题。</td></tr>
-            <tr><td>19. 机器之心</td><td><a href="https://www.jiqizhixin.com/" target="_blank" rel="noopener">机器之心</a></td><td>可访问，200；当前返回数据服务入口，未采用二手转述。</td></tr>
-            <tr><td>20. 量子位</td><td><a href="https://www.qbitai.com/" target="_blank" rel="noopener">量子位</a></td><td>可访问，200；未采用缺少一手技术细节的内容。</td></tr>
-          </tbody>
-        </table>
-      </div>
-      </details>
-
-      <h3>本周额外来源检查</h3>
-      <p class="small">以下每周来源于 2026-09-14 检查，均返回 200：<a href="https://simonwillison.net/" target="_blank" rel="noopener">Simon Willison</a>、<a href="https://www.latent.space/" target="_blank" rel="noopener">Latent Space</a>、<a href="https://www.interconnects.ai/" target="_blank" rel="noopener">Interconnects</a>、<a href="https://magazine.sebastianraschka.com/" target="_blank" rel="noopener">Ahead of AI</a>、<a href="https://sebastianraschka.com/blog/" target="_blank" rel="noopener">Sebastian Raschka</a>、<a href="https://huyenchip.com/blog/" target="_blank" rel="noopener">Chip Huyen</a>、<a href="https://eugeneyan.com/" target="_blank" rel="noopener">Eugene Yan</a>、<a href="https://www.aibase.com/" target="_blank" rel="noopener">AIbase</a>、<a href="https://www.infoq.com/ai/" target="_blank" rel="noopener">InfoQ AI</a>、<a href="https://github.com/Hannibal046/Awesome-LLM" target="_blank" rel="noopener">GitHub Awesome-LLM</a>。它们用于补充候选和交叉排除，未作为 OpenCodeReview 核心事实的唯一依据。</p>
     </section>
 
-    <footer><p>AI 技术日报 · 2026-09-14 · 文章主题：OpenCodeReview v1.12.0</p></footer>
+    <footer><p>人工智能（AI）工程技术日报 · 2026-09-14 · 文章主题：OpenCodeReview v1.12.0</p></footer>
   </main>
 </body>
 </html>
