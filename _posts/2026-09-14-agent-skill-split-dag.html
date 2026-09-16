@@ -1,7 +1,7 @@
 ---
 layout: main
-title: Agent/Skill 到底应该怎么拆 — 一套可量化的 DAG 判断流程（六指标决策框架）
-description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文工程原则为据，给出可套用于任何 AI 原生业务的拆分决策框架：agent=上下文容器、skill=渐进加载载荷的判定式定义，六个可测量指标（隐式状态耦合 S、上下文占用 C、往返开销 R、复用度 U、加载共现 L、重放半径 F），六站 DAG 判断流程与边界裁决表，并诚实声明框架的冷启动依赖、模型相关性与不适用场景。
+title: Agent/Skill 到底应该怎么拆 — 一套可量化的 DAG 判断流程
+description: 拆 agent、拆 skill 别靠感觉。这篇文章把拆分变成一道算术题：六个能量出来的数字（S 耦合程度、C 上下文占用、R 来回开销、U 复用度、L 一起用的频率、F 失败重跑范围），一套六步判断流程（A0~A5），一张边界裁决表。每个指标都写清怎么量、判断线是多少、没有历史数据时先按什么默认值办。
 ---
 
 <style>
@@ -145,17 +145,6 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
   .ag-figwrap svg{display:block;margin:0 auto;max-width:100%;height:auto;}
   .ag-figcap{font-size:12.8px;color:var(--muted);text-align:center;padding:10px 14px 8px;}
 
-  /* ---------- example ---------- */
-  .ag-case{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 24px;margin:20px 0;}
-  .ag-case .ttl{font-family:"PT Serif",Georgia,serif;font-size:18px;font-weight:700;color:var(--ink);margin-bottom:4px;}
-  .ag-case .sub{font-size:13.5px;color:var(--muted);margin-bottom:12px;}
-  .ag-case .row{display:grid;grid-template-columns:96px 1fr;gap:12px;padding:8px 0;font-size:14.4px;color:var(--ink-2);}
-  .ag-case .row + .row{border-top:1px dashed var(--line);}
-  .ag-case .row .k{font-weight:700;color:var(--accent-deep);font-size:13px;letter-spacing:.5px;padding-top:2px;}
-  .ag-case .row .v b{color:var(--ink);}
-  .ag-case .verdict{margin-top:12px;border-radius:10px;padding:12px 16px;font-size:14.6px;background:var(--accent-soft);color:var(--ink);border:1px solid #d6def6;}
-  .ag-case .verdict b{color:var(--accent-deep);}
-
   /* ---------- limits ---------- */
   .ag-limits{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px 0;}
   @media(max-width:720px){.ag-limits{grid-template-columns:1fr;}}
@@ -181,18 +170,17 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
   <div class="wrap">
     <span class="kicker">AGENT 架构 · 拆分决策</span>
     <h1>Agent/Skill 到底应该怎么拆：<em>一套可量化的 DAG 判断流程</em></h1>
-    <p class="lede">不谈"agent 负责判断、skill 负责执行"这种无法证伪的分工话术。本文把拆分问题还原成一个可测量的资源分配问题：<b>上下文（token）是唯一的一等公民</b>——拆分边界 = 上下文容器的边界，一切"感觉"都必须翻译成六个可测量的数字，数字不支持的拆分就是错的拆分。</p>
+    <p class="lede">不讲"agent 负责思考、skill 负责干活"这种没法说对错的话。这篇文章把拆分变成一道算术题：<b>上下文（token）是最贵、最不够用的资源</b>，拆分边界就是在分 token。所有"感觉"都要翻译成六个数字；数字不支持的拆分，就是错的拆分。</p>
     <div class="ag-meta">
-      <span>六指标：S · C · R · U · L · F</span>
-      <span>六站 DAG 判断流程</span>
+      <span>六个指标：S · C · R · U · L · F</span>
+      <span>六步判断流程（A0~A5）</span>
       <span>边界裁决表</span>
-      <span>两个带数字的完整算例</span>
       <span>局限性全声明</span>
     </div>
     <div class="ag-nums">
-      <div class="n warn"><b>没有标准</b><div class="l">行业现状：各家按直觉拆——Cognition 反对多 agent，Anthropic 自己却在生产中跑多 agent，两边都对，但都没给出<b>什么时候用哪边</b>的可操作判据。</div><div class="src">Cognition《Don't Build Multi-Agents》/ Anthropic 工程博客</div></div>
-      <div class="n"><b>15×</b><div class="l">多 agent 系统的 token 消耗约是普通对话的 15 倍（单 agent 是 4 倍）——注意：这是 Anthropic <b>拆得正确</b>的多 agent 系统的固有运行成本。它的含义不是"拆散的账单"，而是：每新增一个容器边界，都必须有足够任务价值为其买单。</div><div class="src">Anthropic 多 agent 研究系统实测数据</div></div>
-      <div class="n"><b>80%</b><div class="l">token 使用量单独解释了 BrowseComp 评测中 80% 的性能方差——投入多少 token 几乎决定一切，边界划分就是在分配 token。</div><div class="src">同上</div></div>
+      <div class="n warn"><b>没有标准</b><div class="l">行业现状：各家按感觉拆——Cognition 说别用多 agent，Anthropic 自己却在生产里跑多 agent，两边都对，但都没说清<b>什么时候用哪边</b>。</div><div class="src">Cognition《Don't Build Multi-Agents》/ Anthropic 工程博客</div></div>
+      <div class="n"><b>15×</b><div class="l">多 agent 系统花的 token 约是普通对话的 15 倍（单 agent 是 4 倍）——注意：这是 Anthropic <b>拆对了</b>的多 agent 系统本来就有的运行成本。意思是：每多切一个 agent，都必须有足够的任务价值来买单。</div><div class="src">Anthropic 多 agent 研究系统实测数据</div></div>
+      <div class="n"><b>80%</b><div class="l">光 token 用量一项，就解释了 BrowseComp 评测里 80% 的成绩差距——token 几乎决定一切，拆边界就是在分 token。</div><div class="src">同上</div></div>
     </div>
   </div>
 </div>
@@ -201,20 +189,20 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
 <div class="ag-section">
   <div class="wrap">
     <div class="ag-kicker">§0 · TL;DR</div>
-    <h2 class="ag-h2">先给结论：三个问题，三个唯一判据</h2>
-    <p class="ag-sub">整个框架回答的就是开头那三个问题。每问只有一个判据，其他一切理由（职责清晰、模块整洁、复用好看）如果不能翻译成这三个判据之一，就不足以构成拆分或合并的依据。</p>
+    <h2 class="ag-h2">先说结论：三个问题，各自只有一条标准</h2>
+    <p class="ag-sub">整个框架回答的就是这三个问题。每个问题只有一条标准。其他理由——职责清晰、模块整洁、看着好复用——如果换算不成这三条标准之一，就不构成拆或合的依据。</p>
     <div class="ag-tldr">
       <div class="q">
         <div class="qq">复杂需求<br>需要几个 agent？</div>
-        <div class="aa"><b>数上下文容器，不数职责。</b>每个 agent = 一条独立、隔离、有生命期的对话轨迹（history）。有几个容器由三个量决定：<b>隐式状态耦合 S</b>（两个单元之间无法序列化传递的工作状态越多，越必须同容器）、<b>容量压力 C</b>（单元群需要的 token 超过有效工作窗口，必须切容器）、<b>失败重放半径 F</b>（切分后单元失败会不会拖累全容器重跑，决定这条边切了值不值）。三者构成<b>三输入与门</b>：S ≤ 30% 打开边界，C &gt; 70% 才强制通过，F 超标一票否决。</div>
+        <div class="aa"><b>数 agent，不数职责。</b>每个 agent = 一条独立的对话记录（history）。个数由三个数字决定：<b>耦合程度 S</b>（两个步骤之间说不清、传不过去的东西越多，越必须放同一个 agent）、<b>上下文占用 C</b>（活太多、token 超过了实际能用的窗口，必须切开）、<b>失败重跑范围 F</b>（切开之后，一个步骤挂了会不会拖累整个 agent 从头重跑）。三个条件：<b>S ≤ 30% 才允许切开，C &gt; 70% 必须切开，F 超标一票否决。</b></div>
       </div>
       <div class="q">
-        <div class="qq">哪些东西是 skill、<br>该拆几个？</div>
-        <div class="aa"><b>skill 是载荷，不是流程。</b>判断某段知识/流程要不要做成独立 skill，只看两个量：<b>复用度 U</b>（被几个不同父流程引用，U=1 一律内联不建 skill）和<b>加载共现率 L</b>（两个候选载荷是否几乎总被同时触发：共现 &gt; 80% 合并成一个，&lt; 20% 且各自高频触发才值得拆开）。skill 的本体是"分层的、按需加载的上下文"，所以拆分准则只有一句话：<b>按触发场景拆，不按主题拆。</b></div>
+        <div class="qq">哪些东西做成 skill、<br>拆几个？</div>
+        <div class="aa"><b>skill 是资料，不是流程。</b>判断一段知识/流程要不要做成独立 skill，只看两个数：<b>复用度 U</b>（被几个不同流程用到；U=1 一律写进父流程，不建 skill）和<b>一起用的频率 L</b>（两个候选是否几乎总被同时用到：一起用 &gt; 80% 就合并，&lt; 20% 且各自都常被用才值得拆开）。skill 的本质是"分层的、用到才加载的上下文"，所以拆分只有一句话：<b>按触发场景拆，不按主题拆。</b></div>
       </div>
       <div class="q">
         <div class="qq">为什么不能合并？<br>为什么不能再拆？</div>
-        <div class="aa"><b>因为合并和拆分的收益都能被定价。</b>合并的唯一收益 = 省掉容器间的<b>往返开销 R</b>（一次委派的任务描述 + 上下文重建 + 结果回传，占被委派单元自身 token 的比例）；拆分的唯一收益 = 缓解<b>容量压力 C</b>、获得<b>复用收益 U</b>、缩小<b>失败重放半径 F</b>。任何"为什么不能合并/为什么不能再拆"的争论，最后都收敛为这四个数的比较——这就是准则的全部。</div>
+        <div class="aa"><b>因为合和拆的收益都能算成钱。</b>合并的唯一收益 = 省掉 agent 之间的<b>来回开销 R</b>（派活的任务描述 + 重建背景 + 结果回传，这些 token 花在"搬运"上）；拆分的唯一收益 = 缓解<b>C</b>、拿到<b>U 的复用</b>、缩小<b>F</b>。所有"为什么不能合/为什么不能再拆"的争论，最后都变成这四个数的比较——这就是标准的全部。</div>
       </div>
     </div>
   </div>
@@ -224,40 +212,40 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
 <div class="ag-section alt">
   <div class="wrap">
     <div class="ag-kicker">§1 · 调研</div>
-    <h2 class="ag-h2">行业现有主张：四家四种拆法，但没有一家给出可操作的准则</h2>
-    <p class="ag-sub">把四份一手材料（Anthropic 三篇工程文章 + Cognition 的反多 agent 文章）的拆分相关主张全部摊开对比，可以看到行业共识确实存在，但全部停在定性层。</p>
+    <h2 class="ag-h2">行业现状：四家四种拆法，没有一家给出能照着做的标准</h2>
+    <p class="ag-sub">四份一手材料（Anthropic 三篇工程文章 + Cognition 的反多 agent 文章）里关于拆分的主张，全部摆出来对比：共识确实有，但全停在嘴上，没有数字。</p>
     <div class="ag-tablewrap">
       <table>
         <tr><th style="width:170px;">来源</th><th style="width:210px;">核心主张</th><th>给出的拆分信号</th><th style="width:230px;">对拆分判断而言的缺陷</th></tr>
         <tr>
           <td>Anthropic《Building Effective Agents》</td>
-          <td>从最简单方案开始，只有"可证明的收益"才加复杂度</td>
-          <td>步骤可预先枚举 → 用 workflow（prompt chaining）；步骤不可预定义、需模型自主决定 → 才用 agent</td>
-          <td>回答了"要不要 agentic"，没回答"一个系统里几个 agent、skill 怎么切"</td>
+          <td>从最简单的方案开始，只有"能证明的收益"才加复杂度</td>
+          <td>步骤能提前列全 → 用 workflow（prompt 串起来）；步骤列不全、要模型临场自己决定 → 才用 agent</td>
+          <td>回答了"要不要做成 agent"，没回答"一个系统里放几个 agent、skill 怎么切"</td>
         </tr>
         <tr>
           <td>Anthropic《How we built our multi-agent research system》</td>
           <td>多 agent 在内部研究评测上比单 agent 提升 90.2%；但 token 15×</td>
-          <td>三个适用信号：任务价值高到付得起 15×；子任务可真并行；信息量超出单上下文窗口</td>
-          <td class="hl">有实测数字，但只覆盖研究检索类任务，且没给阈值——"超出单窗口"超多少、怎么算，没说</td>
+          <td>三个适用条件：任务价值高到付得起 15×；子任务真的能并行；信息量超过单个上下文窗口</td>
+          <td class="hl">有实测数字，但只覆盖研究检索类任务，而且没给判断线——"超出单窗口"超多少才算超、怎么算，没说</td>
         </tr>
         <tr>
           <td>Cognition《Don't Build Multi-Agents》</td>
           <td>上下文是核心资源；默认单线程单 agent</td>
-          <td>两条原则：共享完整 trace 而非单条消息；行动携带隐式决策，冲突的隐式决策必然互相破坏</td>
-          <td class="hl">原则正确且深刻，但是"原则化"的——"隐式决策"如何识别、多少算多、何时值得为并行性违反原则，均无可测量的回答</td>
+          <td>两条原则：共享完整日志，不要只传单条消息；行动带着说不出口的隐含决定，两边隐含决定不同，必然互相打架</td>
+          <td class="hl">原则是对的，但没法照着做——隐含决定怎么认出来、多少算多、什么时候值得为并行破例，全都没有能测量的答案</td>
         </tr>
         <tr>
           <td>Anthropic《Equipping agents for the real world with Agent Skills》</td>
-          <td>skill = 文件夹（SKILL.md + 脚本 + 资源），三级渐进披露</td>
-          <td>skill 拆分信号：单文档过大 → 拆附属文件；内容互斥/很少一起用 → 分开存放</td>
-          <td class="hl">最接近可操作（渐进披露 = 按需加载），但只讲文档层切分，不涉及 agent 边界，也没量化"多大算大"</td>
+          <td>skill = 文件夹（SKILL.md + 脚本 + 资源），三级渐进加载</td>
+          <td>skill 拆分信号：单文档太大 → 拆附属文件；内容互相用不到/很少一起用 → 分开存</td>
+          <td class="hl">最接近能照着做（渐进加载 = 用到才读），但只讲文档怎么切，不涉及 agent 边界，也没说"多大算大"</td>
         </tr>
       </table>
     </div>
     <div class="ag-callout">
-      <div class="ttl">调研结论：共识存在，判据缺失</div>
-      四家材料拼起来其实已经逼近真相：<b>上下文是唯一稀缺资源</b>（Cognition 的"隐式决策"、Anthropic 的"上下文窗口溢出"、Skills 的"渐进披露"，全都是上下文经济学的不同侧面）。缺的只是把它们统一成<b>一套任何人拿到都能执行的测量流程</b>——这正是本文接下来要做的事：把四家的定性主张翻译成六个可测量的指标和一张 DAG。
+      <div class="ttl">调研结论：共识有了，标准没有</div>
+      四家材料拼起来其实已经接近真相：<b>上下文是唯一稀缺资源</b>——Cognition 说的"隐含决定"、Anthropic 说的"窗口装不下"、Skills 说的"用到才读"，说的都是同一件事：token 不够用。缺的只是把它们拼成<b>一套谁拿到都能照着做的测量流程</b>——这就是本文接下来要做的：把四家的定性主张翻译成六个能量出来的数字和一张流程图。
     </div>
   </div>
 </div>
@@ -266,29 +254,29 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
 <div class="ag-section">
   <div class="wrap">
     <div class="ag-kicker">§2 · 痛点定量化</div>
-    <h2 class="ag-h2">为什么拆分会疼：两种失败形态的成本结构</h2>
-    <p class="ag-sub">你说的两个痛点——拆太散、拆太大——不是玄学，各有明确的成本构成。把成本列出来之后，"拆到什么程度"就从口味问题变成了定价问题。</p>
+    <h2 class="ag-h2">为什么拆分会疼：拆太散、拆太大，各有各的账单</h2>
+    <p class="ag-sub">拆太散、拆太大这两个毛病不是玄学，各有明确的账单。把账单列出来，"拆到什么程度"就从口味问题变成算钱问题。</p>
     <div class="ag-cost">
       <div class="side thin">
-        <h4>拆太散：<span>每次切开都在支付三种固定税</span></h4>
+        <h4>拆太散：<span>每切一刀都要交三种固定税</span></h4>
         <ul>
-          <li><b>往返税（R）：</b>每新增一个 agent 边界，每次委派都要付出"任务描述 + 上下文重建 + 结果回传"三段 token。Anthropic 实测其多 agent 系统总 token 约为普通对话的 <b>15 倍</b>——需要诚实拆账：这 15 倍的大头是并行子 agent 各自探索的必要消耗（买性能的钱），但每层委派叠加的三段结构成本不买任何性能，是纯开销。</li>
-          <li><b>损耗税：</b>跨边界传递必然有损——无法序列化的隐式状态（风格约定、探索中的中间发现）根本传不过去，只能靠父 agent 反复纠正，这就是 Cognition 说的"传话游戏"（game of telephone）。</li>
-          <li><b>工具重发现税：</b>每个新容器都要重新读一遍工具/skill 的 description、重新理解工具集，tool 调用链路整体变长。Anthropic 早期 agent 对简单查询 spawn 过 <b>50 个 subagent</b>——这是拆散失控的极端形态。</li>
+          <li><b>来回税（R）：</b>每多一个 agent 边界，每派一次活都要付三段 token：任务描述、重建背景、结果回传。Anthropic 实测它的多 agent 系统总 token 约是普通对话的 <b>15 倍</b>——要诚实算账：这 15 倍的大头是并行子 agent 各自探索的必要开销（花钱买性能），但每层委派叠加的三段是纯白花的，不买任何性能。</li>
+          <li><b>损耗税：</b>隔着边界传话必然丢东西——说不清、写不下的隐含状态（风格约定、探索到一半的发现）根本传不过去，只能靠父 agent 反复纠正。Cognition 把这叫"传话游戏"（game of telephone）。</li>
+          <li><b>工具重发现税：</b>每个新 agent 都要重新读一遍工具/skill 的说明、重新理解工具集，调用链路整体变长。Anthropic 早期 agent 对一个简单查询开过 <b>50 个 subagent</b>——拆散失控的极端样子。</li>
         </ul>
       </div>
       <div class="side fat">
-        <h4>拆太大：<span>单容器被三种衰减拖垮</span></h4>
+        <h4>拆太大：<span>一个 agent 被三种衰减拖垮</span></h4>
         <ul>
-          <li><b>压缩衰减：</b>轨迹太长必然触发上下文压缩/截断。Anthropic 明说：200K token 窗口在长任务中依然要靠外置 Memory 保计划、靠开新 subagent 续命——<b>标称窗口 ≠ 有效工作窗口</b>。</li>
-          <li><b>注意力衰减：</b>单容器塞进越多无关轨迹，关键状态的注意力权重越被稀释。Anthropic 用子 agent 的核心理由就是"独立上下文窗口"带来的关注点分离。</li>
-          <li><b>重放衰减：</b>容器越大，中途失败后从头重跑越贵。生产系统必须做到断点续跑（resume），而一个大容器里根本没有可用的断点。</li>
+          <li><b>压缩衰减：</b>对话记录太长必然触发压缩或截断。Anthropic 明说：200K token 的窗口在长任务里还是要靠外部 Memory 存计划、靠开新 subagent 续命——标称窗口不等于实际能用的窗口。</li>
+          <li><b>注意力衰减：</b>一个 agent 塞进越多无关记录，关键信息的注意力越被稀释。Anthropic 用子 agent 的核心理由就是"独立的上下文窗口"能让它专注。</li>
+          <li><b>重跑衰减：</b>agent 越大，中途挂了从头重跑越贵。生产系统必须能从断点续跑，而一个大 agent 里根本没有可用的断点。</li>
         </ul>
       </div>
     </div>
     <div class="ag-def">
       <div class="sym">Σ</div>
-      <div class="body"><b>拆分决策的经济学：</b>把 N 个单元切成 k 个容器的总成本由三项<b>可测量</b>构成——① 容器固定成本：系统提示 + 工具/技能描述的常驻 token，每容器一份（trace 可测）；② 边往返成本：R × 边调用次数（trace 可测）；③ 不切部分的容量损耗：压缩次数 × 每次压缩丢弃的轨迹比例（trace 可测）。设计期解析求"边际往返税 = 边际容量收益"的最优 k <b>不可行</b>（数据不足，见局限 1），本框架的替代方案是<b>用阈值开关近似定位这个交点</b>：S、C、R 的 30%/70%/50% 阈值就是交点的经验坐标——牺牲精度，换取可执行。
+      <div class="body"><b>拆分决策的经济学：</b>把 N 个步骤切成 k 个 agent 的总成本由三项<b>能测量</b>的部分构成——① 每个 agent 的固定成本：系统提示 + 工具/skill 说明的常驻 token，每个 agent 一份（日志可测）；② 每条边的来回成本：R × 边的调用次数（日志可测）；③ 没切开的部分的容量损耗：压缩次数 × 每次压缩丢掉的记录比例（日志可测）。想在设计期直接算出最优的 k，做不到（数据不够，见局限 1）。本框架的替代方案是<b>用几个带判断线的开关去近似定位这个交点</b>：S、C、R 的 30%/70%/50% 就是交点的经验坐标——牺牲精度，换来能执行。
       </div>
     </div>
   </div>
@@ -299,36 +287,36 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
   <div class="wrap">
     <div class="ag-kicker">§3 · 定义</div>
     <h2 class="ag-h2">先把话说死：什么是 agent、什么是 skill、什么是 tool</h2>
-    <p class="ag-sub">"agent 负责判断、skill 负责执行"是描述，不是定义——描述没法证伪。判定式定义给出的是<b>可测量的架构属性</b>：任何一个候选模块，跑一遍下面三个问题，它是什么就是什么，不看它的名字怎么起。</p>
+    <p class="ag-sub">"agent 负责判断、skill 负责执行"是描述，不是定义——描述没法说对错。判定式定义给的是可测量的属性：任何候选模块，跑一遍下面三个问题，它是什么就是什么，不管它名字叫什么。</p>
     <div class="ag-flow">
       <div class="step">
         <div class="no">Q1</div>
         <div>
-          <div class="q">它执行时要维持自己的中间状态轨迹吗？（对话历史、探索发现、未定稿的决策）</div>
-          <div class="a"><span class="yes">是 →</span> 它持有上下文 → 它是（或属于）一个 <span class="out agent">AGENT / 上下文容器</span>。往下走 §4-§5 的容器判定，决定它是独立容器还是并入现有容器。</div>
+          <div class="q">它干活时要维护自己的中间过程吗？（对话记录、探索发现、没定稿的决定）</div>
+          <div class="a"><span class="yes">是 →</span> 它装着上下文 → 它是（或属于）一个 <span class="out agent">AGENT</span>。接着走 §4-§5 的判断，决定它自己单独一个 agent，还是并进现有的 agent。</div>
         </div>
       </div>
       <div class="step">
         <div class="no">Q2</div>
         <div>
-          <div class="q">它是静态的知识/流程/脚本——加载进某个容器就生效，自身不产生轨迹？</div>
-          <div class="a"><span class="yes">是 →</span> 它是 <span class="out skill">SKILL / 载荷</span>。它没有"执行"，只有"被某容器在合适的时机读入"。往下走 §4 的 U、L 判定，决定它独立成 skill 还是内联。</div>
+          <div class="q">它是静态的知识/流程/脚本——读进某个 agent 就生效，自己不产生过程？</div>
+          <div class="a"><span class="yes">是 →</span> 它是 <span class="out skill">SKILL / 资料</span>。它没有"执行"，只有"被某个 agent 在合适的时机读入"。接着走 §4 的 U、L 判断，决定它独立成 skill 还是直接写进父流程。</div>
         </div>
       </div>
       <div class="step">
         <div class="no">Q3</div>
         <div>
-          <div class="q">它是无状态的环境接口——调用即返回，既不持有轨迹也不教方法？</div>
-          <div class="a"><span class="yes">是 →</span> 它是 <span class="out tool">TOOL</span>。注意：tool 的每次返回值仍会写进所在容器的轨迹，所以 tool 的输出体积直接消耗容器的 C 预算（大结果必须落盘只回引用）。</div>
+          <div class="q">它是无状态的环境接口——一调就返回，既不装过程也不教方法？</div>
+          <div class="a"><span class="yes">是 →</span> 它是 <span class="out tool">TOOL</span>。注意：tool 每次的返回值会写进所在 agent 的记录，所以 tool 的输出大小直接吃掉该 agent 的 C 预算（大结果必须存成文件、只回传引用）。</div>
         </div>
       </div>
     </div>
     <div class="ag-callout good">
       <div class="ttl">这组定义的可操作性体现在哪里</div>
       <ul>
-        <li><b>反例自检：</b>按"职责分工"定义，一个"负责写代码的 agent"和一个"代码生成 skill"都能成立——这就是含糊的根源。按本文定义：写代码过程需要试错轨迹 → 必然是 agent；而"团队代码规范文档"加载即生效、无轨迹 → 必然是 skill。同名异构的问题直接消失。</li>
-        <li><b>边界可检验：</b>"两个 agent 共享同一条对话 history" 按定义就<b>不是一个系统的两个 agent，而是一个 agent 的两段 prompt</b>；反过来，一个 skill 如果内部自己跑多步对话并维持轨迹，它就已经是 agent，无论文件名叫什么——按本判定它应被当作容器参与聚类。</li>
-        <li><b>skill 的三级加载成本是物理事实</b>（Anthropic Skills 机制）：L1 = name+description 常驻每个容器的系统提示（每会话都付）；L2 = SKILL.md 正文按需读入；L3 = 附属文件再按需读入。后文的 L 指标就建立在这三级成本上。</li>
+        <li><b>反例自检：</b>按"职责分工"定义，"一个负责写代码的 agent"和"一份代码生成 skill"都能成立——这就是含糊的根源。按本文定义：写代码需要试错过程 → 必然是 agent；"团队代码规范文档"读进去就生效、没有过程 → 必然是 skill。同一个名字两种东西的问题直接消失。</li>
+        <li><b>边界可检验：</b>"两个 agent 共享同一条对话记录"按定义就<b>不是一个系统的两个 agent，是一个 agent 的两段 prompt</b>；反过来，一个 skill 如果内部自己跑多步对话、维持过程，它就已经是 agent，不管文件名叫什么——按本判定它应当作 agent 参与分组。</li>
+        <li><b>skill 的三级加载成本是物理事实</b>（Anthropic Skills 机制）：L1 = name+description，常驻每个 agent 的系统提示（每个会话都要付）；L2 = SKILL.md 正文，用到才读；L3 = 附属文件，再要用到才读。后文的 L 指标就建立在这三级成本上。</li>
       </ul>
     </div>
   </div>
@@ -338,49 +326,49 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
 <div class="ag-section">
   <div class="wrap">
     <div class="ag-kicker">§4 · 指标</div>
-    <h2 class="ag-h2">六个可测量指标：每个都给出测量步骤、阈值与无数据默认值</h2>
-    <p class="ag-sub">前三个（S、C、F）决定 <b>agent 容器边界</b>；中间两个（U、L）决定 <b>skill 载荷边界</b>；R 检验 <b>容器间每条通信边是否成立</b>。每个阈值都标注了推导依据或明确声明为待校准的经验值（如 C 的 d），并给出"没有历史数据时"的保守默认值。</p>
+    <h2 class="ag-h2">六个能量出来的指标：怎么量、判断线是多少、没数据时怎么办</h2>
+    <p class="ag-sub">前三个（S、C、F）决定 <b>agent 的边界</b>；中间两个（U、L）决定 <b>skill 的边界</b>；R 检查 <b>agent 之间每条传话划不划算</b>。每条判断线都标了依据，或者老实承认是待校准的经验值（比如 C 的 d），并给出"没有历史数据时"的保守默认值。</p>
     <div class="ag-metrics">
       <div class="ag-metric">
-        <div class="head"><span class="sym">S</span><span class="name">隐式状态耦合率</span><span class="tag">容器维度</span></div>
-        <div class="desc">单元 j 在<b>拿不到 i 的过程轨迹、只拿 i 的输出 schema</b> 时，产出被复核的重写率。它捕捉的正是隐式状态——探索中的中间发现、风格约定、"哪些路走不通"的负知识（Cognition 说的"行动携带的隐式决策"）。全文所有"隐式占比"都指这同一个量，别无第二定义。</div>
-        <div class="how"><b>取数三档（按可得性降级，不许跳档）：</b>致命陷阱：隐式冲突在暴露前无法枚举——Cognition 的 Flappy Bird 案例里，美术风格冲突在发生前不在任何人的传递清单上，所以清点法必漏掉最致命的项。<br>① <b>历史返工记录</b>（零成本，最优先）：旧系统或人类团队处理同类任务时，下游对上游产出的返工记录，直接换算。<br>② <b>桌面推演</b>（零 token，设计期主路径）：把 i 的输出 schema 摆上桌，i 侧作者与 j 侧执行者<b>各自独立</b>推演"拿这份 schema 开工会卡在哪"，然后<b>先做显式化排除</b>：每个卡点先问"能否在动手前通过补 schema / 写说明文档消除？"——能消除的是 schema 缺陷（回 A0 补字段），<b>把它记进 S 等于把"文档写作认真程度"当成耦合强度</b>；消除不了的（卡点内容只存在于过程轨迹中：试错记录、被否决的方案、未定稿的倾向——写不进任何预先文档）才是隐式状态。两人档位不一致 → 取高档（保守仲裁）。推演输出三档：<b>低（≤30%）/ 中（30%~60%）/ 高（&gt;60%）</b>，中、高档一律按 &gt; 30% 处理——设计期不假装百分比精度（2~3 条样本的重写率噪声带 ±26 个百分点），三档足够驱动 30% 阈值的二分裁决。<br>③ <b>对照实测</b>（有原型后，A5 执行）：同一模型同一 prompt 版本跑对照组——j 拿全轨迹 vs 只拿 schema，<b>两组重写率之差</b>才是 S（直接用绝对重写率会把模型能力、prompt 质量的噪声混进来，误诊"模型弱"为"耦合高"）；≥ 10 条样本才可当连续值。</div>
-        <div class="thr"><b>阈值：S &gt; 30% → i、j 必须同容器。</b><br><span class="def">依据：Cognition 原则的量化版本——30% 的产出被重写意味着每三次协作损失一次完整产出，失败已可预期。S 是模型相关测量（换代后须重测，见局限 2）。<br>无数据默认值：桌面推演做不了（没人熟悉 j 侧）→ 按<b>高档（&gt;60%）</b>保守合并，宁大勿碎。</span></div>
+        <div class="head"><span class="sym">S</span><span class="name">耦合程度</span><span class="tag">agent 边界</span></div>
+        <div class="desc">下游步骤 j 在<b>拿不到上游步骤 i 的过程记录、只拿到 i 的输出格式</b>时，干完的活被返工重写的比例。它量的正是那些说不清、传不过去的东西——探索到一半的发现、风格约定、"哪些路走不通"（Cognition 说的"行动带着隐含决定"）。全文所有"隐含占比"都指这同一个量，没有第二个定义。</div>
+        <div class="how"><b>怎么量（三档，按可得性降级，不许跳档）：</b>先说一个致命陷阱：隐含的冲突在暴露之前没法列清单——最致命的约定在出问题之前，不在任何人的交接清单上，所以靠清点必漏。<br>① <b>历史返工记录</b>（零成本，最优先）：旧系统或人类团队处理同类任务时，下游对上游产出的返工记录，直接换算。<br>② <b>纸面推演</b>（零 token，设计期主路径）：把 i 的输出格式摆上桌，i 侧作者和 j 侧执行者<b>各自独立</b>推演"只拿这份格式开工会卡在哪"，然后<b>先做排除</b>：每个卡点先问"能不能在动手前补格式、写说明消除？"——能消除的是文档缺陷（回 A0 补字段），<b>把它记进 S 等于把"文档写得认不认真"当成耦合强度</b>；消除不了的（卡点内容只存在于过程记录里：试错记录、被否决的方案、没定稿的倾向——写不进任何提前准备的文档）才是真耦合。两人档位不一致 → 取高档（保守）。推演输出三档：<b>低（≤30%）/ 中（30%~60%）/ 高（&gt;60%）</b>，中、高档一律按 &gt; 30% 处理——设计期不假装有百分比精度（2~3 条样本的重写率噪声带 ±26 个百分点），三档足够支撑 30% 判断线的二分裁决。<br>③ <b>对照实测</b>（有原型后，A5 执行）：同一模型同一 prompt 版本跑两组——j 拿全记录 vs 只拿格式，<b>两组重写率的差</b>才是 S（直接用绝对重写率会把模型能力、prompt 质量的噪声混进来，把"模型弱"误诊成"耦合高"）；≥ 10 条样本才能当连续值用。</div>
+        <div class="thr"><b>判断线：S &gt; 30% → i、j 必须放同一个 agent。</b><br><span class="def">依据：Cognition 原则的量化版——30% 的产出被重写，等于每干三次就废一次，失败已经可以预期。S 是跟模型相关的测量（换模型要重测，见局限 2）。<br>没有数据时：纸面推演做不了（没人熟悉 j 侧）→ 按<b>高档（&gt;60%）</b>保守合并，宁可先合在一起。</span></div>
       </div>
       <div class="ag-metric">
-        <div class="head"><span class="sym">C</span><span class="name">上下文占用率</span><span class="tag">容器维度</span></div>
-        <div class="desc">容器完成任务所需的<b>峰值 token / 有效工作窗口</b>。有效工作窗口 = 标称窗口 × d（折扣系数，<b>默认 0.50，是全文第一个必须校准的参数</b>）：Anthropic 的 200K 窗口在长任务里仍要外置 Memory + 压缩 + 开新 subagent 续命，证明标称窗口打不了满额——但 0.50 是保守经验值，<b>不是测量结果</b>。<b>锚点校准法：</b>找 2~3 个历史上靠压缩续命的任务（溢出锚点）和 1~2 个从未触发压缩的长任务（安全锚点），d 取两锚点间的居中值；无锚点才允许用 0.50。</div>
-        <div class="how"><b>测量：</b>取 10~20 条历史同类任务的 trace，统计每条在单容器假设下的完整轨迹 token（系统提示 + skill 加载 + 工具返回 + 思考输出），取 P90。</div>
-        <div class="thr"><b>阈值：C &gt; 70% → 容器必须切分，切分点选在 S 最低的边上。</b><br><span class="def">依据：留 30% 余量给失败重试与计划变更——Anthropic 明确把"计划外溢出"列为生产事故源。<br>敏感性警告：C 的裁决对 d 高度敏感（算例 2 的"不拆"结论在 d ≥ 0.43 时才成立；同一需求部署在 128K 档位会得出"双超限"）——d 必须锚点校准，不许默认信任。三个保守量（d=0.5、70% 上限、P90）有意相乘，设计预算 ≈ 标称窗口的 35%：这是刻意保守的<b>初始</b>偏置，依据不是"漏拆无害"（§2 的压缩/注意力/重放三种衰减都是真实损失），而是<b>可观测性</b>——保守侧的错误（多付容量）会被 A5 压缩计数立刻报出来，激进侧的错误（跨边损耗）是隐性、难归因的。A5 实测成本数据到位后应把偏置校回中性——漏拆与错拆的真实相对成本取决于业务失败模式（长链路不可重试任务漏拆更贵，轻量可重试任务错拆更贵），这个排序该由你自己的 A5 数据说话，不由默认值预判。<br>无数据默认值：d=0.50 + 拿人工估算（输入×3 + 工具返回×N），宁可高估。</span></div>
+        <div class="head"><span class="sym">C</span><span class="name">上下文占用</span><span class="tag">agent 边界</span></div>
+        <div class="desc">一个 agent 干完任务需要的<b>峰值 token ÷ 实际能用的窗口</b>。实际能用的窗口 = 标称窗口 × d（折扣系数，<b>默认 0.50，是全文第一个必须校准的参数</b>）：Anthropic 的 200K 窗口在长任务里还要外部 Memory + 压缩 + 开新 subagent 续命，说明标称窗口打不了满额——但 0.50 是保守经验值，<b>不是测量结果</b>。<b>锚点校准法：</b>找 2~3 个历史上靠压缩续命的任务（溢出锚点）和 1~2 个从没触发过压缩的长任务（安全锚点），d 取两个锚点中间的值；没有锚点才允许用 0.50。</div>
+        <div class="how"><b>怎么量：</b>取 10~20 条历史同类任务的日志，统计每条在"一个 agent 装下"的假设下的完整记录 token（系统提示 + skill 加载 + 工具返回 + 思考输出），取 P90。</div>
+        <div class="thr"><b>判断线：C &gt; 70% → 必须切，切的位置选在 S 最低的边上。</b><br><span class="def">依据：留 30% 余量给失败重试和计划变更——Anthropic 明确把"计划外溢出"列为生产事故来源。<br>敏感性警告：C 的裁决对 d 非常敏感——d 定 0.50 还是 0.43，可能直接翻转一次"拆不拆"的结论；同一个需求放到 128K 窗口的档位上，会直接得出"容量、耦合双超线"。d 必须锚点校准，不许默认信任。三个保守量（d=0.5、70% 上限、P90）是有意叠乘的，设计预算 ≈ 标称窗口的 35%：这是刻意保守的<b>初始</b>偏向，依据不是"漏拆无害"（§2 的压缩/注意力/重跑三种衰减都是真实损失），而是<b>可观测性</b>——保守侧的错误（多付容量）会被 A5 的压缩计数立刻报出来，激进侧的错误（跨边损耗）是隐性的、难归因的。A5 实测数据到位后应把偏向校回中性——漏拆与错拆哪个更贵，取决于业务失败模式（长链路不可重试的任务漏拆更贵，轻量可重试的任务错拆更贵），这个排序该由你自己的 A5 数据说话，不由默认值预判。<br>没有数据时：d=0.50 + 人工估算（输入×3 + 工具返回×N），宁可往高了估。</span></div>
       </div>
       <div class="ag-metric">
-        <div class="head"><span class="sym">R</span><span class="name">往返开销率</span><span class="tag">通信维度</span></div>
-        <div class="desc">跨容器委派一次的总 token（任务描述 + 为重建上下文而灌入的背景 + 结果回传）/ 被委派单元自身执行 token。这是"拆太散"的直接度量——15× 总成本的大头是并行探索的必要消耗（买性能的钱），R 度量的是叠加其上的纯结构开销；当 R 占比高时，开销就吞噬了拆分换来的并行收益。</div>
-        <div class="how"><b>测量：</b>trace 中取出委派 prompt 的输入 token 与子容器输出 token，除以子容器内部执行 token。</div>
-        <div class="thr"><b>阈值：R &gt; 50% → 该委派不成立：要么合并两端，要么把大输出改为外置工件只传引用。</b><br><span class="def">依据：R&gt;50% 意味着一半以上算力花在"搬信息"而非"做事情"上。<br>无数据默认值：任务描述 + 背景重建的 token 超过被委派单元预期执行 token 的 50% → 默认超标（与 R 的比值定义保持同一量纲，不用绝对值判比值）。</span></div>
+        <div class="head"><span class="sym">R</span><span class="name">来回开销</span><span class="tag">agent 之间</span></div>
+        <div class="desc">跨 agent 派一次活的总 token（任务描述 + 重建背景 + 结果回传）÷ 被派单元自己干活的 token。这是"拆太散"的直接度量——15× 总成本的大头是并行探索的必要开销（花钱买性能），R 量的是叠加在上面的纯结构开销；R 占比高时，来回搬运就吃掉了拆分换来的并行收益。</div>
+        <div class="how"><b>怎么量：</b>从日志里取出派活的输入 token 和子 agent 的输出 token，除以子 agent 内部干活的 token。</div>
+        <div class="thr"><b>判断线：R &gt; 50% → 这次委派不成立：要么合并两端，要么把大输出改成存文件、只传引用。</b><br><span class="def">依据：R&gt;50% 意味着一半以上算力花在"搬信息"而不是"做事情"上。<br>没有数据时：任务描述 + 重建背景的 token 超过被派单元预期干活 token 的 50% → 默认超标（和 R 的比值定义保持同一量纲，不用绝对值判比值）。</span></div>
       </div>
       <div class="ag-metric">
-        <div class="head"><span class="sym">U</span><span class="name">复用度</span><span class="tag">载荷维度</span></div>
-        <div class="desc">一段候选载荷被引用的<b>不同父流程数</b>。这是 skill 存在的唯一理由：skill 的 L1（name+description）在每个会话都要付常驻成本，只有被多处复用才能摊薄。</div>
-        <div class="how"><b>测量：</b>盘点现有/规划中的父流程清单，数引用点。注意：同一流程内的多次调用算 U=1（只算不同流程）。</div>
-        <div class="thr"><b>阈值：U ≥ 2 → 候选独立 skill；U = 1 → 永远内联进父流程，不建 skill。</b><br><span class="def">依据：传统代码的 Rule of Three 降到 Rule of Two，因为 skill 抽取成本低（写文档）而持有成本高（每次会话付 L1 常驻）。<br>无数据默认值：新业务先按 U=1 处理；判定"第二个引用点"时，<b>只有已存在或已立项排期（有需求单/排期表背书）的父流程算数，纯设想中的未来用法不算</b>——否则任何候选载荷都能靠畅想未来凑出 U=2，指标即失效。第二个真实引用点出现后，抽取是机械操作。</span></div>
+        <div class="head"><span class="sym">U</span><span class="name">复用度</span><span class="tag">skill 边界</span></div>
+        <div class="desc">一段候选资料被<b>几个不同的父流程</b>引用。这是 skill 存在的唯一理由：skill 的 L1（name+description）每个会话都要付常驻成本，只有被多处复用才摊得薄。</div>
+        <div class="how"><b>怎么量：</b>盘点现有/规划中的父流程清单，数引用点。注意：同一流程内调用多次算 U=1（只数不同流程）。</div>
+        <div class="thr"><b>判断线：U ≥ 2 → 候选独立 skill；U = 1 → 永远写进父流程，不建 skill。</b><br><span class="def">依据：传统代码的 Rule of Three 降到 Rule of Two，因为 skill 抽出来便宜（写文档），养起来贵（每会话付 L1 常驻）。<br>没有数据时：新业务先按 U=1 处理；判定"第二个引用点"时，<b>只有已存在或已立项排期（有需求单/排期表背书）的父流程算数，纯畅想的未来用法不算</b>——否则任何候选都能靠畅想凑出 U=2，指标就失效了。第二个真实引用点出现后，抽出来是机械动作。</span></div>
       </div>
       <div class="ag-metric">
-        <div class="head"><span class="sym">L</span><span class="name">加载共现率</span><span class="tag">载荷维度</span></div>
-        <div class="desc">两个候选 skill 在任务中被<b>同时需要</b>的程度。决定载荷之间"合并还是拆开"——这是对"为什么不能合并/额外拆分"的直接回答。</div>
-        <div class="how"><b>测量（两阶段，缺一不可）：</b>① 设计期<b>场景重叠盘点</b>：颗粒度规则——每个场景 = 一条<b>可立项的父需求条目</b>（以需求单/工单为单位，不允许盘点人自由切分——清单划粗划细可盘出任意值，自由颗粒度会让 L 沦为构造量）；分别列出两个候选载荷的适用条目，输出三档：<b>几乎全重叠（高共现）/ 部分重叠（中间）/ 几乎不重叠（低共现）</b>，设计期不给裸百分比（与 S 卡同一伪精度纪律）。② 运行期<b>附属文件加载审计</b>：正交候选内容按 A3 体量分层放进附属文件（L3）后，附属文件的按需读取是工具调用日志里<b>天然可观测</b>的真实信号，用 read 事件统计共现。<b>警告：不能用 skill 级触发标记统计 L</b>——合并之后日志里只剩一个触发位，"两个载荷"的共现在原理上不可计算；纯文档型 skill 若未做 L3 分层，先分层再审计，无分层则维持合并并接受"无拆分证据"的代价。</div>
-        <div class="thr"><b>阈值：高共现（≈&gt; 80%）→ 合并为一个 skill；低共现（≈&lt; 20%）且各自高频触发 → 拆开。</b>中间地带 → 合并，等附属文件 read 事件显示正交后再拆。<br><span class="def">依据：几乎总一起触发却拆成两个 = 双份 L1 常驻 + 两次 L2 加载，纯亏损；但低共现 + 低频 → 也维持合并（按需加载比独立建 skill 便宜）。<br>无数据默认值：合并（拆分需要共现证据支持，合并不需要）——但正交候选内容应放进附属文件（L3），让 read 事件成为可观测信号，否则拆分支永远不可达。</span></div>
+        <div class="head"><span class="sym">L</span><span class="name">一起用的频率</span><span class="tag">skill 边界</span></div>
+        <div class="desc">两个候选 skill 在任务里被<b>同时需要</b>的程度。决定资料之间"合并还是拆开"——这是对"为什么不能合并/为什么还要拆"的直接回答。</div>
+        <div class="how"><b>怎么量（两步，缺一不可）：</b>① 设计期<b>场景重叠盘点</b>：颗粒度规则——每个场景 = 一条<b>可立项的父需求条目</b>（以需求单/工单为单位，不许盘点人自由切分——清单划粗划细能盘出任意值，自由颗粒度会让 L 沦为想造多少造多少的量）；分别列出两个候选资料的适用条目，输出三档：<b>几乎全重叠（高共现）/ 部分重叠（中间）/ 几乎不重叠（低共现）</b>，设计期不给裸百分比（和 S 卡同一纪律：不假装有精度）。② 运行期<b>附属文件加载审计</b>：正交的候选内容按 A3 的体量规则分层放进附属文件（L3）后，附属文件被读是工具调用日志里<b>天然可观测</b>的真实信号，用 read 事件统计共现。<b>警告：不能用 skill 级触发标记统计 L</b>——合并之后日志里只剩一个触发位，"两个资料"的共现从原理上就不可计算；纯文档型 skill 若没做 L3 分层，先分层再审计，没有分层就维持合并，接受"没有拆分证据"的代价。</div>
+        <div class="thr"><b>判断线：高共现（≈&gt; 80%）→ 合并成一个 skill；低共现（≈&lt; 20%）且各自高频触发 → 拆开。</b>中间地带 → 合并，等附属文件 read 事件显示真的正交再拆。<br><span class="def">依据：几乎总一起用却拆成两个 = 双份 L1 常驻 + 两次 L2 加载，纯亏；但低共现 + 低频 → 也维持合并（按需加载比独立建 skill 便宜）。<br>没有数据时：合并（拆分需要共现证据支持，合并不需要）——但正交的候选内容应放进附属文件（L3），让 read 事件成为可观测信号，否则"该拆"的证据永远积累不起来。</span></div>
       </div>
       <div class="ag-metric">
-        <div class="head"><span class="sym">F</span><span class="name">失败重放半径</span><span class="tag">容器维度</span></div>
-        <div class="desc">单元失败后需要重放的范围占已完成轨迹的比例。切分一条容器边前必须检查：边对面的单元失败，是否会把本容器已完成的工作拖进重跑。</div>
-        <div class="how"><b>测量：</b>对每个切分边做失败注入演练：使边对面单元失败一次，记录必须重新执行的 token / 全轨迹 token。</div>
-        <div class="thr"><b>阈值：切分后 F &gt; 40%（一次失败重跑近半轨迹）→ 该边不合格：先把可持久化状态外置成工件（checkpoint），再切。</b><br><span class="def">依据：Anthropic 生产经验——"重启昂贵且令用户沮丧"，必须能从断点 resume。<br>无数据默认值：所有切分边默认先配工件外置，再谈切分。</span></div>
+        <div class="head"><span class="sym">F</span><span class="name">失败重跑范围</span><span class="tag">agent 边界</span></div>
+        <div class="desc">一个步骤挂了以后，要重跑的范围占已完成记录的比例。切一条 agent 边之前必须检查：边对面的步骤挂了，会不会把这边已完成的工作拖进重跑。</div>
+        <div class="how"><b>怎么量：</b>对每条要切的边做失败注入演练：让边对面的步骤故意失败一次，记录必须重做的 token ÷ 全部记录 token。</div>
+        <div class="thr"><b>判断线：切开后 F &gt; 40%（一次失败重跑接近一半记录）→ 这条边不合格：先把能存下来的状态放到文件里（checkpoint），再切。</b><br><span class="def">依据：Anthropic 生产经验——"重启又贵又让用户崩溃"，必须能从断点继续。<br>没有数据时：所有要切的边默认先配好 checkpoint，再谈切。</span></div>
       </div>
     </div>
     <div class="ag-callout">
-      <div class="ttl">运行期还有第七个指标（V），不参与初始拆分，负责事后纠错</div>
-      <b>变更联动率 V：</b>过去 N 次修订中，改载荷 A 必须连带改载荷 B 的比例。上线后 V &gt; 50% 说明两条载荷其实是同一份知识被劈成了两半——边界划错，回 DAG 站 A3 重划。V 是唯一只能在上线后测量的指标，所以放在验证回路（A5）而不是设计期指标里。
+      <div class="ttl">上线后还有第七个指标（V），不参与初始拆分，负责事后纠错</div>
+      <b>改动联动率 V：</b>过去 N 次修订里，改 skill A 必须连带改 skill B 的比例。上线后 V &gt; 50%，说明两份 skill 其实是同一份知识被劈成了两半——边界划错了，回流程图 A3 重划。V 是唯一只能上线后测量的指标，所以放在验证回路（A5），不放在设计期。
     </div>
   </div>
 </div>
@@ -389,8 +377,8 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
 <div class="ag-section alt">
   <div class="wrap">
     <div class="ag-kicker">§5 · 判断流程</div>
-    <h2 class="ag-h2">DAG 总览：从新需求到拆分方案，六站走完</h2>
-    <p class="ag-sub">先声明框架的<b>两阶段属性</b>，不装全能：设计期（上线前）真正可用的只有 S 的<b>取数三档</b>（历史返工记录 → 桌面推演 → 保守高档，见 §4 S 卡）和 C 的人工估算，第一次走图的产出是<b>保守架构 + 一张带阈值的观察点清单</b>；R、L、F、V 的精确值都要等运行期（上线后）trace，由 A5 回站校准。所以"新需求从顶端进、底端出"得到的是"最保守的可运行方案 + 何时必须回来重拆的触发器"，而不是终局架构——这正是框架与"凭感觉拆"的本质区别：<b>感觉派没有触发器，不知道何时该回来</b>。虚线是回路——拆错了不是失败，是回到对应站点修正。</p>
+    <h2 class="ag-h2">总流程：从新需求到拆分方案，六步走完</h2>
+    <p class="ag-sub">标题里的 DAG = 有向无环图，说白了就是一张"每步只往前走、不绕圈"的依赖图。先说清楚这个框架分两段，不装全能：设计期（上线前）真正能用的只有 S 的<b>三档取数</b>（历史返工记录 → 纸面推演 → 保守高档，见 §4 S 卡）和 C 的人工估算，第一次走图的产出是<b>保守架构 + 一张带判断线的观察点清单</b>；R、L、F、V 的精确值都要等运行期（上线后）的日志，由 A5 回头校准。所以"新需求从顶端进、底端出"得到的是"最保守的能跑方案 + 什么时候必须回来重拆的明确信号"，不是终局架构——这正是框架和"凭感觉拆"的本质区别：<b>凭感觉的人没有回头信号，不知道什么时候该回来</b>。虚线是回头路——拆错了不算失败，是回到对应的步骤修正。</p>
 
     <div class="ag-figwrap">
       <svg viewBox="0 0 1140 806" xmlns="http://www.w3.org/2000/svg" font-family="Lato,'Helvetica Neue',Arial,sans-serif">
@@ -409,68 +397,68 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
         <!-- 图例 -->
         <g font-size="12.5" fill="#5c6a8a">
           <rect x="26" y="22" width="14" height="14" rx="3" fill="#eef1fc" stroke="#3b56c5" stroke-width="1.4"/>
-          <text x="47" y="34">站点（动作）</text>
+          <text x="47" y="34">步骤（要做的事）</text>
           <rect x="26" y="46" width="14" height="14" rx="3" fill="#fbeeee" stroke="#b3373b" stroke-width="1.4"/>
-          <text x="47" y="58">回边（不满足阈值）</text>
+          <text x="47" y="58">回头路（没达标）</text>
           <rect x="26" y="70" width="14" height="14" rx="3" fill="#fdf4e8" stroke="#b45309" stroke-width="1.4"/>
-          <text x="47" y="82">运行期纠偏（上线后）</text>
+          <text x="47" y="82">上线后的回头路</text>
         </g>
 
         <!-- N0 输入 -->
         <g>
           <rect x="445" y="22" width="250" height="52" rx="10" fill="#ffffff" stroke="#3b56c5" stroke-width="1.6"/>
           <text x="570" y="44" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">新需求</text>
-          <text x="570" y="62" text-anchor="middle" font-size="12" fill="#5c6a8a">复杂业务 · 不预设任何架构</text>
+          <text x="570" y="62" text-anchor="middle" font-size="12" fill="#5c6a8a">复杂业务 · 先不定任何架构</text>
         </g>
         <path d="M 570 74 L 570 106" stroke="#3b56c5" stroke-width="1.8" fill="none" marker-end="url(#agArr)"/>
 
         <!-- N1 A0 -->
         <g>
           <rect x="415" y="108" width="310" height="64" rx="10" fill="#ffffff" stroke="#3b56c5" stroke-width="1.6"/>
-          <text x="570" y="132" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">A0 · 操作单元分解</text>
-          <text x="570" y="152" text-anchor="middle" font-size="11.8" fill="#5c6a8a">拆成最小完整动作 OM 清单，逐个写 I/O schema</text>
+          <text x="570" y="132" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">A0 · 拆步骤</text>
+          <text x="570" y="152" text-anchor="middle" font-size="11.8" fill="#5c6a8a">把需求拆成一个个小步骤，写清输入输出</text>
         </g>
         <path d="M 570 172 L 570 200" stroke="#3b56c5" stroke-width="1.8" fill="none" marker-end="url(#agArr)"/>
 
         <!-- N2 A1 -->
         <g>
           <rect x="415" y="202" width="310" height="64" rx="10" fill="#ffffff" stroke="#3b56c5" stroke-width="1.6"/>
-          <text x="570" y="226" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">A1 · 信息流标注</text>
-          <text x="570" y="246" text-anchor="middle" font-size="11.8" fill="#5c6a8a">每条边评估隐式占比 → 显式 / 工件 / 隐式</text>
+          <text x="570" y="226" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">A1 · 标依赖</text>
+          <text x="570" y="246" text-anchor="middle" font-size="11.8" fill="#5c6a8a">看每个交接能不能说明白 → 分三类</text>
         </g>
         <path d="M 570 266 L 570 294" stroke="#3b56c5" stroke-width="1.8" fill="none" marker-end="url(#agArr)"/>
 
-        <!-- N3 A2 容器聚类 -->
+        <!-- N3 A2 分组 -->
         <g>
           <rect x="395" y="296" width="350" height="94" rx="10" fill="#eef1fc" stroke="#3b56c5" stroke-width="2"/>
-          <text x="570" y="320" text-anchor="middle" font-size="14.8" font-weight="700" fill="#1c2742">A2 · 容器聚类 → 得出 agent 数量</text>
-          <text x="570" y="340" text-anchor="middle" font-size="11.8" fill="#283a8f">S &gt; 30% 的相邻单元合并同容器</text>
-          <text x="570" y="356" text-anchor="middle" font-size="11.8" fill="#283a8f">C &gt; 70% 沿隐式最少的边强制切分 · 切分边过 F 检查</text>
-          <text x="570" y="372" text-anchor="middle" font-size="11.8" fill="#283a8f">无合格边可切 → 双超限裁决（终止条件，防震荡）</text>
+          <text x="570" y="320" text-anchor="middle" font-size="14.8" font-weight="700" fill="#1c2742">A2 · 分组 → 得出 agent 数量</text>
+          <text x="570" y="340" text-anchor="middle" font-size="11.8" fill="#283a8f">S &gt; 30% 的相邻步骤合进同一个 agent</text>
+          <text x="570" y="356" text-anchor="middle" font-size="11.8" fill="#283a8f">C &gt; 70% 沿耦合最低的边切开 · 切开的边要过 F 检查</text>
+          <text x="570" y="372" text-anchor="middle" font-size="11.8" fill="#283a8f">没有合格的边可切 → 双超线裁决收场（防反复折腾）</text>
         </g>
         <path d="M 570 390 L 570 418" stroke="#3b56c5" stroke-width="1.8" fill="none" marker-end="url(#agArr)"/>
 
         <!-- N4 A3 -->
         <g>
           <rect x="415" y="420" width="310" height="64" rx="10" fill="#ffffff" stroke="#3b56c5" stroke-width="1.6"/>
-          <text x="570" y="444" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">A3 · 载荷判定 → 得出 skill 清单</text>
-          <text x="570" y="464" text-anchor="middle" font-size="11.8" fill="#5c6a8a">U ≥ 2 抽 skill · 共现 &gt; 80% 合并 · 正文过大再分层</text>
+          <text x="570" y="444" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">A3 · 挑 skill → 得出 skill 清单</text>
+          <text x="570" y="464" text-anchor="middle" font-size="11.8" fill="#5c6a8a">U ≥ 2 建成 skill · 一起用 &gt; 80% 合并 · 正文太大再分层</text>
         </g>
         <path d="M 570 484 L 570 512" stroke="#3b56c5" stroke-width="1.8" fill="none" marker-end="url(#agArr)"/>
 
         <!-- N5 A4 -->
         <g>
           <rect x="415" y="514" width="310" height="64" rx="10" fill="#ffffff" stroke="#3b56c5" stroke-width="1.6"/>
-          <text x="570" y="538" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">A4 · 通信契约</text>
-          <text x="570" y="558" text-anchor="middle" font-size="11.8" fill="#5c6a8a">显式→JSON · 工件→落盘传引用 · 隐式&gt;30% 非法回 A2</text>
+          <text x="570" y="538" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">A4 · 定传话规矩</text>
+          <text x="570" y="558" text-anchor="middle" font-size="11.8" fill="#5c6a8a">说明白→传 JSON · 大产物→只传引用 · 说不清&gt;30% 回 A2</text>
         </g>
         <path d="M 570 578 L 570 606" stroke="#3b56c5" stroke-width="1.8" fill="none" marker-end="url(#agArr)"/>
 
         <!-- N6 A5 -->
         <g>
           <rect x="415" y="608" width="310" height="64" rx="10" fill="#ffffff" stroke="#3b56c5" stroke-width="1.6"/>
-          <text x="570" y="632" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">A5 · 验证回路（上线运行）</text>
-          <text x="570" y="652" text-anchor="middle" font-size="11.8" fill="#5c6a8a">六项体检：压缩 · token · 失败注入 · 变更联动 · 稀疏加载 · 回传重写</text>
+          <text x="570" y="632" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1c2742">A5 · 上线后体检</text>
+          <text x="570" y="652" text-anchor="middle" font-size="11.8" fill="#5c6a8a">六项体检：压缩 · token · 失败注入 · 联动 · 闲置文件 · 重写</text>
         </g>
         <path d="M 570 672 L 570 700" stroke="#3b56c5" stroke-width="1.8" fill="none" marker-end="url(#agArr)"/>
 
@@ -478,102 +466,102 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
         <g>
           <rect x="430" y="702" width="280" height="52" rx="10" fill="#1c2742"/>
           <text x="570" y="724" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">部署架构定稿</text>
-          <text x="570" y="742" text-anchor="middle" font-size="11.8" fill="#aab6d4">N 个容器 + M 个载荷 + 边契约表</text>
+          <text x="570" y="742" text-anchor="middle" font-size="11.8" fill="#aab6d4">N 个 agent + M 个 skill + 交接规矩表</text>
         </g>
 
-        <!-- 回边 1: A4 -> A2 (隐式边违规) -->
+        <!-- 回头路 1: A4 -> A2 (说不清的边) -->
         <path d="M 725 546 L 1080 546 L 1080 355 L 749 355" stroke="#b3373b" stroke-width="1.6" stroke-dasharray="7 5" fill="none" marker-end="url(#agArrR)"/>
         <g>
           <rect x="756" y="497" width="278" height="24" rx="5" fill="#ffffff" stroke="#efd3d4" stroke-width="1"/>
-          <text x="895" y="513" text-anchor="middle" font-size="12" font-weight="700" fill="#b3373b">A4 发现隐式边 / R &gt; 50% → 回 A2 合并容器</text>
+          <text x="895" y="513" text-anchor="middle" font-size="12" font-weight="700" fill="#b3373b">A4 发现说不清的边 / R > 50% → 回 A2 合并</text>
         </g>
 
-        <!-- 回边 2: A5 -> A3 (V 联动) -->
+        <!-- 回头路 2: A5 -> A3 (V 联动) -->
         <path d="M 725 626 L 1035 626 L 1035 462 L 729 462" stroke="#b45309" stroke-width="1.6" stroke-dasharray="7 5" fill="none" marker-end="url(#agArrW)"/>
         <g>
           <rect x="745" y="576" width="232" height="24" rx="5" fill="#ffffff" stroke="#f0dcc0" stroke-width="1"/>
-          <text x="861" y="592" text-anchor="middle" font-size="12" font-weight="700" fill="#b45309">变更联动率 V &gt; 50% → 回 A3 重划载荷</text>
+          <text x="861" y="592" text-anchor="middle" font-size="12" font-weight="700" fill="#b45309">改动联动率 V > 50% → 回 A3 重划 skill</text>
         </g>
 
-        <!-- 回边 3: A5 -> A2 (压缩/重放超标) -->
+        <!-- 回头路 3: A5 -> A2 (压缩/重跑超标) -->
         <path d="M 725 654 L 1110 654 L 1110 373 L 749 373" stroke="#b45309" stroke-width="1.6" stroke-dasharray="7 5" fill="none" marker-end="url(#agArrW)"/>
         <g>
           <rect x="760" y="668" width="286" height="24" rx="5" fill="#ffffff" stroke="#f0dcc0" stroke-width="1"/>
-          <text x="903" y="684" text-anchor="middle" font-size="12" font-weight="700" fill="#b45309">压缩 ≥ 2 次 / 重放半径 F &gt; 40% → 回 A2 重切容器</text>
+          <text x="903" y="684" text-anchor="middle" font-size="12" font-weight="700" fill="#b45309">压缩 ≥ 2 次 / 失败重跑 F > 40% → 回 A2 重切 agent</text>
         </g>
       </svg>
-      <div class="ag-figcap">图 1 · Agent/Skill 拆分判断流程图。实线 = 主流程推进；红虚线 = 设计期回边；橙虚线 = 运行期纠偏回边；每个阈值均对应 §4 指标。图论说明：回边使它成为带反馈环的有向图而非纯 DAG——去掉回边后的主干是 DAG；回边不是缺陷，正是"拆分是可迭代决策"的体现（A2 规则 4 为回边提供终止条件，防无限震荡）。</div>
+      <div class="ag-figcap">图 1 · Agent/Skill 拆分判断流程。实线 = 主流程；红虚线 = 设计期的回头路；橙虚线 = 上线后的回头路；每个数字都对应 §4 的指标。图论说明：带回头路的图严格说不是纯 DAG——去掉回头路，剩下的主干才是 DAG（有向无环图，一张"只往前走、不绕圈"的依赖图）；回头路不是缺陷，它说明拆分可以迭代（A2 规则 4 给回头路设了终止条件，防止无限循环）。</div>
     </div>
 
-    <h3>六站详卡：每一站做什么、过什么判断、不满足去哪</h3>
+    <h3>六步详卡：每步做什么、过什么检查、不达标去哪</h3>
 
     <div class="ag-station">
-      <div class="head"><span class="sid">A0</span><span class="stitle">操作单元分解</span><span class="sout">输出：OM 清单</span></div>
+      <div class="head"><span class="sid">A0</span><span class="stitle">拆步骤</span><span class="sout">输出：步骤清单</span></div>
       <div class="bd">
-        把需求拆成<b>操作单元（OM, Operation Unit）</b>：每个 OM 是一次"读懂输入 → 产出输出"的最小完整动作。此时<b>不预设</b>任何 agent/skill 身份——身份是后面算出来的，不是这一步定的。
+        把需求拆成一个个<b>步骤</b>：每个步骤是一次"读懂输入 → 产出输出"的最小完整动作。这一步<b>不预设</b>任何 agent/skill 身份——身份是后面算出来的，不是这步定的。
         <ul>
-          <li>每个 OM 必须能写成"一个动词短语 + 输入 schema + 输出 schema"。写不出输出 schema 的 OM 要继续拆（它混了两件事）。</li>
-          <li>数量参考：复杂需求通常落在 3~12 个 OM——这是经验观察，<b>不是硬约束</b>。OM 数量由"每个 OM 能否写出 I/O schema"决定，不设上限：若 &gt; 15 个，先检查是否把"功能模块"当成了"动作"（最常见的误拆）；检查后仍多于 15 个，按 schema 纪律执行即可，<b>不为凑数把两个动作捏合成一个假动作</b>——那会破坏 A1 的边标注和后续所有判定。</li>
+          <li>每个步骤必须能写成"一个动词短语 + 输入格式 + 输出格式"。写不出输出格式的步骤要继续拆（它混了两件事）。</li>
+          <li>数量参考：复杂需求通常落在 3~12 个步骤——这是经验观察，<b>不是硬约束</b>。数量由"每个步骤能不能写出输入输出格式"决定，不设上限：超过 15 个，先检查是不是把"功能模块"当成了"动作"（最常见的误拆）；检查完还是多于 15 个，就按格式纪律执行，<b>不为凑数把两个动作捏成一个假动作</b>——那会破坏 A1 的标注和后面所有判断。</li>
         </ul>
       </div>
     </div>
 
     <div class="ag-station">
-      <div class="head"><span class="sid">A1</span><span class="stitle">信息流标注</span><span class="sout">输出：带类型的数据流图</span></div>
+      <div class="head"><span class="sid">A1</span><span class="stitle">标依赖</span><span class="sout">输出：带类型的依赖图</span></div>
       <div class="bd">
-        把 OM 按数据依赖连成 DAG，然后给<b>每条边估计隐式占比</b>——即该边的 S 值（定义与取数方法见 §4 S 卡：桌面推演三档制），后续所有容器边界判断共用这一个数：
+        把步骤按数据依赖连成图，然后给<b>每个交接估计耦合档位</b>——就是该边的 S 值（定义和取法见 §4 S 卡：纸面推演三档制），后面所有 agent 边界判断共用这一个数：
         <ul>
-          <li><b>S 低档（≤30%）→ 显式边：</b>schema 可完整描述（如"提取的 20 个字段"）。</li>
-          <li><b>大体量但 S 低档 → 工件边：</b>产物（报告全文、代码文件、表格）落外置存储只传引用。</li>
-          <li><b>S 中/高档（&gt;30%）→ 隐式边：</b>跨容器非法（判据与 A2 规则 1 是同一把 S 尺子，见 A4）。</li>
-          <li>档位直接对比 30% 阈值裁决：<b>低 → 可切，中/高 → 同容器</b>。边的"名字"（显式/工件/隐式）只是通讯标签，裁决只看档位——避免归类争议。</li>
+          <li><b>S 低档（≤30%）→ 格式边：</b>内容能写进输出格式，照着格式就能干。</li>
+          <li><b>大体量但 S 低档 → 文件边：</b>产物存到外部存储，边上传引用（路径/ID）。</li>
+          <li><b>S 中/高档（&gt;30%）→ 隐含边：</b>不允许跨 agent（判断和 A2 规则 1 是同一把 S 尺子，见 A4）。</li>
+          <li>档位直接跟 30% 判断线比：<b>低 → 可以切，中/高 → 同一个 agent</b>。边叫什么名字（格式边/文件边/隐含边）只是通讯标签，裁决只看档位——免得在归类上吵架。</li>
         </ul>
       </div>
     </div>
 
     <div class="ag-station">
-      <div class="head"><span class="sid">A2</span><span class="stitle">容器聚类 —— 回答"有几个 agent"</span><span class="sout">输出：容器边界</span></div>
+      <div class="head"><span class="sid">A2</span><span class="stitle">分组 —— 回答"有几个 agent"</span><span class="sout">输出：agent 边界</span></div>
       <div class="bd">
-        依次过三条规则，不可跳序：
-        <div class="ag-rule"><span class="cond neutral">规则 1 · S 合并</span><span class="ex">对每对相邻 OM 算 S（§4 三档取数法）。<b>S &gt; 30% → 同容器</b>。先合再切，防止把高耦合单元强行分离。</span></div>
-        <div class="ag-rule"><span class="cond fail">规则 2 · C 强制切分</span><span class="ex">估每个簇的峰值 token（系统提示 + skill 加载 + 工具返回 + 轨迹）与有效工作窗口之比。<b>C &gt; 70% → 该簇必须吐出单元</b>，吐谁？沿<b>S 最低的边</b>切——把 S 档位最低的 OM 移出容器。注意与规则 1 的顺序：S 合并在前，C 切分在后，切分点只允许落在低耦合边上。</span></div>
-        <div class="ag-rule"><span class="cond fail">规则 3 · F 边检查</span><span class="ex">对每条新切出的边做失败注入预演：边对面单元挂掉，本容器要不要大范围重跑？<b>重放半径 &gt; 40% → 先把可持久化状态外置成工件（checkpoint），再切</b>；外置后仍超标 → 该边不合格，两端合并。合并后若簇 C 仍 &gt; 70% → 进入规则 4。</span></div>
-        <div class="ag-rule"><span class="cond neutral">规则 4 · 双超限裁决（终止条件）</span><span class="ex">当簇 C &gt; 70% 且所有候选切分边 S 均 &gt; 30%：输出结论"<b>容量-耦合双超限</b>"——这已不是拆分问题，是当前模型能力边界问题。出路按序判定：① <b>仅当仍存在规则 3 未穷尽的可外置状态</b>时，工件化后重估 C——对"不可压缩共享状态"型业务（全局文风约束、架构口径本身吃掉窗口）本条无米之炊，直接跳②；② <b>接受压缩损耗 + 登记"已裁决技术债清单" + 把"压缩时保什么丢什么"显式决策化</b>——登记断的是 A2↔A5 的自动震荡，<b>不是监测</b>：清单内簇改为<b>双周</b>复核压缩质量与产出走样率（压缩丢状态是周级损害，季度节奏追不上），重入 A2 有<b>两把钥匙</b>：（a）模型/长上下文能力升级；（b）A5 对照实测推翻了当初的 S 判档——当初高档是推演者不熟悉 j 侧的误判时，实测重写率差 &lt; 30% 即为证据（双超限未必是容量问题，也可能一开始就是判档错误，钥匙不能只配容量成因的锁）；③ 无钥匙到位则维持登记并双周复核。三条出路走完必居其一，<b>禁止在 A2（合并）与 A5（报警）之间反复震荡</b>。</span></div>
-        <div class="ag-rule"><span class="cond neutral">冷启动无数据</span><span class="ex">没有 trace、也没有人能做桌面推演时：<b>默认 1 个容器起步</b>（C 按人工估算 + d=0.50、S 全部按保守高档），上线后由 A5 的压缩计数触发第一次真实切分。这是框架内置的无数据路径，不靠直觉。</span></div>
+        依次过三条规则，不许跳序：
+        <div class="ag-rule"><span class="cond neutral">规则 1 · S 合并</span><span class="ex">对每对相邻步骤算 S（§4 三档取法）。<b>S &gt; 30% → 同一个 agent</b>。先合再切，防止把高耦合的步骤强行拆开。</span></div>
+        <div class="ag-rule"><span class="cond fail">规则 2 · C 强制切分</span><span class="ex">估每组的峰值 token（系统提示 + skill 加载 + 工具返回 + 记录）÷ 实际能用的窗口。<b>C &gt; 70% → 这组必须吐出步骤</b>。吐谁？沿<b>S 最低的边</b>切——把 S 档位最低的步骤移出去。注意顺序：S 合并在前、C 切分在后，切分点只允许落在低耦合的边上。</span></div>
+        <div class="ag-rule"><span class="cond fail">规则 3 · F 边检查</span><span class="ex">对每条新切出来的边做失败预演：边对面的步骤挂了，这边要不要大范围重跑？<b>重跑范围 &gt; 40% → 先把能存下来的状态放到文件里（checkpoint），再切</b>；放到文件里之后还超标 → 这条边不合格，两端合并。合并后如果这组 C 还是 &gt; 70% → 进规则 4。</span></div>
+        <div class="ag-rule"><span class="cond neutral">规则 4 · 双超线裁决（终止条件）</span><span class="ex">当一组 C &gt; 70% 且所有候选切分边的 S 都 &gt; 30%：输出结论"<b>容量和耦合双超线</b>"——这已经不是拆分问题了，是当前模型能力不够的问题。出路按顺序判定：① <b>只有还存在规则 3 没试完的、能放到文件里的状态</b>时，存成文件后重算 C——对"没法压缩的共享状态"型业务（全局风格约束、架构口径本身吃掉窗口），这一条没有能放到文件里的东西，直接跳②；② <b>接受压缩损失 + 登记"已裁决技术债清单" + 把"压缩时保什么丢什么"写成明确决定</b>——登记是为了断掉 A2 和 A5 之间的自动来回，<b>不是不监测</b>：清单内的组改为<b>双周</b>复核压缩质量和产出走样率（压缩丢状态是周级损害，季度节奏追不上）。重新进 A2 要<b>两把钥匙</b>：（a）模型/长上下文能力升级；（b）A5 对照实测推翻了当初的 S 判档——如果当初判高档是因为推演的人不熟悉下游那头，实测重写率差 &lt; 30% 就是证据（双超线未必是容量问题，也可能一开始就是判错了档，钥匙不能只配容量这一把锁）；③ 没有钥匙就维持登记、双周复核。三条出路必居其一，<b>禁止在 A2（合并）和 A5（报警）之间反复折腾</b>。</span></div>
+        <div class="ag-rule"><span class="cond neutral">冷启动无数据</span><span class="ex">没有日志、也没人能做纸面推演时：<b>默认 1 个 agent 起步</b>（C 按人工估算 + d=0.50，S 全按保守高档），上线后由 A5 的压缩计数触发第一次真实切分。这是框架内置的无数据路径，不靠直觉。</span></div>
       </div>
     </div>
 
     <div class="ag-station">
-      <div class="head"><span class="sid">A3</span><span class="stitle">载荷判定 —— 回答"哪些是 skill、拆几个"</span><span class="sout">输出：skill 清单 + 各自触发描述</span></div>
+      <div class="head"><span class="sid">A3</span><span class="stitle">挑 skill —— 回答"哪些做成 skill、拆几个"</span><span class="sout">输出：skill 清单 + 触发说明</span></div>
       <div class="bd">
-        对容器内的每块"专业知识/流程资产"（领域规范、操作流程、脚本包）依次判定：
-        <div class="ag-rule"><span class="cond neutral">U 判定</span><span class="ex"><b>U ≥ 2 → 候选 skill；U = 1 → 内联进父容器系统提示</b>。注意：新需求本身只有一个引用点很正常——先内联，等第二个引用点真实出现再抽出（届时是机械操作，不是重构）。</span></div>
-        <div class="ag-rule"><span class="cond neutral">L 判定</span><span class="ex">两个候选载荷共现档位为<b>高共现 → 合并为一个</b>（拆开 = 双份 L1 常驻 + 两次 L2 加载，纯亏）；<b>低共现且各自高频触发 → 拆开</b>；中间档 → 合并。设计期用<b>场景重叠盘点</b>（§4 L 卡测量①，以可立项需求条目为颗粒度），运行期用<b>附属文件 read 事件</b>校准（测量②）——<b>凡执行合并，正交候选内容必须放进附属文件（L3）</b>，让 read 事件成为可观测信号，否则拆分证据在原理上无法积累。这一条就是"为什么不能合并/为什么不能再拆"的正式回答：合并与否只由触发场景的统计关系决定，与主题是否相似无关。</span></div>
-        <div class="ag-rule"><span class="cond neutral">体量分层</span><span class="ex">单个 skill 正文 &gt; 500 行（约 8K token）→ 把<b>按场景分支</b>的内容拆成附属文件（L3 渐进披露），主文件只留"何时读哪个附属文件"的索引。注意：附属文件按<b>触发场景</b>拆，不按文档主题拆——和 skill 之间的切分遵循同一条准则。</span></div>
+        对 agent 内的每块"专业知识/流程资产"（领域规范、操作流程、脚本包）依次判定：
+        <div class="ag-rule"><span class="cond neutral">U 判定</span><span class="ex"><b>U ≥ 2 → 候选 skill；U = 1 → 直接写进父 agent 的系统提示</b>。注意：新需求本身只有一个引用点很正常——先写进去，等第二个引用点真实出现再抽出来（那时是机械操作，不是重构）。</span></div>
+        <div class="ag-rule"><span class="cond neutral">L 判定</span><span class="ex">两个候选资料的共现档位为<b>高共现 → 合并成一个</b>（拆开 = 双份 L1 常驻 + 两次 L2 加载，纯亏）；<b>低共现且各自高频触发 → 拆开</b>；中间档 → 合并。设计期用<b>场景重叠盘点</b>（§4 L 卡测量①，以可立项的需求条目为颗粒度），运行期用<b>附属文件 read 事件</b>校准（测量②）——<b>只要执行了合并，正交的候选内容必须放进附属文件（L3）</b>，让 read 事件成为可观测的信号，否则"该拆"的证据从原理上积累不起来。这一条就是"为什么不能合并/为什么不能再拆"的正式回答：合不合并只由触发场景的统计关系决定，跟主题像不像无关。</span></div>
+        <div class="ag-rule"><span class="cond neutral">体量分层</span><span class="ex">单个 skill 正文 &gt; 500 行（约 8K token）→ 把<b>按场景分支</b>的内容拆成附属文件（L3，用到才读），主文件只留"什么时候读哪个附属文件"的索引。注意：附属文件按<b>触发场景</b>拆，不按文档主题拆——跟 skill 之间的切分是同一条准则。</span></div>
       </div>
     </div>
 
     <div class="ag-station">
-      <div class="head"><span class="sid">A4</span><span class="stitle">通信契约</span><span class="sout">输出：边契约表</span></div>
+      <div class="head"><span class="sid">A4</span><span class="stitle">定传话规矩</span><span class="sout">输出：交接规矩表</span></div>
       <div class="bd">
-        容器之间的每条边都要有契约，且契约类型由 A1 的隐式占比档位<b>唯一决定</b>（与 A2 用同一把 S 尺子）：
-        <div class="ag-rule"><span class="cond pass">显式边</span><span class="ex">直接传 JSON 消息（schema 在 A0 已产出）。</span></div>
-        <div class="ag-rule"><span class="cond pass">工件边</span><span class="ex">大产物落外置存储，边上传引用（路径/ID）——Anthropic 生产模式：子 agent 产出写文件系统，只把轻量引用回传父容器，同时避开"传话游戏"和 token 膨胀。</span></div>
-        <div class="ag-rule"><span class="cond fail">隐式边</span><span class="ex"><b>隐式占比 &gt; 30% 的边不允许跨容器</b>——与 A2 规则 1 是同一把 S 尺子：A2 允许切的边（S ≤ 30%）在这里天然合法，规则自洽，不存在"A2 说能切、A4 说非法"的顶牛。占比 ≤ 30% 的残留隐式部分不能装看不见：契约中必须把它提炼成外置工件或说明文档（提炼 = 隐式显式化），并把该边列入 A5 的"回传重写率"重点观察名单——<b>重写率 &gt; 30% 即提炼失败的判据</b>，触发回 A2 合并。提炼不是自由裁量，它有可测的失败标准。</span></div>
-        <div class="ag-rule"><span class="cond fail">R 复核</span><span class="ex">对每条边实测 R。<b>R &gt; 50% → 合并两端，或把边上的传递物全部改写为工件引用再复测。</b></span></div>
+        agent 之间的每条边都要有规矩，规矩的类型由 A1 的耦合档位<b>唯一决定</b>（和 A2 用同一把 S 尺子）：
+        <div class="ag-rule"><span class="cond pass">格式边</span><span class="ex">直接传 JSON 消息（格式在 A0 已经写好）。</span></div>
+        <div class="ag-rule"><span class="cond pass">文件边</span><span class="ex">大产物存到外部存储，边上传引用（路径/ID）——Anthropic 的生产做法：子 agent 的产出写文件系统，只把轻量引用回传父 agent，同时避开"传话游戏"和 token 膨胀。</span></div>
+        <div class="ag-rule"><span class="cond fail">隐含边</span><span class="ex"><b>隐含占比 &gt; 30% 的边不允许跨 agent</b>——和 A2 规则 1 是同一把 S 尺子：A2 允许切的边（S ≤ 30%）在这里天然合法，规则自洽，不存在"A2 说能切、A4 说不行"的矛盾。占比 ≤ 30% 的残留隐含部分不能装看不见：规矩里必须把它写进文件或说明文档（提炼 = 把隐含的写明白），并把这条边列入 A5 的"回传重写率"重点观察名单——<b>重写率 &gt; 30% 就是提炼失败的标准</b>，触发回 A2 合并。提炼不是随口一说，它有可测的失败线。</span></div>
+        <div class="ag-rule"><span class="cond fail">R 复核</span><span class="ex">对每条边实测 R。<b>R &gt; 50% → 合并两端，或把边上传递的东西全部改成文件引用再复测。</b></span></div>
       </div>
     </div>
 
     <div class="ag-station">
-      <div class="head"><span class="sid">A5</span><span class="stitle">验证回路 —— 上线后持续纠偏</span><span class="sout">输出：纠偏动作</span></div>
+      <div class="head"><span class="sid">A5</span><span class="stitle">上线后体检 —— 持续纠错</span><span class="sout">输出：纠错动作</span></div>
       <div class="bd">
-        拆分不是一次定终身，A5 是框架的免疫机制。六项体检，超标即回站修正——特别注意<b>稀疏加载审计</b>：它是六项中唯一的"拆分方向"触发器，其余五项的裁决都指向合并/重划/补外置。<b>这不是设计偏好，是观测不对称</b>：合并方向的证据（返工、压缩、联动变更）免费来自日常运行，拆分方向的证据（正交加载）必须专门分层才能观测——代价是冷启动期框架天然偏保守（见 §4 C 卡的偏置说明）：
-        <div class="ag-rule"><span class="cond fail">压缩计数</span><span class="ex">跑最长链路任务，统计单容器上下文压缩次数。<b>≥ 2 次/任务 → 回 A2 重估</b>（阈值 2 而不是 1：留一次余量给异常路径）：存在合格切分边（S ≤ 30%）→ 吐单元；所有候选边 S 均 &gt; 30% → 走 A2 规则 4（双超限裁决），禁止震荡。<b>"已裁决技术债清单"内的簇不触发本条</b>——它们由规则 4 出口②接管：双周复核压缩质量与产出走样率，重入钥匙见规则 4（模型升级或 S 实测推翻判档）。</span></div>
-        <div class="ag-rule"><span class="cond fail">token 审计</span><span class="ex">以<b>本系统自身历史周为基线</b>做环比审计：各容器 token 曲线异常抬升 → 查当周新增的边与 skill。不要拿 Anthropic 研究系统的 4×/15× 当通用诊断线——那组数字测量自研究检索类任务，对编码/客服类系统没有可比性（见 §9 诚实声明）；它只用于建立"多 agent 天然就是重成本架构"的量级预期。抬升时优先排查：R 超标的边、U=1 的僵尸 skill（白付 L1 常驻）。</span></div>
-        <div class="ag-rule"><span class="cond fail">失败注入</span><span class="ex">定期让每个容器的关键 OM 失败一次，实测重放半径。<b>F &gt; 40% → checkpoint 缺失，回 A2 补外置</b>。</span></div>
-        <div class="ag-rule"><span class="cond fail">变更联动率</span><span class="ex">统计 skill 修订记录。<b>改 A 必须连带改 B 的比例 V &gt; 50% → 载荷边界划错</b>，回 A3 重划（多半是两个"看似不同主题"的 skill 其实共享同一触发场景，按 L 准则合并）。</span></div>
-        <div class="ag-rule"><span class="cond fail">稀疏加载审计</span><span class="ex">对每个 skill 统计附属文件（L3）的 read 事件：<b>某附属文件在 ≥ 20 次加载中被 read &lt; 20% 且其对应场景自身高频出现 → 回 A3 拆分</b>；<b>低引用 + 低频场景 → 维持合并</b>——按需加载比独立建 skill 便宜，把低频内容拆成独立 skill 只会白付 L1 常驻，正是 U 卡警告的僵尸形态（低共现证明不了各自高频，这是与 L 卡阈值一致的双条件）。这是六项中唯一的拆分方向触发器——没有它，一个错误合并的胖 skill 将永远失明（它 U=2 不算僵尸、不联动变更、也不占容器轨迹）。</span></div>
-        <div class="ag-rule"><span class="cond fail">回传重写率</span><span class="ex">对 A4 里"提炼过隐式残留"的每条边：子容器产出被父容器重写的比例。<b>&gt; 30% → 提炼失败，隐式残留实际上跨不过边界 → 回 A2 合并该边两端</b>（对应裁决表第 7 行）。</span></div>
+        拆分不是一次定终身，A5 是框架的自动纠错机制。六项体检，超标就回对应的步修——特别注意<b>闲置文件审计</b>：它是六项里唯一的"拆分方向"触发器，其余五项的裁决都指向合并、重新划边、把状态存到文件。<b>这不是设计偏好，是观测不对称</b>：合并方向的证据（返工、压缩、联动变更）免费来自日常运行；拆分方向的证据（正交加载）必须专门分层才观测得到——代价是冷启动期框架天然偏保守（见 §4 C 卡的偏向说明）：
+        <div class="ag-rule"><span class="cond fail">压缩计数</span><span class="ex">跑最长链路的任务，统计单个 agent 的上下文压缩次数。<b>≥ 2 次/任务 → 回 A2 重估</b>（线取 2 不是 1：留一次余量给异常路径）：有合格的切分边（S ≤ 30%）→ 吐步骤；所有候选边 S 都 &gt; 30% → 走 A2 规则 4（双超线裁决），不许反复折腾。<b>"已裁决技术债清单"内的组不触发本条</b>——它们由规则 4 出路②接管：双周复核压缩质量和产出走样率，重进的钥匙见规则 4（模型升级，或 S 实测推翻判档）。</span></div>
+        <div class="ag-rule"><span class="cond fail">token 审计</span><span class="ex">拿<b>本系统自己的历史周</b>当基线做环比：各 agent 的 token 曲线异常抬升 → 查当周新增的边和 skill。别拿 Anthropic 研究系统的 4×/15× 当通用诊断线——那组数量的是研究检索类任务，对编码/客服类系统没有可比性（见 §8 诚实声明）；它只用于建立"多 agent 天生就是重成本架构"的量级预期。抬升时优先排查：R 超标的边、U=1 还挂着名的 skill（白付 L1 常驻）。</span></div>
+        <div class="ag-rule"><span class="cond fail">失败注入</span><span class="ex">定期让每个 agent 的关键步骤故意失败一次，实测重跑范围。<b>F &gt; 40% → 说明缺 checkpoint，回 A2 先把状态存成文件</b>。</span></div>
+        <div class="ag-rule"><span class="cond fail">改动联动率</span><span class="ex">统计 skill 修订记录。<b>改 A 必须连带改 B 的比例 V &gt; 50% → skill 边界划错</b>，回 A3 重划（多半是两个"看着主题不同"的 skill 其实共享同一个触发场景，按 L 准则合并）。</span></div>
+        <div class="ag-rule"><span class="cond fail">闲置文件审计</span><span class="ex">对每个 skill 统计附属文件（L3）的 read 事件：<b>某个附属文件在 ≥ 20 次加载里被读 &lt; 20%，而它对应的场景自己又常出现 → 回 A3 拆分</b>；<b>低引用 + 低频场景 → 维持合并</b>——按需加载比单独建 skill 便宜，把低频内容建成独立 skill 只会白付 L1 常驻，正是 U 卡警告的浪费形态（低共现证明不了各自高频，这是和 L 卡判断线一致的双条件）。这是六项里唯一的拆分方向触发器——没有它，一个错误合并的胖 skill 永远看不见（它 U=2 不算浪费、不联动变更、也不占 agent 记录）。</span></div>
+        <div class="ag-rule"><span class="cond fail">回传重写率</span><span class="ex">对 A4 里"提炼过隐含残留"的每条边：子 agent 的产出被父 agent 重写的比例。<b>&gt; 30% → 提炼失败，说不清的部分实际上跨不过边界 → 回 A2 合并这条边的两端</b>（对应裁决表第 7 行）。</span></div>
       </div>
     </div>
   </div>
@@ -583,136 +571,104 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
 <div class="ag-section">
   <div class="wrap">
     <div class="ag-kicker">§6 · 速查</div>
-    <h2 class="ag-h2">边界裁决表：七种常见争论，七个可计算裁决</h2>
-    <p class="ag-sub">争论摆到桌面上，先量指标，再看裁决。每一行都给出成本解释——这就是"为什么不能合并/为什么不能再拆"的完整答案集。</p>
+    <h2 class="ag-h2">边界裁决表：七种常见争论，七个能算出来的裁决</h2>
+    <p class="ag-sub">争论摆上桌：先量指标，再看裁决。每一行都给出成本解释——这就是"为什么不能合并/为什么不能再拆"的完整答案。</p>
     <div class="ag-tablewrap">
       <table>
         <tr><th style="width:250px;">你观察到的现象</th><th style="width:170px;">量化信号</th><th style="width:130px;">裁决</th><th>为什么（成本解释）</th></tr>
         <tr>
-          <td>两个单元几乎总在同一次任务里先后出现</td>
+          <td>两个步骤几乎总在同一次任务里先后出现</td>
           <td>共现率 &gt; 80%</td>
           <td><span class="t-merge">合并</span></td>
-          <td>常拆的两个 skill 是双份 L1 常驻 + 两次 L2 加载；两个常一起干的 agent 是每任务都付一次往返税 R。合并一次省两类税。</td>
+          <td>常一起用的两个 skill 拆开是双份 L1 常驻 + 两次 L2 加载；常一起干的两个 agent 是每任务都白付一次来回开销 R。合并一次省两类钱。</td>
         </tr>
         <tr>
-          <td>两个载荷几乎从不在同一任务中出现</td>
+          <td>两个 skill 几乎从不在同一任务里出现</td>
           <td>共现率 &lt; 20%，各自触发 ≥ 2 种场景</td>
           <td><span class="t-split">拆开</span></td>
-          <td>互斥内容挤在同一容器里，每次执行互相挤占 C 预算；分开放各自按需加载，L1 常驻成本由复用摊薄。</td>
+          <td>互斥内容挤在同一个 agent 里，每次执行互相挤占 C 预算；分开放各自按需加载，L1 常驻成本由复用摊薄。</td>
         </tr>
         <tr>
-          <td>某容器跑长任务时总在压缩历史</td>
+          <td>某个 agent 跑长任务时总在压缩历史</td>
           <td>压缩次数 ≥ 2 / 任务</td>
-          <td><span class="t-split">容器过大 → 回 A2 重估</span></td>
-          <td>每次压缩都是一次有损状态丢弃，等效于把有效窗口再打折。有合格边（S≤30%）就吐单元；所有边 S&gt;30% 说明踩到模型能力边界，走双超限裁决而不是硬拆。</td>
+          <td><span class="t-split">agent 过大 → 回 A2 重估</span></td>
+          <td>每次压缩都是一次有损丢弃，等于把能用的窗口再打折。有合格边（S≤30%）就吐步骤；所有边 S&gt;30% 说明踩到模型能力边界，走双超线裁决，不是硬拆。</td>
         </tr>
         <tr>
           <td>两个 agent 之间总在传一大坨 JSON</td>
           <td>R &gt; 50%</td>
-          <td><span class="t-merge">合并或改契约</span></td>
-          <td>一半以上算力用于搬信息而非做事情；先试"大产物落盘只传引用"，降不下来就合并——这条边在物理上不成立。</td>
+          <td><span class="t-merge">合并或改规矩</span></td>
+          <td>一半以上算力用来搬信息而不是干活；先试"大产物存文件只传引用"，降不下来就合并——这条边物理上不成立。</td>
         </tr>
         <tr>
           <td>某段知识只有一个流程在用</td>
           <td>U = 1</td>
-          <td><span class="t-merge">内联，不建 skill</span></td>
+          <td><span class="t-merge">写进父流程，不建 skill</span></td>
           <td>skill 的 L1 常驻成本每个会话都在付，U=1 意味着纯支出零摊薄。等第二个引用点出现再抽，抽的动作是机械的。</td>
         </tr>
         <tr>
           <td>每次改 skill A 都得同步改 skill B</td>
-          <td>联动变更率 V &gt; 50%</td>
-          <td><span class="t-merge">重划载荷边界</span></td>
-          <td>联动修订 = 同一份知识被劈成两半。按触发场景（L 准则）重新合并或重新切，而不是按主题"归档整齐"。</td>
+          <td>改动联动率 V &gt; 50%</td>
+          <td><span class="t-merge">重划 skill 边界</span></td>
+          <td>联动修订 = 同一份知识被劈成两半。按触发场景（L 准则）重新合并或重新切，不是按主题"归档整齐"。</td>
         </tr>
         <tr>
           <td>子 agent 干完活，父 agent 总要大幅返工</td>
-          <td>回传结果被父容器重写率 &gt; 30%</td>
-          <td><span class="t-merge">回 A2 合并容器</span></td>
-          <td>返工是隐式状态跨边损耗的直接症状——任务描述里没写进去的约定（风格、口径、排除项）子 agent 全猜错了。这条边是隐式边，物理上不可传递。</td>
+          <td>回传结果被父 agent 重写率 &gt; 30%</td>
+          <td><span class="t-merge">回 A2 合并 agent</span></td>
+          <td>返工是说不清部分跨边丢失的直接症状——任务描述里没写的约定（风格、口径、排除项），子 agent 全靠猜。这条边是隐含边，物理上传不过去。</td>
         </tr>
       </table>
     </div>
-  </div>
-</div>
-
-<!-- ================= 算例 ================= -->
-<div class="ag-section alt">
-  <div class="wrap">
-    <div class="ag-kicker">§7 · 算例</div>
-    <h2 class="ag-h2">两个完整算例：一个拆成多 agent，一个坚决不拆</h2>
-    <p class="ag-sub">同一套流程，跑两个方向相反的典型需求。所有数字都是按 §4 测量方法得出的估算值，展示的是<b>怎么算</b>，而不是唯一答案。</p>
-
-    <div class="ag-case">
-      <div class="ttl">算例 1 ·「对 50 家竞品公司做尽职调查报告」→ 拆：1 个 lead agent + N 个调研 subagent + 1 个 skill</div>
-      <div class="sub">典型的研究检索型需求，走 DAG 各站：</div>
-      <div class="row"><div class="k">A0 分解</div><div class="v">OM1 采集单公司公开信息（×50 并行）· OM2 从原始信息提取财务/风险字段 · OM3 汇总横向对比 · OM4 撰写报告章节。每个 OM 的输出都能写出 schema（公司清单 → 字段表 → 对比矩阵 → 章节草稿）。</div></div>
-      <div class="row"><div class="k">A1 标注</div><div class="v">OM1→OM2：<b>工件边</b>（原始信息量大，落盘）；OM2→OM3：<b>显式边</b>（字段表 JSON）；OM3→OM4：<b>显式边</b>（对比矩阵）；调研过程内部的"哪些信源不可靠"是隐式状态，但只存在于单个公司调研内部，不跨公司边界。</div></div>
-      <div class="row"><div class="k">A2 聚类</div><div class="v">50 家公司之间 S ≈ 0（互不依赖，无共享隐式状态）——可完全切开。单容器估算：50 × ~8K = <b>400K token &gt;&gt; 100K 有效窗（200K×50%），C ≈ 400% → 强制切分</b>，切分点在 S≈0 的公司边界上。F 检查：单公司失败只重放该公司（其余 49 家的产物已落盘）→ F ≈ 2%，边合格。结论：<b>1 个 lead agent（做 A2 聚类、A3 汇总）+ 50 个或分批的调研 subagent</b>。</div></div>
-      <div class="row"><div class="k">A3 载荷</div><div class="v">"信源可靠性评估流程"被本次尽调和<b>已立项排期（下季度需求单已过评审）</b>的"供应商尽调"两个流程引用——第二个引用点有排期背书、不是畅想，<b>U=2 → 抽 skill</b>；"财务字段提取规则"与之做<b>场景重叠盘点</b>（设计期 L 测量①，以需求条目为颗粒度）：两者的适用条目清单几乎完全重叠（凡需要评估信源的报告几乎都要提字段口径）→ 判<b>高共现 → 合并进同一个 skill</b>，字段口径细则作为正交候选内容放进附属文件（L3），让 read 事件成为将来的拆分观测信号（高共现是场景盘点的纸面档位，上线后由 A5 稀疏加载审计校准——若该附属文件 read 正交且高频，说明盘估错了，拆开）。正文超 500 行的部分（分行业的提取细则）拆成附属文件 L3 按行业加载。</div></div>
-      <div class="row"><div class="k">A4 契约</div><div class="v">subagent 产出全部落盘（每公司一个 JSON 工件），只回传"公司名 + 完成标记"。设计期无实测数据，走默认判据：单次委派的描述 + 背景重建 ≈ 1.5K token，被委派单元预期执行 ≈ 8K token，1.5K &lt; 8K × 50% = 4K → 默认不超标（量纲与 R 一致）；上线后实测 R ≈ 15%，合格。lead agent 汇总时读工件。</div></div>
-      <div class="verdict"><b>裁决：</b>这是教科书式的多 agent 需求——S≈0 可切、C 超限必切、工件化后 R 合格、任务价值付得起 15× 的固有成本（对应 Anthropic 研究系统在内部评测上 +90.2% 性能提升的适用画像：高价值、真并行、信息超窗）。</div>
-    </div>
-
-    <div class="ag-case">
-      <div class="ttl">算例 2 ·「给现有系统加 OAuth 登录」→ 不拆：1 个 agent + 1 个 skill + 若干 tool</div>
-      <div class="sub">典型的编码型需求——正是 Anthropic 明说"大多数编码任务不适合多 agent"的那类：</div>
-      <div class="row"><div class="k">A0 分解</div><div class="v">OM1 设计接入方案（选 provider、回调约定）· OM2 改数据库 schema · OM3 写认证代码 · OM4 写测试。OM3/OM4 高度依赖 OM1 的每一个决策。</div></div>
-      <div class="row"><div class="k">A1 标注</div><div class="v">OM1→OM3、OM1→OM4 之间是<b>隐式边</b>：设计决策（redirect 约定、异常处理口径、会话策略）没有完整 schema，编码与测试的每一步都在引用这些约定的"氛围"。这正是 Cognition 说的"行动携带隐式决策"。</div></div>
-      <div class="row"><div class="k">A2 聚类</div><div class="v">对 OM1→OM3 做<b>桌面推演</b>（设计期 S 三档取数，零 token 成本）：把 OM1 的输出 schema（provider、redirect URL、token 结构）摆上桌，编码执行者推演"只拿这份 schema 开工会卡在哪"。第一轮卡点三处——redirect 权威入口未指明、异常码映射缺失、并发约定缺失——<b>按显式化排除规则，这三处都能在动手前补进 schema</b>（回 A0 补字段，它们是文档缺陷不是耦合）。补全后第二轮推演<b>仍卡三处，且卡点写不进任何 schema</b>：三个 provider 方案各试过什么、为何弃用（错误处理代码的风格必须跟随弃用原因）；哪些异常场景被明确排除在处理范围外（负知识，不写进文档）；会话失效的处置倾向（未定稿的权衡，影响测试用例取舍）——这些只存在于设计过程轨迹里。<b>档位 = 高（&gt;60%）&gt; 30% → 全部并入同一容器</b>。显式化排除正是推演的关键纪律：不排除第一轮的 schema 缺陷，"文档认真程度"就会被误记成耦合；排除之后，"补全后仍卡壳"暴露的才是真隐式（Cognition 的 Flappy Bird 式负知识逃不过第二轮）。容量检查：整个任务轨迹估 60K token &lt; 100K 有效窗（d=0.50 校准值），<b>C ≈ 60% &lt; 70% → 无需切分</b>。反向验证：若强行拆 4 个 agent，每个子 agent 都要重建"设计决策"上下文，每次委派 R 估 &gt; 60% → 全部不合格。结论：<b>单容器单 agent</b>；上线后由 A5 对照实测（全轨迹 vs 仅 schema 的重写率差）把 S 从三档校准为精确值。</div></div>
-      <div class="row"><div class="k">A3 载荷</div><div class="v">"本团队 OAuth 接入规范"（provider 白名单、redirect 安全要求）会被<b>已立项排期的</b>"SSO 接入""第三方授权"复用，<b>U=2 → 抽 skill</b>；"本次需求的临时设计决策"U=1 → 内联进任务上下文，不建 skill（登记进复用观察名单，等下一个真实引用点出现时机械抽取）。</div></div>
-      <div class="row"><div class="k">A4 契约</div><div class="v">容器内无跨边通信；代码文件作为工件落盘。唯一对外接口是人（需求方）。</div></div>
-      <div class="verdict"><b>裁决：</b>不拆。需求虽"复杂"，但复杂度全在<b>决策一致性</b>而非<b>容量与并行度</b>上——前者惩罚拆分（S 高、R 高），后者奖励拆分（C 高、S 低）。两个算例对照即可看出：框架对拆不拆不持立场，只对六个数负责。</div>
-    </div>
-
     <div class="ag-callout warn">
-      <div class="ttl">两个算例揭示的关键洞察</div>
-      "需求复杂"≠"该拆"。<b>惩罚拆分的复杂度</b>（决策互相缠绕、隐式状态多、失败要整体回滚）与<b>奖励拆分的复杂度</b>（信息体量大、子任务天然独立、可并行）是两种正交的复杂度。行业里凭感觉拆的人大多是把前者当成了后者——这个框架的全部价值，就是让你在下刀之前先分清眼前的复杂度是哪一种。
+      <div class="ttl">拆不拆，先分清你面对的是哪种复杂</div>
+      "需求复杂"不等于"该拆"。<b>惩罚拆分的复杂</b>——决策互相缠绕、说不清的部分多、失败要整体回滚——和<b>奖励拆分的复杂</b>——信息量大、子任务天然独立、可以并行——是两种不一样的复杂。凭感觉拆的人，大多把前者当成了后者。这个框架的全部价值，就是让你在动手拆之前，先用六个数字分清眼前是哪种。
     </div>
   </div>
 </div>
 
 <!-- ================= 局限 ================= -->
-<div class="ag-section">
+<div class="ag-section alt">
   <div class="wrap">
-    <div class="ag-kicker">§8 · 局限</div>
-    <h2 class="ag-h2">这套流程的局限：依赖什么、适用什么、在哪儿失效</h2>
-    <p class="ag-sub">不诚实声明局限的框架都是营销物料。以下五条局限按严重程度排列，其中前两条决定了你在什么条件下才能放心使用本框架。</p>
+    <div class="ag-kicker">§7 · 局限</div>
+    <h2 class="ag-h2">这套流程的局限：依赖什么、适用什么、在哪失效</h2>
+    <p class="ag-sub">不老实说清局限的框架都是营销材料。五条局限按严重程度排，前两条决定你在什么条件下才能放心用。</p>
 
     <div class="ag-limits">
       <div class="ag-limit">
-        <div class="t">局限 1 · 指标依赖历史数据，新业务存在冷启动窗口</div>
-        <p><b>需要先知道：</b>C 和 R 需要 trace（10~20 条同类任务的 token 轨迹）；L 需要 skill 触发历史；U 需要父流程清单；F、V 需要上线后的运行记录。</p>
-        <p><b>后果：</b>上线前的第一次拆分，六个指标里通常只有 S 和 C（粗估）可用，此时框架退化为"保守默认值引导"：单容器起步、全部内联、按 A5 的压缩计数触发第一次真实切分。<b>换句话说：框架对存量系统是"决策工具"，对新系统是"观察协议"</b>——它告诉你拆分信号出现时该测什么，而不是替你预知。你可能会问：新业务的答案 = "1 容器 + 0 skill + 上线再看"，这和"凭感觉拆、跑起来再改"有什么区别？区别在<b>触发器</b>：感觉派没有"何时必须回来重拆"的清单；本框架的第一次走图都会产出一组带阈值的观察点（压缩 ≥ 2、第二个真实引用点出现、回传重写率 &gt; 30%、R 实测 &gt; 50%、附属文件 read 正交、变更联动率 &gt; 50%），每个观察点都有明确回站路径。保守架构不是放弃决策，是把决策挂在可观测的扳机上。</p>
+        <div class="t">局限 1 · 指标依赖历史数据，新业务有冷启动窗口</div>
+        <p><b>需要先知道：</b>C 和 R 需要日志（10~20 条同类任务的 token 记录）；L 需要 skill 触发历史；U 需要父流程清单；F、V 需要上线后的运行记录。</p>
+        <p><b>后果：</b>上线前的第一次拆分，六个指标里通常只有 S 和 C（粗估）能用，这时框架退化为"保守默认值引导"：单个 agent 起步、全部写进父流程、按 A5 的压缩计数触发第一次真实切分。<b>换句话说：框架对存量系统是"决策工具"，对新系统是"观察清单"</b>——它告诉你拆分信号出现时该测什么，不是替你预知。你可能会问：新业务的答案 = "1 个 agent + 0 个 skill + 上线再看"，这和"凭感觉拆、跑起来再改"有什么区别？区别在<b>回头信号</b>：凭感觉的人没有"什么时候必须回来重拆"的清单；本框架每走一遍图都会产出一组带判断线的观察点（压缩 ≥ 2、第二个真实引用点出现、回传重写率 &gt; 30%、R 实测 &gt; 50%、附属文件 read 正交、改动联动率 &gt; 50%），每个观察点都有明确的回步路径。保守架构不是放弃决策，是把决策挂在能观测的信号上。</p>
       </div>
       <div class="ag-limit">
-        <div class="t">局限 2 · 阈值随模型能力漂移，需要周期性校准</div>
-        <p><b>依赖关系：</b>C 的折扣系数 d（默认 0.50，无推导的保守经验值）、70% 切分线、S 的 30% 线都建立在当前代模型上——<b>d 是全框架最承重也最缺出处的常数，是校准时的第一复核对象</b>（锚点校准法见 §4 C 卡）。窗口翻倍或长上下文注意力改善后，单容器可承载的单元变多，最优容器数下降——同样的任务换一代模型可能从"该拆"变成"不该拆"；同一任务部署在不同窗口档位结论也会不同（这是框架如实反映成本结构而非不稳定，前提是 d 经过锚点校准）。</p>
-        <p><b>后果：</b>模型换代（大约每 6~12 个月）必须重跑 A5 体检并重新校准阈值，S 是模型相关测量（§4）须用对照实测重测；30%/70%/50% 这些数字是<b>可调参数</b>而不是物理常数，每个数字的推导依据写在 §4，校准时优先复核推导链而不是死守数值。</p>
+        <div class="t">局限 2 · 判断线随模型能力漂移，需要定期校准</div>
+        <p><b>依赖关系：</b>C 的折扣系数 d（默认 0.50，没有推导的保守经验值）、70% 切分线、S 的 30% 线都建立在当前这代模型上——<b>d 是全框架最承重也最没出处的常数，校准时第一个复核它</b>（锚点校准法见 §4 C 卡）。窗口翻倍或长上下文注意力改善后，单个 agent 能装的步骤变多，最优 agent 数下降——同一个任务换一代模型可能从"该拆"变成"不该拆"；同一任务部署在不同窗口档位，结论也会不同（这是框架如实反映成本结构，不是不稳定，前提是 d 经过锚点校准）。</p>
+        <p><b>后果：</b>模型换代（大约每 6~12 个月）必须重跑 A5 体检、重新校准判断线；S 是跟模型相关的测量（§4）要用对照实测重测；30%/70%/50% 这些数字是<b>可调参数</b>不是物理常数，每个数字的依据写在 §4，校准时优先复核推导链，不要死守数值。</p>
       </div>
       <div class="ag-limit">
-        <div class="t">局限 3 · DAG 是静态先验，运行时动态编排不在覆盖范围</div>
-        <p>本框架产出的是<b>初始架构</b>：容器边界、skill 清单、边契约。但 agent 的本性是运行时自主决定路径（orchestrator-workers 里的子任务划分就是运行时产生的）。<b>运行时该 spawn 几个临时 subagent、何时提前终止</b>，是另一层决策——本框架不替代它，只通过 A5 的持续体检间接约束它。</p>
+        <div class="t">局限 3 · 流程图是静态设计，运行时的临场编排不在覆盖范围</div>
+        <p>本框架产出的是<b>初始架构</b>：agent 边界、skill 清单、边上的规矩。但 agent 的本性是运行时自己决定路径（orchestrator-workers 里的子任务划分就是运行时产生的）。<b>运行时该临时开几个 subagent、什么时候提前终止</b>，是另一层决策——本框架不替代它，只通过 A5 的持续体检间接约束它。</p>
       </div>
       <div class="ag-limit">
-        <div class="t">局限 4 · 明确的适用域与不适用域</div>
-        <p><b>适用：</b>信息密集型（研究、尽调、报告生成）、多工具长轨迹、子任务天然可并行的业务；有生产数据可回溯的存量系统。</p>
-        <p><b>不适用：</b>① 单轮可完成的任务（无容器边界问题可谈）；② 强实时人机对话（容器边界由对话节奏而非任务结构决定）；③ 极低延迟要求（多容器串行会放大延迟）；④ 多 agent 并发写同一状态库（隐式冲突无法用指标修复，属于 Cognition 原则的禁区）；⑤ 需求本身还在剧烈探索期（OM 清单不稳定，测了也白测）；⑥ <b>全局一致性长轨迹业务</b>：整个任务依赖一条不可压缩的共享状态（30 万字系列小说的伏笔与文风、超大代码库的全局架构约束）——每条候选切分边 S 都 &gt; 30%、总需求 C 又远超窗口，正是 A2 规则 4 的"容量-耦合双超限"场景。当前代模型没有好的多 agent 解；本框架对它的输出不是"不可解"三个字，而是规则 4 的成套裁决（登记技术债清单 + 压缩策略显式化，或换更大窗口模型后重评）——<b>"不可通过拆分解决"也是一个有出路清单的结论</b>，比硬拆出 15× 成本的一致性事故诚实得多。</p>
+        <div class="t">局限 4 · 明确的适用范围与不适用范围</div>
+        <p><b>适用：</b>信息密集型（研究、尽调、报告生成）、多工具长记录、子任务天然可并行的业务；有生产数据可回溯的存量系统。</p>
+        <p><b>不适用：</b>① 单轮能完成的任务（没有 agent 边界问题可谈）；② 强实时人机对话（agent 边界由对话节奏决定，不由任务结构决定）；③ 极低延迟要求（多个 agent 串行会放大延迟）；④ 多 agent 并发写同一个状态库（隐含冲突没法用指标修复，属于 Cognition 原则的禁区）；⑤ 需求本身还在剧烈探索期（步骤清单不稳定，测了也白测）；⑥ <b>全局一致性长链路业务</b>：整个任务依赖一条没法压缩的共享状态——每条候选切分边 S 都 &gt; 30%、总需求 C 又远超窗口，正是 A2 规则 4 的"双超线"场景。当前这代模型没有好的多 agent 解；本框架对它的输出不是"没救"三个字，而是规则 4 的成套出路（登记技术债清单 + 压缩策略写明确，或换更大窗口的模型后重评）——<b>"拆分解决不了"也是一个带出路清单的结论</b>，比硬拆出 15× 成本的一致性事故诚实得多。</p>
       </div>
       <div class="ag-limit">
-        <div class="t">局限 5 · 只优化技术维度，组织约束按外生变量处理</div>
-        <p>现实拆分还受团队边界、权限合规、成本中心、供应商锁定影响。本框架把这些当作<b>外生约束</b>：当组织强加的边界与技术最优解冲突时，如实标注"此边界为组织约束、按 S/C/R 计算为次优"——框架不假装组织因素不存在，但也拒绝用"组织需要"给错误拆分做技术背书。</p>
+        <div class="t">局限 5 · 只优化技术维度，组织约束当外部变量处理</div>
+        <p>现实拆分还受团队边界、权限合规、成本中心、供应商锁定影响。本框架把这些当<b>外部约束</b>：当组织强加的边界和技术最优解冲突时，如实标注"此边界是组织约束、按 S/C/R 算是次优"——框架不假装组织因素不存在，但也拒绝用"组织需要"给错误的拆分做技术背书。</p>
       </div>
     </div>
 
     <div class="ag-callout">
-      <div class="ttl">一张表总结：使用本框架的前提条件清单</div>
+      <div class="ttl">一张表总结：用这套框架的前提条件清单</div>
       <div class="ag-tablewrap">
         <table>
           <tr><th style="width:210px;">想用的功能</th><th style="width:280px;">必须先有的数据</th><th>没有时的降级路径</th></tr>
-          <tr><td>容器切分（A2）</td><td>S 三档取数（历史返工记录 → 桌面推演）+ C 估算（有 trace 用 P90；无 trace 人工估算 + d=0.50）</td><td>无人可推演 → S 全按高档：单容器起步 + A5 压缩计数触发第一次切分</td></tr>
-          <tr><td>载荷抽取（A3）</td><td>父流程清单（测 U）+ 场景重叠盘点（设计期 L 三档）</td><td>U 一律按 1 内联（登记复用观察名单）；L 无从盘点 → 维持合并 + 正交内容放附属文件留观测信号</td></tr>
-          <tr><td>边界契约（A4）</td><td>S 档位表（A1 产出）</td><td>无档位 → 按高档保守合并，宁大勿碎</td></tr>
-          <tr><td>运行纠偏（A5）</td><td>上线系统 + 失败注入权限 + 附属文件 read 日志</td><td>无埋点环境 → 人工抽查最长链路任务的压缩记录，放弃稀疏加载审计（维持合并现状）</td></tr>
+          <tr><td>agent 切分（A2）</td><td>S 三档取数（历史返工记录 → 纸面推演）+ C 估算（有日志用 P90；没日志人工估算 + d=0.50）</td><td>没人能推演 → S 全按高档：单个 agent 起步 + A5 压缩计数触发第一次切分</td></tr>
+          <tr><td>skill 抽取（A3）</td><td>父流程清单（测 U）+ 场景重叠盘点（设计期 L 三档）</td><td>U 一律按 1 写进父流程（登记复用观察名单）；L 没法盘点 → 维持合并 + 正交内容放附属文件留观测信号</td></tr>
+          <tr><td>边上的规矩（A4）</td><td>S 档位表（A1 产出）</td><td>没有档位 → 按高档保守合并，宁可先合在一起</td></tr>
+          <tr><td>运行纠错（A5）</td><td>上线系统 + 失败注入权限 + 附属文件 read 日志</td><td>没有埋点环境 → 人工抽查最长链路任务的压缩记录，放弃闲置文件审计（维持合并现状）</td></tr>
         </table>
       </div>
     </div>
@@ -720,27 +676,27 @@ description: 以 Anthropic 多 agent 系统实测数据与 Cognition 上下文�
 </div>
 
 <!-- ================= 参考 ================= -->
-<div class="ag-section alt">
+<div class="ag-section">
   <div class="wrap">
-    <div class="ag-kicker">§9 · 参考</div>
+    <div class="ag-kicker">§8 · 参考</div>
     <h2 class="ag-h2">一手材料与数据出处</h2>
     <ul class="ag-refs">
-      <li>Anthropic,<a href="https://www.anthropic.com/research/building-effective-agents">《Building Effective Agents》</a>, 2024 —— workflow/agent 的可操作性区分、六种编排模式、"复杂度只有在可证明收益时才增加"原则。</li>
-      <li>Anthropic,<a href="https://www.anthropic.com/engineering/built-multi-agent-research-system">《How we built our multi-agent research system》</a>, 2025 —— 15×/4× token 数据、80% 方差、200K 窗口的压缩与外置 Memory 实践、内部评测 90.2% 提升、子 agent 产物落盘传引用模式、"早期 agent 对简单查询 spawn 50 个 subagent"。</li>
-      <li>Walden Yan (Cognition),<a href="https://cognition.ai/blog/dont-build-multi-agents">《Don't Build Multi-Agents》</a>, 2025 —— "Share context / Actions carry implicit decisions" 两原则、隐式决策冲突案例、单线程优先主张。</li>
-      <li>Anthropic,<a href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills">《Equipping agents for the real world with Agent Skills》</a>, 2025 —— skill 的三级渐进披露机制、SKILL.md 结构、按场景拆附属文件的实践。</li>
-      <li>OpenAI,<a href="https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf">《A Practical Guide to Building Agents》</a> —— agent 编排的单 agent 优先立场（作为背景对照）。</li>
+      <li>Anthropic,<a href="https://www.anthropic.com/research/building-effective-agents">《Building Effective Agents》</a>, 2024 —— workflow 和 agent 的区分、六种编排模式、"只有能证明的收益才加复杂度"原则。</li>
+      <li>Anthropic,<a href="https://www.anthropic.com/engineering/built-multi-agent-research-system">《How we built our multi-agent research system》</a>, 2025 —— 15×/4× token 数据、80% 方差、200K 窗口的压缩与外部 Memory 实践、内部评测 90.2% 提升、子 agent 产物存文件传引用的做法、"早期 agent 对简单查询开过 50 个 subagent"。</li>
+      <li>Walden Yan (Cognition),<a href="https://cognition.ai/blog/dont-build-multi-agents">《Don't Build Multi-Agents》</a>, 2025 —— "Share context / Actions carry implicit decisions" 两原则、隐含决定冲突的案例、单线程优先主张。</li>
+      <li>Anthropic,<a href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills">《Equipping agents for the real world with Agent Skills》</a>, 2025 —— skill 的三级渐进加载机制、SKILL.md 结构、按场景拆附属文件的实践。</li>
+      <li>OpenAI,<a href="https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf">《A Practical Guide to Building Agents》</a> —— agent 编排的单 agent 优先立场（背景对照）。</li>
     </ul>
     <div class="ag-callout warn">
       <div class="ttl">关于本文数字的诚实声明</div>
-      15×、4×、80%、90.2%、50 个 subagent 等数字均出自 Anthropic/Cognition 公开材料，且<b>测量自研究检索类任务</b>；本文把它们用作成本结构的量级参考（而非普适常数）。特别澄清：15× 在原文语境中是<b>拆分正确</b>的多 agent 系统的固有运行成本（Anthropic 认为应由任务价值买单），本文用它论证"每个容器边界都有固定成本"，而非"拆分过散的账单"。S/C/R/U/L/F 六个指标与 30%/70%/50% 等阈值为本文提出的工程约定，推导依据随文标注，正确姿势是按 §8 局限 2 定期校准，而不是照抄。
+      15×、4×、80%、90.2%、50 个 subagent 这些数字都出自 Anthropic/Cognition 的公开材料，而且<b>量的是研究检索类任务</b>；本文把它们用作成本结构的量级参考（不是普适常数）。特别澄清：15× 在原文语境里是<b>拆对了</b>的多 agent 系统本来就有的运行成本（Anthropic 认为该由任务价值买单），本文用它论证"每个 agent 边界都有固定成本"，不是"拆分过散的账单"。S/C/R/U/L/F 六个指标和 30%/70%/50% 这些判断线是本文提出的工程约定，依据随文标注；正确姿势是按 §7 局限 2 定期校准，不是照抄。
     </div>
   </div>
 </div>
 
 <div class="ag-foot">
   <div class="wrap">
-    本文为方法论文章，不绑定任何具体框架（Claude Agent SDK / LangGraph / swarm / AutoCode 均适用判定流程）。指标阈值欢迎拿生产数据反驳——按 §8 的校准协议，被数据推翻的阈值会变成本框架的一部分。
+    本文是方法论文章，不绑定任何具体框架（Claude Agent SDK / LangGraph / swarm / AutoCode 都适用这套流程）。指标判断线欢迎拿生产数据反驳——按 §7 的校准协议，被数据推翻的判断线会变成本框架的一部分。
   </div>
 </div>
 
