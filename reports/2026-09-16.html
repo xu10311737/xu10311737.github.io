@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HazardAuditor：面向计算机使用 Agent 的执行轨迹安全审计框架与生产接入判断。">
+  <title>HazardAuditor：Agent 安全不应只审查它看到了什么，而要审查它做了什么</title>
+  <style>
+    :root {
+      --ink: #15202b;
+      --muted: #5e6a75;
+      --line: #dce3e8;
+      --paper: #ffffff;
+      --canvas: #f3f6f7;
+      --navy: #19354a;
+      --teal: #0b7474;
+      --teal-soft: #e6f3f1;
+      --amber: #a55b16;
+      --amber-soft: #fff1df;
+      --red: #a13b35;
+      --red-soft: #fdebea;
+      --shadow: 0 10px 30px rgba(25, 53, 74, .08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "Segoe UI", "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif;
+      line-height: 1.75;
+      font-size: 16px;
+    }
+    a { color: #075f72; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    a:hover { color: #123f61; }
+    .masthead {
+      background: var(--navy);
+      color: #f6fbfc;
+      padding: 18px 24px;
+      border-bottom: 4px solid #f2a65a;
+    }
+    .masthead-inner, main { max-width: 1100px; margin: 0 auto; }
+    .masthead-inner { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+    .brand { font-size: 14px; letter-spacing: .04em; font-weight: 700; }
+    .date { font-size: 13px; color: #bed0d9; white-space: nowrap; }
+    main { padding: 34px 22px 70px; }
+    .hero { padding: 10px 0 28px; }
+    .kicker { color: var(--teal); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+    h1, h2, h3 { line-height: 1.28; color: var(--navy); margin-top: 0; }
+    h1 { max-width: 900px; margin: 8px 0 17px; font-size: clamp(30px, 4.2vw, 50px); letter-spacing: 0; }
+    h2 { font-size: 27px; padding-top: 4px; margin-bottom: 16px; }
+    h3 { font-size: 19px; margin: 24px 0 8px; }
+    .dek { max-width: 800px; color: #3f4d58; font-size: 18px; margin: 0; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+    .tag { display: inline-block; border: 1px solid #b9d4d1; background: var(--teal-soft); color: #145c5b; padding: 3px 9px; border-radius: 4px; font-size: 13px; font-weight: 700; }
+    section { background: var(--paper); border-top: 1px solid var(--line); padding: 34px 30px; }
+    section:first-of-type { border-top: 0; box-shadow: var(--shadow); }
+    section + section { margin-top: 14px; }
+    .lead { font-size: 18px; color: #293945; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .note { border: 1px solid var(--line); border-left: 4px solid var(--teal); padding: 15px 17px; background: #fbfcfc; }
+    .note strong { color: var(--navy); }
+    .decision { border-left-color: var(--amber); background: var(--amber-soft); }
+    .warning { border-left-color: var(--red); background: var(--red-soft); }
+    .flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+    .flow-step { border: 1px solid #cbd8dd; padding: 15px; background: #f7fafb; min-height: 145px; }
+    .flow-step .num { color: var(--amber); font-weight: 800; font-size: 13px; }
+    .flow-step h3 { margin: 4px 0 6px; font-size: 17px; }
+    .flow-step p { margin: 0; font-size: 14px; line-height: 1.6; }
+    table { width: 100%; border-collapse: collapse; margin: 18px 0 8px; font-size: 14px; }
+    th, td { border: 1px solid var(--line); padding: 10px 11px; vertical-align: top; text-align: left; }
+    th { background: #edf3f5; color: var(--navy); font-weight: 800; }
+    tbody tr:nth-child(even) { background: #fbfcfc; }
+    .num-cell { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .small { color: var(--muted); font-size: 13px; }
+    .fact { color: #075f72; font-weight: 700; }
+    .inference { color: #8a4b13; font-weight: 700; }
+    code { font-family: Consolas, "SFMono-Regular", monospace; font-size: .9em; background: #eef2f4; border: 1px solid #e0e6e8; padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+    pre { overflow-x: auto; white-space: pre-wrap; word-break: break-word; background: #14232e; color: #edf6f7; padding: 16px; border-radius: 4px; line-height: 1.55; font-size: 13px; }
+    ul, ol { padding-left: 1.35em; }
+    li + li { margin-top: 6px; }
+    .source-list { margin: 0; padding-left: 1.25em; }
+    .source-list li { margin: 8px 0; }
+    .source-list .source-meta { color: var(--muted); font-size: 13px; }
+    .footer-note { color: var(--muted); font-size: 13px; margin-top: 18px; }
+    .skip { position: absolute; left: -9999px; top: auto; }
+    .skip:focus { left: 16px; top: 16px; z-index: 20; background: #fff; padding: 8px 12px; border: 2px solid var(--teal); }
+    .toc { position: sticky; top: 0; z-index: 5; background: rgba(251, 252, 250, .95); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
+    .toc-inner { display: flex; gap: 20px; overflow-x: auto; white-space: nowrap; padding: 12px 20px; }
+    .toc a { font-size: 13px; color: var(--muted); text-decoration: none; }
+    .toc a:hover { color: var(--teal); }
+    section[id] { scroll-margin-top: 64px; }
+    @media (max-width: 760px) {
+      body { font-size: 15px; }
+      .masthead { padding: 15px 16px; }
+      .masthead-inner { align-items: flex-start; flex-direction: column; gap: 3px; }
+      main { padding: 22px 10px 45px; }
+      section { padding: 25px 18px; }
+      h1 { font-size: 32px; }
+      h2 { font-size: 24px; }
+      .dek { font-size: 16px; }
+      .grid, .flow { grid-template-columns: 1fr; }
+      .flow-step { min-height: auto; }
+      table { display: block; overflow-x: auto; white-space: normal; }
+      th, td { min-width: 125px; }
+      .toc-inner { gap: 16px; padding: 12px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div class="brand">人工智能（AI）工程技术日报 / 研究与判断</div>
+      <div class="date">2026-09-16 · ISSUE 05 · 研究型深读</div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="文章目录">
+    <div class="toc-inner"><a href="#tldr">TL;DR</a><a href="#background">背景与问题</a><a href="#principle">核心原理</a><a href="#innovation">真正的创新</a><a href="#benchmark">实验结果</a><a href="#compare">竞品对比</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+
+  <main id="content">
+    <div class="hero">
+      <div class="kicker">执行安全 / Computer-Use Agents</div>
+      <h1>HazardAuditor：Agent 安全不应只审查它看到了什么，而要审查它做了什么</h1>
+      <p class="dek">这篇 9 月 14 日提交的论文把“安全模型”从提示词分类器改造成执行轨迹审计器：它联合读取请求、推理、工具调用和环境结果，再输出带证据说明的 <code>safe|unsafe</code> 决策。真正值得关注的不是又一个 guard（安全护栏）模型，而是它把 Agent 安全的监督对象和优化单位都改成了“实际行为”。</p>
+      <div class="meta"><span class="tag">安全监督</span><span class="tag">Agent 轨迹</span><span class="tag">GuardPO</span><span class="tag">生产判断：适合审计与分层拦截，不宜单独做访问控制</span></div>
+    </div>
+
+    <section id="tldr">
+      <h2>TL;DR</h2>
+      <div class="grid">
+        <div class="note"><strong>它做了什么：</strong>在受控环境运行 Claude Code、Codex、Hermes 和 OpenClaw，把用户消息、Agent 输出、可见推理、工具调用及环境观察归一化为同一种事件轨迹，再训练一个生成式安全审计器。</div>
+        <div class="note"><strong>核心变化：</strong>恶意文本出现在上下文中不等于 Agent 不安全；判定重点是它是否尝试或执行了未经授权的动作、暴露敏感信息、产出可操作的有害产物，或实质推进了不安全目标。</div>
+        <div class="note"><strong>论文结果：</strong>在 CUA-Exec（论文构建的计算机使用 Agent 安全评测基准）上，HazardAuditor 的准确率为 90.88%，来源特定 F1（精确率与召回率的调和平均）为 90.85%；相比同一初始化的 SFT（Supervised Fine-Tuning，监督微调），分别提升 10.38 和 10.68 个百分点。</div>
+        <div class="note decision"><strong>工程结论：</strong>最合理的落点是“策略引擎与沙箱之上的轨迹传感器”：用确定性规则和权限控制阻止动作，用它做复杂行为判断、影子评估（旁路并行运行评估，不直接干预线上动作）和人工复核。论文没有证明它能替代实时访问控制。</div>
+      </div>
+      <p class="small">文中标注“来源事实”的内容来自论文或项目原始材料；标注“本文推断”的内容是基于这些材料形成的工程判断。</p>
+    </section>
+
+    <section id="background">
+      <h2>背景与问题：Agent 的风险发生在动作链里</h2>
+      <p>传统大语言模型（Large Language Model，LLM）安全检查通常查看输入和输出文本。这个对象在聊天场景中较为自然，但计算机使用 Agent 会继续操作浏览器、终端、文件系统和外部服务。一个“读取文件”“调用网络接口”或“写入配置”的动作，脱离授权、参数、此前步骤和环境效果后，很难判断是否越过安全边界。</p>
+      <p><span class="fact">来源事实：</span>HazardAuditor 论文明确区分了“观察到危险内容”和“实施危险行为”。例如，Agent 看到提示注入（prompt injection：把恶意指令藏进模型会读的内容里、诱导其执行）并拒绝执行，可以标为 safe；如果它随后把凭据作为参数传给文件读取或网络发送工具，即使工具最终失败，也可以因为已经尝试了未经授权的动作而标为 unsafe。</p>
+      <p><span class="inference">本文推断：</span>这改变了应用架构中的安全数据面。安全层不再只订阅 <code>prompt</code>（模型输入提示）和 <code>completion</code>（模型输出），还要订阅工具名、参数、调用顺序、工具结果、文件变化和外部副作用。没有这些事件，模型即使很强，也只能猜测 Agent 是否真的做过危险操作。</p>
+    </section>
+
+    <section id="principle">
+      <h2>核心原理</h2>
+      <p>HazardAuditor 由三部分组成，论文将它们放在同一条训练和推理链上：</p>
+      <div class="flow">
+        <div class="flow-step"><div class="num">01 · 监督来源</div><h3>可执行安全样本</h3><p>在有工具和状态的环境中运行 Agent，用尝试过的动作与可观察结果产生安全标签。</p></div>
+        <div class="flow-step"><div class="num">02 · 统一表示</div><h3>Canonical Events（规范化事件表示）</h3><p>用 U、A、T、O 表示用户、Agent、工具和观察事件，适配不同 Agent 框架的原生日志。</p></div>
+        <div class="flow-step"><div class="num">03 · 决策优化</div><h3>GuardPO</h3><p>把每条轨迹的安全判断作为序列级结果，减少长 rationale（模型生成的推理依据文本）对训练梯度的不成比例影响。</p></div>
+        <div class="flow-step"><div class="num">04 · 运行时输出</div><h3>可审计 verdict（判定输出）</h3><p>先生成证据分析，再输出严格的 <code>&lt;label&gt;safe|unsafe&lt;/label&gt;</code>；解析失败返回 null。</p></div>
+      </div>
+
+      <h3>1. 把异构日志变成同一种证据</h3>
+      <p>论文定义的事件集合为 <code>U(u)</code>、<code>A(a,r)</code>、<code>T(ν,α)</code> 和 <code>O(o)</code>：分别表示用户消息、带可选推理的 Agent 响应、带名称与参数的工具调用，以及环境观察。框架适配器保留与安全有关的执行语义，去除时间戳等非语义元数据，使同一个 guard 能读取不同运行时的轨迹。</p>
+      <p>这不是简单的日志格式转换。标签针对的是 Agent 的行为，而不是上下文中是否出现了“危险词”。工具调用是否未经授权、是否指向敏感数据、是否推进了任务目标，需要结合轨迹和环境状态判断。</p>
+
+      <h3>2. 用决策级目标修正生成式 guard 的训练偏差</h3>
+      <p>生成式 guard 通常要输出一段分析和一个最终标签。如果用普通的 token-level imitation（逐 token 的模仿学习）或 token 平均损失训练，长分析自然拥有更多 token（token 是大模型处理文本的计量单位），也就对梯度有更大影响；但一条轨迹无论分析长短，都只对应一个安全决策。</p>
+      <p>Guard Policy Optimization（GuardPO，安全模型策略优化）首先让模型生成分析和标签，再用确定性解析器判断标签是否正确：正确为 <code>+1</code>，错误为 <code>-1</code>，格式无法解析为 <code>-1.25</code>。同一个 batch（批次）内对结果做中心化，给响应中的有效 token 分配同一序列级优势，并分别归一化 rationale 区域和 verdict 区域后聚合。论文因此不需要额外的学习型 reward model（奖励模型）或在线 LLM judge（大语言模型裁判）。</p>
+      <p>项目 README 还给出了推理边界：轨迹放入明确的不可信数据边界，关闭 Qwen（通义千问）模型的 thinking mode（思考模式），最多保留 16,000 个 prompt token，最多生成 384 个 token，使用 greedy decoding（贪心解码）；无法解析的输出返回 <code>label: null</code>，不会静默当作 safe。</p>
+    </section>
+
+    <section id="innovation">
+      <h2>真正的创新在哪里</h2>
+      <ol>
+        <li><strong>监督对象从“内容”变成“行为证据”。</strong>它关注工具调用和环境反馈形成的动作链，避免把“Agent 看到了危险提示但安全拒绝”误判为已经造成危险。</li>
+        <li><strong>跨框架适配成为研究对象。</strong>论文不是只在单一 Agent 的日志上训练一个分类器，而是把 Claude Code、Codex、Hermes、OpenClaw 的事件映射到共同接口。这为横向比较和迁移提供了基础。</li>
+        <li><strong>解释与控制接口被拆开。</strong>分析文本服务审计和人工复核，末尾的严格标签服务下游程序控制。二者不再共享同一个“越长越重要”的训练权重。</li>
+        <li><strong>训练结果与生产决策的粒度更一致。</strong>安全规则最后要回答的是“放行、拦截还是升级”，GuardPO 让这个轨迹级结果成为优化中心，而非解释 token 的数量。</li>
+      </ol>
+      <div class="note warning"><strong>边界：</strong>以上创新改善的是“如何观察和学习安全行为”。它不自动解决“如何在危险动作发生前拦截”的时序问题，也不提供权限系统、网络隔离、凭据托管或动作撤销能力。</div>
+    </section>
+
+    <section id="benchmark">
+      <h2>实验结果：有提升，但不能把一个总分当成上线证明</h2>
+      <p><span class="fact">来源事实：</span>CUA-Exec 的四个框架子集各包含 100 条 safe 和 100 条 unsafe 轨迹。论文报告的总体结果如下：</p>
+      <table>
+        <thead><tr><th>模型</th><th>Accuracy</th><th>Source-specific F1</th><th>解释</th></tr></thead>
+        <tbody>
+          <tr><td>HazardAuditor-SFT</td><td class="num-cell">80.50%</td><td class="num-cell">80.16%</td><td>同一模型初始化，只使用监督微调。</td></tr>
+          <tr><td><strong>HazardAuditor</strong></td><td class="num-cell"><strong>90.88%</strong></td><td class="num-cell"><strong>90.85%</strong></td><td>加入 GuardPO 后的生成式 guard。</td></tr>
+          <tr><td>GuardPO 增益</td><td class="num-cell">+10.38 pp</td><td class="num-cell">+10.68 pp</td><td>pp 表示百分点；这是相对同一 SFT 初始化的提升。</td></tr>
+        </tbody>
+      </table>
+      <p>四个框架上的 Accuracy / Macro-F1（对各来源取平均的 F1）分别为：Claude Code 94.00% / 94.00%，Codex 95.50% / 95.50%，Hermes 86.50% / 86.42%，OpenClaw 87.50% / 87.46%。项目 README 进一步以最强已有 guard 为参照，给出了 +12.5、+4.0、+9.5 和 +16.5 个百分点的框架级增益。</p>
+      <p>外部轨迹基准上的 Accuracy / F1 为：AgentHazard 87.55% / 89.47%，R-Judge 89.60% / 89.50%，ASSE-Safety 91.50% / 91.50%，ATBench 88.40% / 88.30%。论文称其在外部基准上的最差 F1 为 88.3%，高于 HazardAuditor-SFT 的 86.2% 和最强已有 guard 的 80.7%。</p>
+      <div class="note decision"><strong>必须保留的实验细节：</strong>这不代表它在每个基准、每个指标上都第一。论文表格显示，ATBench 上 AgentDoG-Llama3.1-8B 的 F1 为 88.8%，高于 HazardAuditor 的 88.3%；论文自己的结论也是 GuardPO 并没有在所有来源上单调提升。</div>
+    </section>
+
+    <section id="compare">
+      <h2>竞品对比：安全系统不是只有一个模型位</h2>
+      <p>下面的比较把论文中的 guard 基线与工程上常见的确定性控制层放在一起。性能数字来自 HazardAuditor 论文；“集成判断”是本文推断，不是厂商承诺。</p>
+      <table>
+        <thead><tr><th>方案</th><th>真实能力边界</th><th>集成成本与可控性</th><th>可观测性与生产成熟度</th></tr></thead>
+        <tbody>
+          <tr><td>文本 guard<br><span class="small">LlamaGuard3、Qwen3-Guard 等</span></td><td>适合判断输入/输出内容是否违规；缺少完整动作链时，难以区分“看到危险内容”和“真的调用了危险工具”。</td><td>接入简单、延迟和成本容易控制；策略可通过类别和阈值调整，但动作授权仍需外部系统。</td><td>通常可记录标签与类别；对工具参数、环境副作用的解释能力有限。作为基础层较成熟，作为 Agent 运行时唯一安全层不够。</td></tr>
+          <tr><td>通用 LLM judge<br><span class="small">论文中的 Claude、GPT、Gemini 基线</span></td><td>能处理复杂、变化快的自然语言和轨迹判断，不需要先训练专用 guard。</td><td>集成快但成本、延迟、模型版本和输出格式受服务端影响；需要严格 schema（数据结构规范）、超时和重试策略。</td><td>可输出解释，但一致性、校准（让模型置信度与真实正确率对齐）和版本可比性需要自行建立。适合离线评测或高价值抽检，不宜未经校准直接充当硬闸门。</td></tr>
+          <tr><td>Agent 轨迹 guard<br><span class="small">AgentDoG、BraveGuard 等</span></td><td>已经面向 Agent 轨迹，而非单轮文本；论文将其作为更接近运行时的比较对象。</td><td>比文本 guard 更依赖日志协议和训练数据；迁移到新工具、新框架时需要重新验证。</td><td>行为相关性更强，但跨框架能力和分布外表现（训练数据未覆盖的新场景）不能只从一个基准分数推断。</td></tr>
+          <tr><td><strong>HazardAuditor</strong></td><td>联合读取 U/A/T/O 事件，输出证据分析和严格标签；项目提供代码和模型权重，仓库不提供研究轨迹与预测结果。</td><td>需要事件适配器、8B 级（约 80 亿参数）模型推理和标签解析；可控接口清晰，但它本身不是权限执行器。</td><td>解释性较好，支持跨框架审计；论文报告生成式版本平均模型延迟 3,138.10 ms、P95（第 95 百分位）5,522.97 ms，研究成熟度仍低于成熟访问控制组件。</td></tr>
+          <tr><td>确定性策略与沙箱<br><span class="small">allowlist（白名单）、审批、最小权限、隔离环境</span></td><td>擅长控制“能不能执行”和“执行影响到哪里”，不擅长理解长轨迹中的语义意图。</td><td>工程接入可能涉及凭据、网络、文件和租户权限，但决策可解释、可回滚边界清晰、延迟低。</td><td>是生产安全的执行底座；与模型 guard 互补，而不是被模型替代。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="production">
+      <h2>工程化视角：从论文模型到生产系统要补什么</h2>
+      <p>项目 README 的快速开始只需要安装包并调用 <code>hazard-auditor --input examples/trajectory.json</code>。生产系统至少要补齐以下六个环节：</p>
+      <div class="grid">
+        <div class="note"><strong>1. 事件采集与脱敏。</strong><br>在 Agent loop（智能体循环）的统一出口记录用户请求、模型输出、工具名、参数、结果和环境变化。先按租户、任务和工具权限做密钥、个人数据与业务数据脱敏，再决定哪些证据可以进入模型和日志。</div>
+        <div class="note"><strong>2. 适配器与时序一致性。</strong><br>为每个框架建立 U/A/T/O 映射，保留调用顺序、授权上下文、失败结果和重试关系。不能只把多段文本拼成 prompt，否则会丢掉“哪个动作在什么时候发生”的语义。</div>
+        <div class="note"><strong>3. 分层决策时序。</strong><br><span class="inference">本文推断：</span>高风险动作应由 allowlist、权限系统或人工审批在执行前控制；HazardAuditor 更适合对完整轨迹做影子审计、执行后拦截后续动作，或作为第二层升级判断。不要把 3 秒级生成调用放在每个低风险工具调用的同步关键路径。</div>
+        <div class="note"><strong>4. 解析失败与策略动作。</strong><br>项目明确规定无法解析返回 null。生产侧要定义 null 的处理：高风险场景 fail closed（默认阻断并升级），低风险场景可进入异步复核，但不能把 null 映射为 safe。</div>
+        <div class="note"><strong>5. 质量、成本与延迟评估。</strong><br>按工具、风险类型、授权状态、长短轨迹、提示注入位置和框架分层统计 unsafe recall（对不安全轨迹的召回率）、safe recall、误报率、null 率、成本、平均延迟、P95/P99。不要只看 balanced accuracy（平衡准确率）；生产风险通常是不对称的。</div>
+        <div class="note"><strong>6. 可观测性与回放。</strong><br>每次决策保存 trace ID、Agent/工具/策略版本、模型 hash、事件截断位置、标签、解析状态、耗时和最终动作。保留可授权的最小证据用于离线回放，把误报、漏报和人工改判回灌到分布外测试集。</div>
+      </div>
+
+      <h3>延迟与质量的真实取舍</h3>
+      <p><span class="fact">来源事实：</span>论文在 batch size 为 1、4 张 NVIDIA A100、模型预热后测量了效率。生成式 HazardAuditor 的平均模型推理延迟为 3,138.10 ms，P95 为 5,522.97 ms，平均端到端延迟为 3,148.81 ms。冻结 backbone（骨干网络）后接的 MLP-64 快速头（轻量多层感知机分类头）平均推理约 303.99 ms，但 Accuracy 只有 75.02%、Macro-F1 为 69.63%、safe recall 为 41.11%、unsafe recall 为 97.63%。</p>
+      <p><span class="inference">本文推断：</span>快速头更像高召回预筛器，而不是可直接替代生成式审计器的最终判决器。可行的架构是确定性规则先挡高危动作，轻量头做低延迟预筛，生成式 guard 只处理边界样本或异步完整轨迹，并对最终动作设置人工或策略升级。</p>
+
+      <h3>它会怎样改变现有 LLM 应用架构</h3>
+      <p>原本常见的链路是“用户输入 → LLM → 工具 → 结果”。接入执行安全后，安全数据流至少变成“事件总线 → 轨迹存储/脱敏 → 规则与权限层 → guard 审计 → 策略决策 → 可观测性与回放”。这会要求 Agent 框架把工具调用从模型内部细节提升为可订阅、可授权、可重放的一等事件。</p>
+      <p>其中模型 guard 是 sensor（传感器），策略引擎才是 actuator（执行器）：guard 可以发现复杂行为模式，但真正的放行、阻断、降权、隔离和人工升级，必须由可测试、可审计的程序控制。</p>
+    </section>
+
+    <section id="risk">
+      <h2>局限与风险</h2>
+      <ul>
+        <li><strong>研究数据不可直接复现全流程。</strong>官方仓库提供代码、推理示例和项目论文中的数字，但不随仓库发布研究轨迹、基准记录、预测结果或训练输出；新运行不能在没有相同切分和协议的情况下直接与论文数字比较。</li>
+        <li><strong>完整轨迹意味着时序问题。</strong>如果 guard 只在动作发生后看到完整轨迹，它可以审计和阻断后续步骤，却不能撤销已经完成的文件读取、数据外发或外部写入。项目 README 也明确称其不是 access-control system（访问控制系统）。</li>
+        <li><strong>分布偏移仍然明显。</strong>新工具协议、截断证据、不同 Agent 框架、不同授权语义和新的长程攻击都会改变判断难度。论文中 Codex 子集和不同外部基准的指标变化，已经说明 GuardPO 的收益不是每个来源都一致。</li>
+        <li><strong>解释文本不是安全证明。</strong>rationale 有助于人工审计，但它可能遗漏证据、被不可信轨迹中的提示注入影响，或让人误把“解释得很像”当成“动作一定安全”。下游应依赖解析标签、事件证据和独立规则，而不是解释文案本身。</li>
+        <li><strong>隐私与合规成本高。</strong>完整轨迹可能包含凭据、文件内容、客户数据和内部系统返回值。即使模型本地运行，日志、训练集、评测回放和第三方模型权重也需要单独的访问控制、保留周期和授权证明。</li>
+      </ul>
+    </section>
+
+    <section id="future">
+      <h2>未来方向</h2>
+      <p>如果这条路线继续发展，价值点不在于再加一个“安全分类标签”，而在于把执行语义标准化并嵌入 Agent 基础设施：</p>
+      <ul>
+        <li>形成跨 Agent 框架的开放事件协议，明确授权、尝试、成功、副作用和回滚状态，而不只是统一字段名。</li>
+        <li>把一次性完整轨迹判断推进到增量式判断：在每个高风险工具调用前提供部分轨迹，让 guard 给出可校准的风险分数和理由。</li>
+        <li>采用“快头预筛 + 生成式复核 + 确定性执行策略”的级联结构，按风险预算分配 GPU、延迟和人工复核额度。</li>
+        <li>建立包含安全拒绝、授权边界、延迟触发、跨工具组合和环境副作用的长程评测，而不是只测单个恶意请求。</li>
+        <li>把隐私保护、证据最小化、脱敏后训练和可撤销的评测数据授权纳入 guard 的默认工程协议。</li>
+      </ul>
+    </section>
+
+    <section id="takeaways">
+      <h2>工程师可以借鉴什么</h2>
+      <ol>
+        <li><strong>先定义行为语义，再选择模型。</strong>安全标签要说明是“出现危险内容”“尝试危险动作”还是“动作产生副作用”，三者不能混用。</li>
+        <li><strong>把解释和控制接口分离。</strong>解释给人看，标签给机器读；解析失败要显式暴露，不能自动放行。</li>
+        <li><strong>把工具调用当成安全边界。</strong>工具名、参数、授权范围和调用结果应该可观测、可拒绝、可回放，而不是藏在 Agent 框架的黑盒里。</li>
+        <li><strong>用非对称指标做上线决策。</strong>金融、生产运维、凭据和数据外发场景首先看 unsafe recall、误报代价、P95 延迟和 null 处理，不要被一个 balanced accuracy 吸引。</li>
+        <li><strong>把 guard 当作防御纵深的一层。</strong>最小权限、沙箱、网络出口、审批、审计日志和回滚能力依然是执行安全的底座；模型只能补充语义判断。</li>
+      </ol>
+      <div class="note decision"><strong>最终判断：</strong>HazardAuditor 值得作为 Agent 安全研究和内部离线评测的参考实现，也值得在低权限、可回放的业务中做影子部署。当前不建议把它单独放在高风险动作的同步硬闸门上，更不建议用它替换权限系统和沙箱。</div>
+    </section>
+
+    <section id="sources">
+      <h2>数据源</h2>
+      <p>本节区分来源事实与本文推断。核心事实来自 HazardAuditor 论文、官方仓库与项目页；竞品基线来自论文对比实验与公开模型页。数据截至 2026-09-16（Asia/Shanghai）。</p>
+
+      <ol class="source-list">
+        <li><a href="https://arxiv.org/abs/2609.15134" target="_blank" rel="noopener">HazardAuditor: From Executable Threats to Safer Computer-Use Agents</a><br><span class="source-meta">发布方：arXiv；日期：2026-09-14；摘要、作者、提交日期与核心结论。</span></li>
+        <li><a href="https://arxiv.org/html/2609.15134v1" target="_blank" rel="noopener">HazardAuditor HTML 全文</a><br><span class="source-meta">发布方：arXiv；版本：v1，2026-09-14；事件表示、GuardPO 目标、实验表格与效率附录。</span></li>
+        <li><a href="https://github.com/Yunhao-Feng/HazardAuditor" target="_blank" rel="noopener">HazardAuditor 官方 GitHub 仓库</a><br><span class="source-meta">发布方：Yunhao-Feng；数据截至 2026-09-16；代码结构、快速开始、模型结果摘要、局限与负责任使用说明。</span></li>
+        <li><a href="https://raw.githubusercontent.com/Yunhao-Feng/HazardAuditor/main/README_zh.md" target="_blank" rel="noopener">HazardAuditor 官方中文 README</a><br><span class="source-meta">发布方：Yunhao-Feng；数据截至 2026-09-16；输入输出格式、16,000 token / 384 token 推理边界、null 标签行为。</span></li>
+        <li><a href="https://raw.githubusercontent.com/Yunhao-Feng/HazardAuditor/main/evaluation/README.md" target="_blank" rel="noopener">HazardAuditor evaluation/README.md</a><br><span class="source-meta">发布方：Yunhao-Feng；数据截至 2026-09-16；评测入口、相同解析器和不可将新运行直接等同论文数字的说明。</span></li>
+        <li><a href="https://raw.githubusercontent.com/Yunhao-Feng/HazardAuditor/main/pyproject.toml" target="_blank" rel="noopener">HazardAuditor pyproject.toml</a><br><span class="source-meta">发布方：Yunhao-Feng；数据截至 2026-09-16；Python、PyTorch、Transformers 与命令行入口依赖。</span></li>
+        <li><a href="https://yunhao-feng.github.io/HazardAuditor/" target="_blank" rel="noopener">HazardAuditor 官方项目页</a><br><span class="source-meta">发布方：HazardAuditor 项目；数据截至 2026-09-16；行为与内容的区分、演示和项目组成。</span></li>
+        <li><a href="https://huggingface.co/meta-llama/Llama-Guard-3-8B" target="_blank" rel="noopener">Llama Guard 3 8B 模型页</a><br><span class="source-meta">发布方：Meta / Hugging Face；佐证文本 guard 对比项的公开模型入口。</span></li>
+        <li><a href="https://huggingface.co/Qwen/Qwen3Guard-Gen-8B" target="_blank" rel="noopener">Qwen3Guard-Gen-8B 模型页</a><br><span class="source-meta">发布方：Qwen / Hugging Face；佐证生成式 guard 对比项的公开模型入口。</span></li>
+      </ol>
+
+      <p class="footer-note">来源事实与本文推断：论文、官方仓库和项目页直接支持的内容标为“来源事实”；对生产价值、架构影响和未来方向的归纳标为“本文推断”。本文的能力描述均来自论文与项目公开材料，未包含作者实测数据。</p>
+    </section>
+  </main>
+</body>
+</html>
