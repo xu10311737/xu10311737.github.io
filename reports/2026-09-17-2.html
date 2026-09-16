@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="解读 GitHub 爆火项目 colibri（JustVugg/colibri，34.8k 星）：纯 C 单文件、零依赖、无需 GPU 的 MoE 推理引擎，把 19,456 个路由专家 int4 权重（约 370GB）放进磁盘按需流式加载，让 744B–2.8T 参数模型在消费级硬件上运行。核心机制：稠密部分 17B 参数常驻 RAM、路由热度学习热专家钉留（.coli_usage）、一层预取 71.6% 路由可预测、O_DIRECT 与双 SSD 带宽叠加、MLA 57 倍 KV 压缩。官方性能谱系从 6×RTX 5090 的 6.8 tok/s 到 25GB 内存机的 0.05–0.1 tok/s，并公开负面结果。含 KTransformers、llama.cpp/Ollama、vLLM、英特尔 KV 分层方案竞品对比与工程化接入分析。">
+  <title>colibri：把 19,456 个专家放进磁盘的纯 C 推理引擎，让 744B 模型在你自己的电脑上跑起来</title>
+   <style> 
+    :root{
+      --ink:#1d2430;--ink-2:#3a4350;--muted:#5c6771;--paper:#fbfaf8;--panel:#ffffff;
+      --line:#e0ddd5;--teal:#0c7772;--teal-soft:#e2f1ee;--coral:#c76545;--coral-soft:#f8e8e1;
+      --lime:#6f7f2a;--lime-soft:#eef2d9;--navy:#1b2430;--plum:#8b6389;--shadow-lg:0 12px 30px rgba(27,36,48,.08);--shadow-sm:0 7px 20px rgba(27,36,48,.05);
+    }
+    *{box-sizing:border-box}html{overflow-x:clip}
+    @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+    body{margin:0;background:var(--paper);color:var(--ink-2);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.82}
+    a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:3px}
+    a:hover{color:#a4502f;text-decoration-thickness:2px}
+    code{font:0.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:#e9efec;color:#0b5f5a;padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:16px;top:16px;z-index:20;background:#fff;padding:8px 12px;border:2px solid var(--teal)}
+    .shell{max-width:1120px;margin:0 auto;padding:0 24px}
+    .masthead{background:var(--navy);color:#f4f5f7;border-bottom:5px solid var(--coral)}
+    .masthead .shell{padding-top:20px;padding-bottom:58px}
+    .meta-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#b9c0ca;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+    .meta-row .date{color:#e8b79c}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:48px;align-items:end;margin-top:52px}
+    h1,h2,h3{color:var(--ink);line-height:1.3;margin:0;font-weight:750}
+    h1{color:#f9f8f5;font-size:clamp(2.2rem,4.4vw,3.6rem);letter-spacing:0;max-width:880px}
+    .dek{color:#d3d6db;font-size:1.16rem;max-width:780px;margin:22px 0 0}.dek+.dek{margin-top:10px}
+    .signal{border-left:2px solid var(--coral);padding:4px 0 4px 20px;color:#f5e2d8;font-size:14px}
+    .signal b{display:block;color:#fff2ec;font-size:17px;margin-bottom:5px}
+    .toc{position:sticky;top:0;z-index:5;background:rgba(251,250,248,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+    .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px}
+    .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
+    main{padding-bottom:80px}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
+    .section.alt{background:#f2f0eb;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
+    .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--coral);margin-bottom:10px}
+    h2{font-size:clamp(1.7rem,3vw,2.5rem);max-width:880px}.intro{font-size:1.08rem;max-width:840px;margin:16px 0 30px;color:var(--ink-2)}
+    h3{font-size:1.2rem;margin:28px 0 8px}.section p{max-width:880px;margin:0 0 18px}.section p:last-child{margin-bottom:0}
+    .tldr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+    .tldr article{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--teal);padding:18px 18px 20px;min-height:174px;box-shadow:var(--shadow-lg)}
+    .tldr article:nth-child(2){border-top-color:var(--coral)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:var(--plum)}
+    .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
+    .factline{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:start;max-width:880px;margin:22px 0 0;color:var(--muted);font-size:13px}.factline p{margin:0}.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:.05em;justify-self:start}.fact{background:var(--teal-soft);color:var(--teal)}.inference{background:var(--coral-soft);color:#9d4b31}
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:var(--shadow-sm)}
+    .panel h3{display:flex;gap:10px;align-items:baseline;margin-top:0}.panel .mark{color:var(--coral);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}.flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);position:relative}.flow .node:last-child{border-right:0}.flow .node:not(:last-child)::after{content:"";position:absolute;right:-9px;top:50%;margin-top:-8px;width:16px;height:16px;border-top:2px solid var(--coral);border-right:2px solid var(--coral);transform:rotate(45deg);background:#fff;z-index:1}.flow .k{display:block;color:#b0512f;font:700 12px Georgia,serif;margin-bottom:9px}.flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:880px}.callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.coral{border-left-color:var(--coral);background:var(--coral-soft)}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:26px;border:1px solid var(--line);background:#fff}.scroll-hint{display:none}.compare{width:100%;min-width:940px;border-collapse:collapse;font-size:14px}.compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}.compare th{background:var(--navy);color:#f5f4f0;font-size:13px}.compare tr:last-child td,.compare tr:last-child th{border-bottom:0}.compare tbody th{text-align:left;font-weight:750;color:var(--ink);width:14%;background:#fff}.compare th:first-child,.compare tbody th{position:sticky;left:0;z-index:1}.compare th:first-child{background:var(--navy)}.hero-table tbody tr:first-child th,.hero-table tbody tr:first-child td{background:var(--teal-soft)}
+    .steps{counter-reset:step;display:grid;gap:14px;margin-top:28px}.step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px;box-shadow:var(--shadow-sm)}.step::before{content:counter(step,decimal-leading-zero);color:var(--coral);font:700 23px Georgia,serif;padding-top:2px}.step h3{font-size:17px;margin:0}.step p{font-size:15px;margin:5px 0 0}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:25px}.metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line);box-shadow:var(--shadow-sm)}.metric:nth-child(2){border-top-color:var(--coral)}.metric:nth-child(3){border-top-color:var(--lime)}.metric b{display:block;color:var(--ink);font-size:21px;line-height:1.35;font-weight:800;font-variant-numeric:tabular-nums}.metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}.risk{padding:18px 20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm)}.risk h3{font-size:16px;margin:0}.risk p{font-size:14px;margin:6px 0 0}.risk .level{font-size:11px;font-weight:800;letter-spacing:.1em;color:#b0512f}.risk .level.mid{color:#8a6d3b}
+    .sources{display:grid;gap:10px;margin-top:25px}.source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px;box-shadow:var(--shadow-sm)}.source .n{color:var(--coral);font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}.source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
+    .footer{color:var(--muted);font-size:13px;padding-top:28px}.footer strong{color:var(--ink)}
+    @media (max-width:1030px){.scroll-hint{display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:8px 0 0}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-grid{grid-template-columns:1fr;gap:24px}.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.flow .node{border-bottom:1px solid var(--line)}.flow .node:nth-child(2n){border-right:0}.flow .node:not(:last-child)::after{display:none}.flow .node:last-child{border-bottom:0;border-right:0;grid-column:1/-1}}
+    @media (max-width:900px){.compare{min-width:720px;font-size:12.5px}.compare th,.compare td{padding:10px 10px}}
+    @media (max-width:820px){.hero-grid{grid-template-columns:1fr;gap:24px;margin-top:38px}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.split,.risk-grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{right:auto;left:50%;margin-left:-8px;top:auto;bottom:-9px;transform:rotate(135deg);background:#fff}.section{padding:48px 0}}
+    @media (max-width:520px){.shell{padding-left:17px;padding-right:17px}.masthead .shell{padding-bottom:42px}.meta-row{align-items:flex-start;flex-direction:column;gap:4px}.tldr{grid-template-columns:1fr}.tldr article{min-height:auto}.step{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:16px}.toc .shell{gap:16px}}
+    @media print{.toc{display:none}.masthead,.compare th{-webkit-print-color-adjust:exact;print-color-adjust:exact}.panel,.risk,.step,.metric,.tldr article,.callout,.flow .node,.source{break-inside:avoid}.compare tr{break-inside:avoid}.compare{min-width:0;font-size:11px}.compare th:first-child,.compare tbody th{position:static}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{display:none}.section{padding:32px 0}h2,h3{break-after:avoid}.source a[href]::after{content:"（" attr(href) "）";font-size:10px;color:#5c6771;word-break:break-all}}
+   </style></head>
+<body>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="shell">
+      <div class="meta-row"><span>人工智能（AI）工程技术日报 / 研究与判断</span><span class="date">2026-09-17 · ISSUE 06</span></div>
+      <div class="hero-grid">
+        <div>
+          <h1>colibri：把 19,456 个专家放进磁盘的纯 C 推理引擎，让 744B 模型在你自己的电脑上跑起来</h1>
+          <p class="dek">GitHub 项目 colibri（JustVugg/colibri）登上趋势榜：34.8k 星、单日新增约 1.5k。它是一个用纯 C 写成、单文件（<code>c/colibri.c</code>）、零依赖、不需要 GPU 的推理引擎，宣称能在消费级硬件上运行 744B 到 2.8T 参数的 MoE（Mixture of Experts，混合专家：模型内部由大量“专家”子网络组成，每个 token 只激活其中少数几个）模型。办法是把 19,456 个路由专家的 int4 权重（int4：把每个模型参数压缩为 4 比特整数的量化格式，体积约为 16 位精度的四分之一）放进磁盘（约 370GB），推理时按需流式加载——作者称之为 a JIT for weights（权重版的即时加载：程序运行到哪，权重才搬到哪）。</p>
+          <p class="dek">官方 README 给出的性能谱系横跨三个档位：6× RTX 5090 全驻留 5.8–6.8 tok/s（tok/s：每秒生成的 token 数，token 是模型处理文本的最小单位）；128GB 内存的纯 CPU 桌面约 1.8 tok/s；25GB 内存的开发机 0.05–0.1 tok/s。同一份 README 还公开写下了负面结果：某个投机解码配置 15 次仅 1 次被接受、一次 495 秒只产出 14 个 token 的事件记录。这份数据诚实度，和它的技术路线本身一样值得读。</p>
+        </div>
+        <div class="signal"><b>先给结论</b>colibri 押注的判断是：MoE 大模型每 token 真实激活的权重非常小（744B 参数的模型只激活约 40B，其中每 token 变化的路由专家数据只有约 11GB），而个人硬件缺的从来不是算力，是内存容量——那就把不常用的专家留在磁盘上，用路由可预测性（提前一层可预测 71.6%）去换内存空间。对 AI 工程师，值得带走的不只是这个引擎，是三件事：设计推理系统前先量“每 token 真实触达多少数据”；热度学习 + 一层预取这套分层存储组合拳可迁移到任何“大工作集、高局部性”的系统；“不对速度做承诺、对语义做强保证”的分级承诺姿势。同时要清醒：0.05 tok/s 是“能跑”不是“能用”；预取覆盖不到的那 28.4% 路由，只有热专家缓存也兜不住的部分才真正落到磁盘等待，交互延迟因此呈长尾分布；370GB 的权重分发和 SSD 寿命是绕不开的现实成本。</div>
+      </div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="文章目录">
+    <div class="shell"><a href="#tldr">TL;DR（太长不看）</a><a href="#problem">背景与问题</a><a href="#principle">核心原理</a><a href="#difference">创新与差异</a><a href="#compare">竞品对比</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+
+  <main id="content">
+    <section class="section" id="tldr">
+      <div class="shell">
+        <p class="label">TL;DR / 太长不看</p>
+        <h2>一页看懂 colibri</h2>
+        <div class="tldr">
+          <article>
+            <span class="num">01 / 它是什么</span>
+            <h3>纯 C 单文件的 MoE 推理引擎</h3>
+            <p>当前版本 v1.11.0，34.8k 星（数据截至 2026-09-17）。零依赖、无需 GPU，支持 GLM-5.2（744B）、Kimi K3（2.8T）、DeepSeek V4/V4.1 Flash、Qwen3.8-Flash-Next、Inkling（975B）、OLMoE 等 9 个模型家族，其中三款带视觉能力。</p>
+          </article>
+          <article>
+            <span class="num">02 / 核心机制</span>
+            <h3>稠密常驻 + 专家磁盘流式</h3>
+            <p>注意力、共享专家等约 17B 稠密参数以 int4 常驻内存（约 9.9GB）；19,456 个路由专家放磁盘按需加载。配合热度学习（.coli_usage 文件钉住热专家）、LRU 流动（最近最少使用淘汰）和一层预取。</p>
+          </article>
+          <article>
+            <span class="num">03 / 性能谱系</span>
+            <h3>从 6.8 tok/s 到 0.05 tok/s</h3>
+            <p>同一份 README 公布全部档位：6× RTX 5090 全驻留 5.8–6.8 tok/s；128GB 纯 CPU 桌面约 1.8 tok/s；25GB 机器 0.05–0.1 tok/s。还公开了 495 秒 14 token 的最坏事件与失败的投机解码配置。</p>
+          </article>
+          <article>
+            <span class="num">04 / 对谁有用</span>
+            <h3>三类人该关注</h3>
+            <p>想在自己硬件上跑超大 MoE 模型的人；研究专家路由行为的人（内置 Brain/Atlas 可视化，把专家按主题亲和度画成可观察的“皮层”）；想学分层内存系统设计的人（这套机制与数据库缓存池、CPU 缓存层级同构）。</p>
+          </article>
+        </div>
+        <div class="factline">
+          <span class="tag fact">来源事实</span><p>标注为此类的数字与陈述，来自 colibri 官方 README 及数据源章节列出的公开页面，链接见文末。</p>
+          <span class="tag inference">本文推断</span><p>标注为此类的内容，是本文基于公开信息的分析与判断，不代表官方立场。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="problem">
+      <div class="shell">
+        <p class="label">背景与问题 / Background</p>
+        <h2>内存墙：模型越来越大，你的电脑还是那么大</h2>
+        <p class="intro">过去两年，能本地运行的开源模型一直被一条看不见的线卡住：你的内存和显存装不下它。</p>
+        <p>数字很直接：一个 744B（7440 亿）参数的模型，就算用 int4 量化把每个参数压到 4 比特，权重文件也有约 370GB。而一台主流个人电脑的内存是 16–64GB，一块旗舰消费级显卡的显存是 24–32GB。缺口是数量级的，不是省一省就能挤下的。想在本地跑这类模型的常规做法只剩两条：要么跑量化后的小模型（7B–70B 级），要么依赖操作系统的 mmap（内存映射文件：把磁盘上的权重文件“当作”内存使用，缺页时由操作系统自动换入换出）。后者在权重远超内存时的问题是：换页以操作系统页为单位、完全被动、对模型结构一无所知——实际表现就是“能加载进去，跑起来一动一卡”。</p>
+        <h3>MoE 塞进来一份被忽视的礼物</h3>
+        <p>MoE（Mixture of Experts，混合专家）架构把模型切分成大量并行的“专家”子网络，每个 token 由路由器只送往其中少数几个专家。以 GLM-5.2 为例：<a href="https://github.com/JustVugg/colibri" rel="noopener">官方 README</a> 给出的数字是总参数 744B，但每个 token 实际激活的只有约 40B；进一步拆开看，其中每个 token 真正发生变化的路由专家数据只有约 11GB。<span class="tag fact">来源事实</span></p>
+        <p>这组数字的潜台词是：所谓“744B 模型”，对单个 token 而言，绝大多数权重在任何一个瞬间都是“不用的”。可主流推理栈的处理方式仍然是要么全部装进显存（vLLM 这类服务化路线），要么 mmap 碰运气——在面向个人硬件的公开实现中，把这组数字当作架构的第一性事实、围绕专家磁盘流式重建整条数据通路的引擎，此前并不多见。<span class="tag inference">本文推断</span></p>
+        <p>colibri 的作者把这个矛盾重新表述了一遍：既然每 token 真实需要的路由专家只有约 11GB 的变化量，为什么要强迫内存装下全部 370GB？真正的问题从来不是“存不下”，而是“取不上”——磁盘带宽比显存低两个数量级，专家从磁盘搬到内存的速度才是瓶颈。<span class="tag inference">本文推断</span>这个矛盾转化，是理解 colibri 全部设计的钥匙。</p>
+        <h3>为什么这件事现在变得可行</h3>
+        <p>三条线在这个时间点交汇。其一，新一代开源 MoE（GLM-5.2、Kimi K3、DeepSeek V4.x 等）普遍采用规整的“每层 256 个专家”结构并原生发布 int4 权重，使专家粒度的磁盘管理第一次有了干净的工程抓手。其二，消费级 NVMe 固态硬盘（NVMe：直连 CPU 的高速固态盘接口协议）的随机读带宽进入每秒数 GB 时代，128GB 内存的工作站与 512GB 统一内存的一体机也在出现。其三，路由器行为的研究积累到一定程度——提前一层预测路由已有 71.6% 的准确率，预取不再是无依据的赌博。<span class="tag inference">本文推断</span>三条线缺一，这个项目都做不出来。</p>
+      </div>
+    </section>
+
+    <section class="section" id="principle">
+      <div class="shell">
+        <p class="label">核心原理 / How it works</p>
+        <h2>一个推理引擎，同时是一台“权重搬运调度器”</h2>
+        <p class="intro">colibri 把推理执行过程改写成“权重按需搬运”过程。JIT（Just-In-Time compilation，即时编译）原本指程序运行时才把用到的字节码编译成机器码；colibri 借用这个名字——只在路由器选中某个专家时，才把它从磁盘搬进计算内存。</p>
+        <div class="flow">
+          <div class="node"><span class="k">STEP 1</span><b>Token 进入</b><small>模型逐 token 处理输入，注意力与嵌入等稠密部分立即计算</small></div>
+          <div class="node"><span class="k">STEP 2</span><b>稠密部分常驻 RAM</b><small>注意力、共享专家、嵌入约 17B 参数以 int4 常驻内存，约 9.9GB</small></div>
+          <div class="node"><span class="k">STEP 3</span><b>路由器选专家</b><small>每个 MoE 层从 256 个专家中选出少数几个，75 层依次进行</small></div>
+          <div class="node"><span class="k">STEP 4</span><b>热专家直接命中</b><small>高频专家被 .coli_usage 学习机制钉在内存热区；未命中的由预取管线供给</small></div>
+          <div class="node"><span class="k">STEP 5</span><b>磁盘流式补货</b><small>NVMe 按需读取 + 一层预取（71.6% 路由可预测）掩盖加载延迟</small></div>
+        </div>
+        <p class="scroll-hint">（窄屏上流程图自动重排为多行）</p>
+        <div class="metric-grid">
+          <div class="metric"><b>40B / 744B</b><span>GLM-5.2 每 token 实际激活参数量与总参数量之比——MoE 稀疏性是一切的前提</span></div>
+          <div class="metric"><b>≈11GB</b><span>每 token 真正发生变化的路由专家数据量——引擎需要实时供给的全部带宽需求</span></div>
+          <div class="metric"><b>71.6%</b><span>提前一层预测路由决策的准确率——预取机制（PILOT）成立的基础</span></div>
+        </div>
+        <h3>三层内存被当成一整块池子</h3>
+        <p>引擎把 VRAM（显存）、RAM（内存）、NVMe（固态盘）看作一个统一的分层内存池：最热的数据进显存（如果有 GPU），热数据进内存，全部 19,456 个路由专家（75 个 MoE 层 × 256 个专家，加上 MTP（Multi-Token Prediction，多 token 预测）头的 256 个；每个专家 int4 约 19MB，合计约 370GB）留在磁盘上作为“冷层”。作者称这个设计为 AI memory multitiering（AI 内存多级分层）。<span class="tag fact">来源事实</span></p>
+        <h3>四个关键机制</h3>
+        <div class="split">
+          <div class="panel">
+            <h3><span class="mark">①</span>稠密部分常驻</h3>
+            <p>注意力权重、共享专家、嵌入层等约 17B 参数每个 token 都要用，放磁盘毫无意义。它们以 int4 常驻内存，只占约 9.9GB——这是个人硬件能负担的。</p>
+          </div>
+          <div class="panel">
+            <h3><span class="mark">②</span>热度学习与钉留</h3>
+            <p><code>.coli_usage</code> 文件持续记录每个专家的访问频率，高频专家被“钉”进内存中的学习型热专家区（learned pinned hot-store），其余按 LRU（Least Recently Used，最近最少使用）策略在分层间流动。跑得越久，命中越高。</p>
+          </div>
+          <div class="panel">
+            <h3><span class="mark">③</span>一层预取</h3>
+            <p>路由器的决策有局部性：下一层会激活哪些专家，在当前层就能以 71.6% 的准确率预测出来。引擎提前一层发出 NVMe 读取请求，用“当前层正在计算”的时间去掩盖“下一层专家还在路上”的时间——这就是 PILOT 机制。</p>
+          </div>
+          <div class="panel">
+            <h3><span class="mark">④</span>带宽工程</h3>
+            <p>用 O_DIRECT（绕过操作系统页缓存的直接磁盘 I/O，避免数据在内核缓冲区多拷贝一次）榨取有效带宽；还支持把权重镜像到两块 SSD 上并行读取，把读带宽直接叠加翻倍。</p>
+          </div>
+        </div>
+        <h3>两个配套技术，缺一不可</h3>
+        <p>MLA（Multi-head Latent Attention，多头潜在注意力：把每个 token 的历史上下文压缩成一个低维潜在向量再缓存）把 KV 状态（KV，Key-Value：注意力机制为每个 token 缓存的键值中间结果，推理时被反复读取）从传统的 32,768 个浮点数压到每 token 576 个浮点数——57 倍压缩，这是超长上下文的 KV 缓存能整体留在内存里的前提。MTP 投机解码用这个预测头一次猜出多个候选 token、再由主模型验证，作者明确要求预测头必须用 int8 而非 int4——后者会直接崩溃。<span class="tag fact">来源事实</span></p>
+        <div class="callout">
+          <p><strong>给这三个档位算一笔账。</strong>每 token 约 11GB 的专家数据，除以 NVMe 每秒数 GB 的顺序读带宽，纯靠磁盘供给的速度上限大约在每秒零点几个 token——25GB 档实测的 0.05–0.1 tok/s 距这个上限还差数倍，说明随机读退化与 CPU 参与的调度开销在吃掉账面带宽；反过来看，128GB 桌面跑出的 1.8 tok/s 已高于纯磁盘上限，意味着大部分专家数据来自内存命中而非磁盘——热度学习的价值可以用这组数字反推出来。至于“6× RTX 5090 全驻留”，6 块卡的显存合计装不下 370GB int4 权重，“全驻留”指的应当是稠密与专家全部驻留在显存加内存的组合中、不再依赖磁盘流式。<span class="tag inference">本文推断</span></p>
+        </div>
+        <div class="callout">
+          <p><strong>README 里的“反面教材”同样重要。</strong>同一份文档记录了：某次运行 495 秒只产出 14 个 token 的最坏事件；DeepSeek V4 的 MTP 草稿头 15 次预测仅 1 次被接受的失败配置（均见 <a href="https://github.com/JustVugg/colibri" rel="noopener">官方 README</a>）。作者给项目的承诺写法是 “no SLA on speed, hard guarantee on semantics”——不对速度做任何服务级承诺，但对语义正确性做强保证。把失败数据写进首页文档，这在同类项目的自我陈述里很少见。<span class="tag inference">本文推断</span></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="difference">
+      <div class="shell">
+        <p class="label">创新与差异 / What's actually new</p>
+        <h2>磁盘是设计前提，不是性能兜底</h2>
+        <p class="intro">colibri 与“用 mmap 跑大模型”的区别，是“主动调度”与“被动换页”的区别——这一条差异派生出它全部的工程取舍。</p>
+        <p>mmap 路线（llama.cpp / Ollama 系）把换页交给操作系统：缺页了才读、按操作系统的页粒度读、对“下一层要用哪些专家”一无所知。colibri 把调度权拿回应用层：按专家粒度（约 19MB 一个）搬运、按路由预测提前搬运、按学习到的热度决定谁常驻。<span class="tag inference">本文推断</span>这是同一问题上的两种世界观——前者把内存不够当“意外”，后者把内存不够当“常态”并为此重建整条数据通路。</p>
+        <p>第二个差异是路由可预测性被当成了一等研究对象。71.6% 这个数字不是宣传语，而是预取器 PILOT 的设计依据；配套的 Brain / Atlas 可视化把 19,456 个专家的路由行为画成可观察的对象——官方称之为“活的皮层”，并给出专家与主题的亲和度（topic affinity）视图。<span class="tag fact">来源事实</span>官方同时把项目定位为“可运行的推理引擎 + 开放研究平台”的结合体——MoE 专家行为学的研究平台身份写在项目自己的定位声明里。</p>
+        <p>把权重卸载到慢速存储、按需流式供给的思路，在系统研究文献中早有先例；colibri 的增量不在思路首创，而在面向个人硬件的工程化落地、可审计的单文件实现与公开的负面结果。<span class="tag inference">本文推断</span></p>
+        <p>第三个差异是工程形态：整个引擎是纯 C 单文件（<code>c/colibri.c</code>）、零依赖。<span class="tag inference">本文推断</span>这个选择的收益是可审计、可学习、便于移植到从笔记本电脑到本地集群的各种环境；代价是没有 Python 生态的工程栈可借力，服务化、并发管理这些“离生产最后一公里”的部分都需要自建（后文工程化视角展开）。</p>
+        <p>值得一提的还有项目自身的叙事：README 自述这一切起步于作者的一台 12 核、25GB 内存的笔记本——即官方性能表里最慢的那个档位（0.05–0.1 tok/s）就是开发机本身。<span class="tag fact">来源事实</span>这个“从自己拥有的硬件出发”的立场，与项目“让个人硬件跑超大模型”的目标内外一致。<span class="tag inference">本文推断</span></p>
+      </div>
+    </section>
+
+    <section class="section" id="compare">
+      <div class="shell">
+        <p class="label">竞品对比 / Landscape</p>
+        <h2>同一个问题，五条路线</h2>
+        <p class="intro">“权重放不下”是所有推理栈的公共问题，各家答案不同：切给 CPU、压缩、硬塞显存，或者——像 colibri 这样——分层到磁盘。</p>
+        <p class="scroll-hint">（表格可横向滚动）</p>
+        <div class="table-wrap">
+          <table class="compare hero-table">
+            <thead>
+              <tr><th>方案</th><th>分层对象</th><th>路由感知预取</th><th>硬件门槛</th><th>定位与场景</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th>colibri v1.11.0</th>
+                <td>MoE 路由专家权重，磁盘流式</td>
+                <td>有：一层预取，71.6% 可预测</td>
+                <td>无需 GPU；NVMe + 大内存是加分项，25GB 内存也能启动</td>
+                <td>个人硬件跑超大 MoE（744B–2.8T）+ 专家路由研究平台；纯 C 单文件</td>
+              </tr>
+              <tr>
+                <th>KTransformers <a href="https://github.com/kvcache-ai/ktransformers/releases" rel="noopener">v0.7.1</a>（2026-09-15）</th>
+                <td>权重在 CPU 与 GPU 间异构切分</td>
+                <td>无公开机制</td>
+                <td>大内存服务器 + GPU</td>
+                <td>服务器侧 CPU+GPU 混合推理；近期版本增加 Qwen 视觉模型与 Kimi LoRA 微调支持</td>
+              </tr>
+              <tr>
+                <th>Ollama <a href="https://github.com/ollama/ollama/releases" rel="noopener">v0.34.1</a>（基于 llama.cpp 引擎）</th>
+                <td>无显式分层，依赖 llama.cpp 的 mmap 被动换页</td>
+                <td>无</td>
+                <td>个人电脑</td>
+                <td>个人中小模型的易用性标杆；模型管理与服务生态最完整</td>
+              </tr>
+              <tr>
+                <th>vLLM <a href="https://github.com/vllm-project/vllm/releases" rel="noopener">v0.29.0</a>（2026-09-09）</th>
+                <td>不分层，权重全驻显存</td>
+                <td>不适用</td>
+                <td>数据中心多卡</td>
+                <td>高吞吐服务化推理的行业标准路线</td>
+              </tr>
+              <tr>
+                <th>英特尔 KV 分层方案（2026-09-16 报道）</th>
+                <td>KV Cache（推理时缓存的历史上下文）分层卸载到 CPU/SSD</td>
+                <td>不适用（分层对象是 KV，非权重）</td>
+                <td>数据中心</td>
+                <td>数据中心降本：省显存、提密度；与 colibri 分层的对象、场景均不同</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout">
+          <p><strong>它们不是互相替代关系。</strong>colibri 站的位置是一个少有人认真服务的交点：个人已有的硬件 + 超大参数的模型 + 可接受的慢速度。要快有 vLLM，要易用有 Ollama，要服务器异构有 KTransformers；但当约束是“就用我桌上这台机器，跑那个 744B 的模型”时，公开可用的选项此前并不多。<span class="tag inference">本文推断</span>与英特尔方案放在一起看还有一层意味：一个分权重、一个分 KV，两端同时把“存储分层”推向推理系统的中心。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="production">
+      <div class="shell">
+        <p class="label">工程化视角 / Production lens</p>
+        <h2>如果要把 colibri 接进真实系统</h2>
+        <p class="intro">它今天是一个引擎和命令行工具，不是一个开箱可用的服务。从“能跑通”到“敢上线”，中间是一整条存储、观测与服务化的链路。</p>
+        <h3>接入生产要考虑的环节</h3>
+        <p><strong>分发与存储。</strong>每个模型约 370GB 的 int4 权重，下载、校验、版本管理本身就是基础设施问题；多机共享时，若权重放在网络存储上，网络很可能取代 NVMe 成为新的带宽瓶颈。<span class="tag inference">本文推断</span>其次是 SSD 寿命：专家流式意味着持续的大流量读取，盘的耐久度与散热要进入选型清单。再次是运行环境：O_DIRECT 在不同操作系统与文件系统上的行为差异需要适配与测试；<code>.coli_usage</code> 热度文件在多用户或容器共享时的路径、权限，以及“一个用户的长任务把另一用户的热专家挤出内存”这类热度污染问题，都需要治理策略。<span class="tag inference">本文推断</span></p>
+        <p><strong>服务化与并发。</strong>colibri 当前以引擎与 CLI（command-line interface，命令行界面）形态提供，生产接入需要自建 API 服务层、请求队列、超时与降级策略。<span class="tag inference">本文推断</span>并发场景是它与单机玩具的分水岭：多个请求的专家热度互相干扰、预取带宽互相争抢，单用户 1.8 tok/s 的体验在多用户下不能线性外推。</p>
+        <p><strong>观测指标。</strong>传统 GPU 推理栈关心吞吐与显存占用；colibri 需要一套新指标：专家命中率、预取命中率、每 token 磁盘读取量、P99 单 token 延迟（P99：99 分位延迟，99% 的 token 都快于该值；由最坏磁盘等待决定）。没有这套指标，慢了都不知道慢在哪一层。<span class="tag inference">本文推断</span></p>
+        <h3>对现有 LLM 应用架构的影响</h3>
+        <p>对 RAG（检索增强生成）、Agent 编排、多模型路由这类上层架构，colibri 的影响发生在推理后端这一层，不触及提示词工程、检索链路与编排逻辑——在补齐自建服务层之后，上层接入成本很低。<span class="tag inference">本文推断</span>真正的影响在时间预算上：以 1.8 tok/s 的档位计，一个 Agent 单步生成几十个 token 需要十几秒，十步循环逼近分钟级，上层系统的超时、重试与降级策略都必须按长尾而非平均值设计。<span class="tag inference">本文推断</span>增量在场景侧：隐私敏感（医疗、法务、涉密行业）与完全离线（边缘设备、内网环境）这两类此前“只能用小模型”的场景，多了一个“用超大 MoE 换慢速度”的选项；1.8 tok/s（128GB 纯 CPU 桌面档位）足以支撑单用户的慢速交互问答，官方支持的本地集群模式（把多台 Mac 组成磁盘专家供给集群）则给出了个人小规模横向扩展的雏形。</p>
+        <h3>从 Demo 到生产的差距</h3>
+        <p>差距集中在三处。一是延迟长尾：预取覆盖不到的路由（约 28.4%）若又不在常驻热区缓存中，才会产生同步磁盘等待——服务的长尾由预取失准与缓存失效的联合概率决定。二是生态成熟度：对比 Ollama 的模型库、Modelfile、API 服务全家桶，colibri 的工具链还停留在引擎与研究平台层面，“最后一公里”全靠自己。三是项目可持续性：README 自述项目由个人从一台 12 核 25GB 笔记本起步，单一维护者对 9 个模型家族的持续适配能力，是采购前必须评估的供应链风险。<span class="tag inference">本文推断</span></p>
+      </div>
+    </section>
+
+    <section class="section" id="risk">
+      <div class="shell">
+        <p class="label">局限与风险 / Critical view</p>
+        <h2>给热度泼六瓢冷水</h2>
+        <div class="risk-grid">
+          <div class="risk">
+            <h3>慢是物理性的</h3>
+            <p>NVMe 顺序读带宽在每秒个位数 GB 量级，显存带宽在 TB/s 量级，相差约两个数量级。0.05 tok/s 的档位证明的是“语义正确”，不是“可用”。官方对速度不做承诺，是有物理依据的诚实。</p>
+            <p class="level">风险等级：高</p>
+          </div>
+          <div class="risk">
+            <h3>延迟长尾</h3>
+            <p>71.6% 可预测意味着 28.4% 预取失准：其中不在常驻热区的部分才落到磁盘现场等待。长文本、冷门主题、跨领域跳跃的对话都会推高失准率，交互体验呈锯齿状。</p>
+            <p class="level">风险等级：高</p>
+          </div>
+          <div class="risk">
+            <h3>硬件人群错位</h3>
+            <p>理想的“甜点配置”（128GB+ 内存 + 高速 NVMe）属于小众工作站用户；大多数人手里的 16–32GB 机器落在体验最差的档位。爆火的人气与实际可用人群并不重合。</p>
+            <p class="level mid">风险等级：中</p>
+          </div>
+          <div class="risk">
+            <h3>加速器路线尚不稳定</h3>
+            <p>MTP 预测头强制 int8、DeepSeek V4 草稿 15 次仅 1 次接受——投机解码在这个架构上的收益尚无稳定结论，官方也仅以负面结果的形式披露。</p>
+            <p class="level mid">风险等级：中</p>
+          </div>
+          <div class="risk">
+            <h3>数据全部自报</h3>
+            <p>性能数字、路由可预测率、负面事件均来自官方 README。截至发稿，其公开资料未见第三方独立评测对关键数字的复现。</p>
+            <p class="level mid">风险等级：中</p>
+          </div>
+          <div class="risk">
+            <h3>模型跟进成本</h3>
+            <p>9 个家族各自的权重布局、量化格式、路由结构需要逐一适配。上游每次发版都是一轮适配工作，这个成本会随项目支持面扩大而累积。</p>
+            <p class="level mid">风险等级：中</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="future">
+      <div class="shell">
+        <p class="label">未来方向 / What's next</p>
+        <h2>硬件在帮它，行业在汇合</h2>
+        <p class="intro">这个项目最大的盟友是硬件趋势：它今天依赖的“大内存 + 快磁盘”，正是消费级市场正在变成主流配置的方向。</p>
+        <p>内存容量的普及会直接抬升 colibri 的可用档位：128GB 内存按 int4 换算大约能整装 250B 参数量级，512GB 统一内存则跨过 GLM-5.2 744B 的门槛——当这类配置从旗舰变成常规，“全驻留甜点”（内存能整装下的模型体量）从数十 B 级上移到数百 B 级，磁盘层从主路径退化为溢出层，同一份代码，体验随硬件自动变好。<span class="tag inference">本文推断</span></p>
+        <p>第二个信号来自行业两端的同时变化：colibri 在个人端分层权重，英特尔方案（2026-09-16 报道）在数据中心端分层 KV Cache。两条线互不引用，却指向同一个判断——存储分层正在成为推理系统的一等公民。<span class="tag inference">本文推断</span>更远的合流形态可以想象：权重与 KV 全分层的统一引擎，把内存、显存、磁盘全部纳入同一调度平面。</p>
+        <p>第三个方向在模型设计侧：既然预取收益取决于路由可预测性，那么“路由稳定”完全可以成为未来 MoE 训练的显式目标——让模型在训练时就学会“为分层推理而设计”。若此路线成立，colibri 这类引擎与上游模型会形成共同进化。<span class="tag inference">本文推断</span></p>
+        <p>近期更现实的演进是研究平台化：Brain / Atlas 把 19,456 个专家的主题亲和度变成可观察对象，配合磁盘流式带来的低成本运行，colibri 有机会成为 MoE 可解释性研究的事实基础设施——这类“意外成为研究工具”的路径，在开源史上并不罕见。<span class="tag inference">本文推断</span></p>
+      </div>
+    </section>
+
+    <section class="section" id="takeaways">
+      <div class="shell">
+        <p class="label">工程师可以借鉴 / Takeaways</p>
+        <h2>比“能跑 744B”更值钱的是四条工程方法论</h2>
+        <div class="steps">
+          <div class="step">
+            <h3>先量真实工作集，再设计系统</h3>
+            <p>744B 总参数里，每 token 真实变化的只有约 11GB——这个测量决定了整个架构的形状。任何系统设计前，先回答“每次请求真实触达多少数据”，而不是“总共要放下多少数据”。这个习惯能避免大量为峰值容量买单的过度设计。</p>
+          </div>
+          <div class="step">
+            <h3>分层 + 局部性 + 预取是一套普适组合拳</h3>
+            <p>colibri 的三件套——热度学习钉留（.coli_usage）、LRU 流动、一层预取——与数据库缓冲池、CPU 多级缓存是同构的设计。任何“工作集远大于快速存储、但访问有局部性”的场景（索引、特征存储、编译产物）都可以直接套用这个骨架。</p>
+          </div>
+          <div class="step">
+            <h3>把承诺分级：性能归性能，语义归语义</h3>
+            <p>“no SLA on speed, hard guarantee on semantics” 是一种被低估的接口设计姿势：对无法保证的维度显式不承诺，对可以保证的维度强承诺。它既诚实，又给了下游清晰的集成依据——你不必猜测性能边界在哪里，文档已经告诉你它不承诺什么。</p>
+          </div>
+          <div class="step">
+            <h3>把失败写进文档</h3>
+            <p>495 秒 14 token 的事件、15 次仅 1 次接受的配置，都写在 README 里。故障即文档——对内部，它省去重复踩坑；对外部，它比任何性能营销更能建立信任。技术写作里“我哪里失败了”一节，值得成为更多项目的标配。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="sources">
+      <div class="shell">
+        <p class="label">数据源 / Sources</p>
+        <h2>支撑本文的核心来源</h2>
+        <div class="sources">
+          <div class="source"><span class="n">1</span><p><a href="https://github.com/JustVugg/colibri" rel="noopener">colibri GitHub 仓库（README）</a></p><small>JustVugg/colibri（数据截至 2026-09-17）。本文全部技术机制、参数与性能数字、负面事件记录、模型支持清单的来源。</small></div>
+          <div class="source"><span class="n">2</span><p><a href="https://github.com/trending" rel="noopener">GitHub Trending</a></p><small>（数据截至 2026-09-17）colibri 热度数据：34.8k 星、单日新增约 1.5k。</small></div>
+          <div class="source"><span class="n">3</span><p><a href="https://github.com/kvcache-ai/ktransformers/releases" rel="noopener">KTransformers Releases</a></p><small>（数据截至 2026-09-15）竞品版本信息：v0.7.1 及其 CPU-GPU 异构推理定位。</small></div>
+          <div class="source"><span class="n">4</span><p><a href="https://github.com/ollama/ollama/releases" rel="noopener">Ollama Releases</a></p><small>（数据截至 2026-09-14）竞品版本信息：v0.34.1，个人端易用性路线的对照。</small></div>
+          <div class="source"><span class="n">5</span><p><a href="https://github.com/vllm-project/vllm/releases" rel="noopener">vLLM Releases</a></p><small>（数据截至 2026-09-09）竞品版本信息：v0.29.0，数据中心高吞吐路线的对照。</small></div>
+          <div class="source"><span class="n">6</span><p><a href="https://www.qbitai.com/2026/09/489724.html" rel="noopener">量子位《把记忆交给CPU，大模型会变快》</a></p><small>（2026-09-16）英特尔 KV Cache 分层卸载方案的报道，作为“存储分层成为推理一等公民”的行业对照。</small></div>
+        </div>
+        <div class="callout coral">
+          <p><strong>诚实边界声明。</strong>本文的技术机制、性能数字与负面事件均来自项目官方 README 与上述公开来源，未包含作者实测数据；所有标注“本文推断”的内容为基于公开信息的分析判断，不代表项目官方立场。</p>
+        </div>
+        <footer class="footer">
+          <p><strong>人工智能（AI）工程技术日报 · ISSUE 06 · 2026-09-17</strong> —— 面向 AI 应用落地工程师的单主题深读。本期主题：colibri 与"权重即分层对象"的推理路线。</p>
+        </footer>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
