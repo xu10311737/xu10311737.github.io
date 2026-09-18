@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="解读 Anthropic 2026-09-17 发布的 Claude Code Projects 重构：Coordinator 协调器拆解目标、派发并行云端 Claude Code 会话（独立 Git 分支、自动 PR）、共享记忆实时同步，同日披露内部任一时刻约 3 万 Agent 并发、26% 核心 AI 研发达 AL4、月 10 亿决策拦截 0.002%；对比 Cursor Projects 同构产品（新用户 PR 合并量 +30%、重度用户 6 倍），分析分支/PR 作为 Agent 通信协议、监控三层设计、成本放大系数未知等风险与工程化接入要点。">
+  <title>Claude Code 重构 Projects：一个协调器指挥并行 Agent 开 PR，Anthropic 同日亮出内部 3 万并发的底牌</title>
+  <style>
+    :root{
+      --ink:#1d2430;--ink-2:#3a4350;--muted:#5c6771;--paper:#fbfaf8;--panel:#ffffff;
+      --line:#e0ddd5;--teal:#0c7772;--teal-soft:#e2f1ee;--coral:#c76545;--coral-soft:#f8e8e1;
+      --lime:#6f7f2a;--lime-soft:#eef2d9;--navy:#1b2430;--plum:#8b6389;--shadow-lg:0 12px 30px rgba(27,36,48,.08);--shadow-sm:0 7px 20px rgba(27,36,48,.05);
+    }
+    *{box-sizing:border-box}html{overflow-x:clip}
+    @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+    body{margin:0;background:var(--paper);color:var(--ink-2);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.82}
+    a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:3px}
+    a:hover{color:#a4502f;text-decoration-thickness:2px}
+    code{font:0.88em ui-monospace,SFMono-Regular,Consolas,monospace;background:#e9efec;color:#0b5f5a;padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:16px;top:16px;z-index:20;background:#fff;padding:8px 12px;border:2px solid var(--teal)}
+    .shell{max-width:1120px;margin:0 auto;padding:0 24px}
+    .masthead{background:var(--navy);color:#f4f5f7;border-bottom:5px solid var(--coral)}
+    .masthead .shell{padding-top:20px;padding-bottom:58px}
+    .meta-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#b9c0ca;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+    .meta-row .date{color:#e8b79c}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:48px;align-items:end;margin-top:52px}
+    h1,h2,h3{color:var(--ink);line-height:1.3;margin:0;font-weight:750}
+    h1{color:#f9f8f5;font-size:clamp(2.2rem,4.4vw,3.6rem);letter-spacing:0;max-width:880px}
+    .dek{color:#d3d6db;font-size:1.16rem;max-width:780px;margin:22px 0 0}.dek+.dek{margin-top:10px}
+    .signal{border-left:2px solid var(--coral);padding:4px 0 4px 20px;color:#f5e2d8;font-size:14px;max-width:640px}
+    .signal b{display:block;color:#fff2ec;font-size:17px;margin-bottom:5px}
+    .toc{position:sticky;top:0;z-index:5;background:rgba(251,250,248,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+    .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent)}
+    .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
+    main{padding-bottom:80px;scroll-margin-top:64px}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
+    .section.alt{background:#f2f0eb;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding-left:max(24px,calc(50vw - 536px));padding-right:max(24px,calc(50vw - 536px))}.section.end{border-bottom:0}
+    .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--coral);margin-bottom:10px}
+    h2{font-size:clamp(1.7rem,3vw,2.5rem);max-width:880px}.intro{font-size:1.08rem;max-width:840px;margin:16px 0 30px;color:var(--ink-2)}
+    h3{font-size:1.2rem;margin:28px 0 8px}.section p{max-width:880px;margin:0 0 18px}.section p:last-child{margin-bottom:0}.section ul{max-width:880px;margin:0 0 18px;padding-left:22px}.section li{margin:7px 0}.section ul:last-child{margin-bottom:0}
+    .tldr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+    .tldr article{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--teal);padding:18px 18px 20px;min-height:174px;box-shadow:var(--shadow-lg)}
+    .tldr article:nth-child(2){border-top-color:var(--coral)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:var(--plum)}
+    .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
+    .factline{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:start;max-width:880px;margin:22px 0 0;color:var(--muted);font-size:13px}.factline dt{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:.05em;justify-self:start}.factline dd{margin:0}.factline dt.fact{background:var(--teal-soft);color:var(--teal)}.factline dt.inference{background:var(--coral-soft);color:#9d4b31}
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:var(--shadow-sm)}.panel.wide{grid-column:1/-1}
+    .panel h3{display:flex;gap:10px;align-items:baseline;margin-top:0}.panel .mark{color:var(--coral);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}.panel ul,.panel ol{margin:10px 0 0;padding-left:22px}.panel li{margin:7px 0;font-size:15px}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}.flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);position:relative}.flow .node:last-child{border-right:0}.flow .node:not(:last-child)::after{content:"";position:absolute;right:-9px;top:50%;margin-top:-8px;width:16px;height:16px;border-top:2px solid var(--coral);border-right:2px solid var(--coral);transform:rotate(45deg);background:#fff;z-index:1}.flow .k{display:block;color:#b0512f;font:700 12px Georgia,serif;margin-bottom:9px}.flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:880px}.callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.coral{border-left-color:var(--coral);background:var(--coral-soft)}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:26px;border:1px solid var(--line);background:#fff}.table-wrap:focus-visible{outline:2px solid var(--teal);outline-offset:3px}.scroll-hint{display:none}.compare{width:100%;min-width:940px;border-collapse:collapse;font-size:14px}.compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}.compare th{background:var(--navy);color:#f5f4f0;font-size:13px}.compare tr:last-child td,.compare tr:last-child th{border-bottom:0}.compare tbody th{text-align:left;font-weight:750;color:var(--ink);width:14%;background:#fff}.compare th:first-child,.compare td:first-child,.compare tbody th{position:sticky;left:0;z-index:1}    .compare th:first-child{background:var(--navy)}.hero-table th:nth-child(2),.hero-table td:nth-child(2){background:var(--teal-soft)}.hero-table th:nth-child(2){color:var(--ink)}.hero-table td:nth-child(2){font-weight:600}
+    .scale-wrap{overflow-x:auto;margin:28px 0 0;max-width:720px;border:1px solid var(--line);background:#fff}.scale-wrap:focus-visible{outline:2px solid var(--teal);outline-offset:3px}.scale{width:100%;border-collapse:collapse;font-size:14px}.scale th,.scale td{text-align:left;vertical-align:top;padding:11px 14px;border-bottom:1px solid var(--line)}.scale thead th{background:var(--navy);color:#f5f4f0;font-size:13px}.scale tbody th{font-family:Georgia,serif;font-weight:700;color:var(--coral);width:64px}.scale tr:last-child td,.scale tr:last-child th{border-bottom:0}
+    .steps{counter-reset:step;display:grid;gap:14px;margin-top:28px}.step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px;box-shadow:var(--shadow-sm)}.step::before{content:counter(step,decimal-leading-zero);color:var(--coral);font:700 23px Georgia,serif;padding-top:2px}.step h3{font-size:17px;margin:0}.step p{font-size:15px;margin:5px 0 0}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:25px}.metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line);box-shadow:var(--shadow-sm)}.metric:nth-child(2){border-top-color:var(--coral)}.metric:nth-child(3){border-top-color:var(--lime)}.metric b{display:block;color:var(--ink);font-size:21px;line-height:1.35;font-weight:800;font-variant-numeric:tabular-nums}.metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}.risk{padding:18px 20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm)}    .risk h3{font-size:16px;margin:0}.risk p{font-size:14px;margin:6px 0 0}.risk .level{font-size:11px;font-weight:800;letter-spacing:.1em;color:#b0512f}.risk .level.mid{color:#8a6d3b}.risk .level.low{color:var(--muted)}
+    .sources{display:grid;gap:10px;margin-top:25px}.source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px;box-shadow:var(--shadow-sm)}.source .n{color:var(--coral);font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}.source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
+    .footer{color:var(--muted);font-size:13px;padding-top:28px}.footer strong{color:var(--ink)}
+    @media (max-width:1030px){.scroll-hint{display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:8px 0 0}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-grid{grid-template-columns:1fr;gap:24px}.hero-grid .signal{order:-1;margin-bottom:2px}.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.flow .node{border-bottom:1px solid var(--line)}.flow .node:nth-child(2n){border-right:0}.flow .node:not(:last-child)::after{display:none}.flow .node:last-child{border-bottom:0;border-right:0;grid-column:1/-1}}
+    @media (max-width:900px){.compare{min-width:720px;font-size:12.5px}.compare th,.compare td{padding:10px 10px}}
+    @media (max-width:820px){.hero-grid{grid-template-columns:1fr;gap:24px;margin-top:38px}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.split,.risk-grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{right:auto;left:50%;margin-left:-8px;top:auto;bottom:-9px;transform:rotate(135deg);background:#fff}.section{padding:48px 0}.section.alt{padding-left:24px;padding-right:24px}}
+    @media (max-width:520px){.shell{padding-left:17px;padding-right:17px}.masthead .shell{padding-bottom:42px}.meta-row{align-items:flex-start;flex-direction:column;gap:4px}.tldr{grid-template-columns:1fr}.tldr article{min-height:auto}.section.alt{margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding-left:17px;padding-right:17px}.step{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:16px}.toc .shell{gap:16px}.code{padding:16px 14px}}
+    @media print{.toc{display:none}.scroll-hint{display:none}.masthead,.compare th,.code,.scale thead th,.callout,.section.alt,.hero-table td:nth-child(2),.factline dt{-webkit-print-color-adjust:exact;print-color-adjust:exact}.panel,.risk,.step,.metric,.tldr article,.callout,.flow .node,.source,.scale tr{break-inside:avoid}.compare tr{break-inside:avoid}.compare{min-width:0;font-size:11px}.compare th:first-child,.compare td:first-child,.compare tbody th{position:static}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{display:none}.hero-grid .signal{order:0}.section{padding:32px 0}h2,h3{break-after:avoid}.code{white-space:pre-wrap;overflow-wrap:anywhere}.source a[href]::after{content:"（" attr(href) "）";font-size:10px;color:#5c6771;word-break:break-all}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="shell">
+      <div class="meta-row"><span>人工智能（AI）工程技术日报 / 研究与判断</span><span class="date">2026-09-18 · ISSUE 09</span></div>
+      <div class="hero-grid">
+        <div>
+          <h1>Claude Code 重构 Projects：一个协调器指挥并行 Agent 开 PR，Anthropic 同日亮出内部 3 万并发的底牌</h1>
+          <p class="dek">2026 年 9 月 17 日，Anthropic 把 Claude Code 的 Projects（项目空间）从"存文件的文件夹"重构为"对话驱动的协作中心"，beta 先开放给部分 Pro/Max（Anthropic 面向个人的两档付费订阅）订阅者的云端会话。新形态下你只描述目标，一个 Coordinator（协调器）负责评估请求、拆解子任务、派发并行线程、审查产出、组装结果；每条线程是一台跑在云端的完整 Claude Code 会话，持有独立 Git 分支，完成后自动开 PR（Pull Request，向仓库提交代码变更的合并请求）；所有线程共享一份持续积累的工程记忆——技术规格、架构决策、团队偏好——官方称这"降低了对复杂提示词工程的需求"。全程异步，手机可看进度、可插话。</p>
+          <p class="dek">同一天，Anthropic 首次系统披露内部 Agent（能自主调用工具、多步完成任务的 AI 程序）规模化数据：内部研发平台任一时刻约 3 万个 Agent 并发工作；Claude 主导 26% 的核心 AI 研发（达到自动化等级 AL4——AI 从高层指令起端到端主导大部分工作、人做监督，六个月前不足 1%）；每月超 10 亿决策、在线监控拦截其中 0.002%。竞品 Cursor 已在 7 天前发布同构的 Projects（协调器+共享上下文+云执行，内部数据：新用户合并 PR 量 +30%、重度用户 6 倍）——"编排层"正在从单家产品的技巧变成全行业的范式。</p>
+        </div>
+        <div class="signal"><b>先给结论</b>这次发布真正值得注意的不是"又一家做多 Agent"，而是把三件事焊成了一台工程工厂：用协调器解决"人盯不过来"，用 Git 分支/PR 解决"并行互不干扰"，用共享记忆解决"每个新会话都要重新教"。工程师可以直接带走三件事：把分支与 PR 当作 Agent 之间的通信协议、让指挥者永不执行（只委派不动手）、把子 Agent 的学习沉淀成持续同步的共享资产。同时保持清醒：26% 这类数字来自厂商自定义刻度的自我测量，产品处于 beta——无服务等级协议（SLA，Service Level Agreement，厂商对可用性与性能的正式承诺）、成本放大系数未披露——本篇基于官方公开材料分析、未实测该产品。</div>
+      </div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="文章目录">
+    <div class="shell"><a href="#tldr">TL;DR（太长不看）</a><a href="#problem">背景与问题</a><a href="#principle">核心原理</a><a href="#difference">创新与差异</a><a href="#compare">竞品对比</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+  <main id="content">
+    <section class="section" id="tldr">
+      <div class="shell">
+        <div class="label">01 / Decision brief</div>
+        <h2>TL;DR（太长不看）：从"文件夹"到"指挥台"</h2>
+        <div class="tldr">
+          <article><span class="num">01 / WHAT</span><h3>发生了什么</h3><p>Anthropic 于 09-17 重构 Claude Code 的 Projects 并开启 beta（部分 Pro/Max 云端会话用户）。项目不再是一堆文件，而是一个对话界面：协调器拆解目标 → 并行派发 worker 线程 → 每线程独立云端会话+独立分支+自动 PR → 审查组装。滚动计划：本周内扩大到更多 Claude Code 用户，其后打通聊天、Cowork 与团队/企业版；现有项目文件不受影响，随全端升级迁移。</p></article>
+          <article><span class="num">02 / WHY</span><h3>解决谁的问题</h3><p>要用 AI 做"超出单个对话窗口的工程"的团队。单会话 Coding Agent 有三堵墙：上下文窗口（模型一次能装进的工作记忆）塞不下大工程、想并行就要人肉开 N 个终端复制粘贴、每开新会话就丢一次上下文。重构后人类从"操作员"变成"甲方"：定目标、看板式跟进、拍板合并——官方类比是"像给幕僚长（chief of staff）派活"。</p></article>
+          <article><span class="num">03 / HOW</span><h3>核心机制</h3><p>三层结构。协调器只拆解派发不写代码——委派使它永不阻塞、随时响应新指令；worker 线程即完整的 Claude Code 云会话（独立分支与仓库副本，可再起子代理、循环、工作流细分任务）；shared memory（共享记忆）让所有线程读写同一份随项目增长的记忆——规格、决策、偏好，甚至"动计费服务前先问谁"。</p></article>
+          <article><span class="num">04 / SHIP</span><h3>生产判断</h3><p>规模佐证与风险并存。同日内部测量报告给出 3 万并发、26% AL4、月 10 亿决策、0.002% 拦截率；但产品是 beta：官方明言项目会更快耗尽用量限额（可为协调器与线程分别配模型与投入档位）、无 SLA、并行合并冲突的实际频率未披露；竞品 Cursor 先发 7 天且已全员可用。第三方榜单上 Anthropic 系模型占 Agent 榜前十中的 6 席，底子够硬。</p></article>
+        </div>
+        <dl class="factline"><dt class="fact">来源事实</dt><dd>产品形态、协调器/线程/共享记忆机制、滚动与用量说明来自 Claude 官方博客（2026-09-17 发布）；3 万并发、26% AL4、监控与算力数据来自 Anthropic Institute 测量报告（2026-09-17，测量截至 2026-08）；竞品架构与 +30%/6 倍来自 Cursor 官方博客（2026-09-10）；Agent 榜排名来自 Arena 排行榜（数据截至 2026-09-18）。</dd><dt class="inference">本文推断</dt><dd>"编排层正成为行业范式""分支/PR 作为通信协议是关键设计决定""内部监控体系不随产品直接交付"为本文判断，判断依据在各章节内标注。本篇未对该 beta 做一手实测。</dd></dl>
+      </div>
+    </section>
+
+    <section class="section alt" id="problem">
+      <div class="shell">
+        <div class="label">02 / Background</div>
+        <h2>背景与问题：单会话撞墙，全行业在同一个答案上会师</h2>
+        <p class="intro">单会话 Coding Agent 有一条天然边界：对话窗口。窗口内它是高效的结对程序员；窗口外——一个要动几十个文件、开几百个 PR 的工程——它就需要人类来当"外置内存"和"调度器"。这不是模型能力问题，是协作结构问题。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>单会话的三堵墙</h3><p><strong>窗口墙</strong>：上下文窗口塞满后早期内容被挤出工作记忆，Agent"忘记"项目约定与早期决策。<strong>人肉墙</strong>：想并行就要开 N 个终端、人肉复制粘贴上下文、人肉汇总结果——人成了吞吐瓶颈，并行度上限是人的耐心而不是算力。<strong>遗忘墙</strong>：每开一个新会话，Agent 从零开始——重读代码库、重新约定规范；它在这个会话里学到的一切随会话关闭蒸发。三堵墙指向同一个结论：缺的不是更聪明的模型，而是一个能把大工程切成可并行单元、又能让单元间共享状态的<strong>编排结构</strong>。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>行业把同一个坑踩成了同一个答案</h3><p>Cursor 在 2026 年 2 月提出"第三纪元"愿景：Agent 舰队承接整个工作体而非单次任务，并于 09-10 落地 Projects beta、当日开始全员开放。Anthropic 09-17 发布同构的 Projects 重构，并在同一天公开内部规模的量化测量与监控设计（见核心原理章）——编排、测量、安全是同步在建的。模型层的第三方佐证：Arena Agent 榜前十中 Anthropic 系模型占 6 席（数据源 04）。发布次日早间，中文科技媒体即以"大重构"为题大幅报道，讨论焦点集中在"内部 3 万 Agent 并发"与"26% 核心研发由 Claude 主导"两个数字（数据源 05）。（本文推断）7 天内两家头部厂商先后发布"协调器+共享上下文+云执行"的同构产品，说明这不是巧合，是范式收敛。</p></div>
+        </div>
+        <div class="callout coral"><p><strong>一个反直觉的细节：人被摆在更显眼的位置。</strong>协调器被官方类比成幕僚长——你给它下简令（brief），它回报进展；上线动作（merge PR）仍由人拍板。两家的量化口径也说明同一件事：Cursor 披的是"用户合并 PR 量 +30%、重度用户 6 倍"，Anthropic 披的是"Claude 主导 26% 研发"——量化的都是产出与渗透，而不是"无人化"。多 Agent 编排的目标不是消灭人，而是把人挪到"验收+决策"的位置。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="principle">
+      <div class="shell">
+        <div class="label">03 / Mechanism</div>
+        <h2>核心原理：目标进对话，PR 出仓库</h2>
+        <p class="intro">整个系统的接口是一个对话：你说清楚要什么，系统把"什么"变成一组并行的"怎么做"。官方给的示例是"把应用结账链路的 p75 延迟（第 75 百分位的延迟水位——75% 的请求都快于这个值）降下来"——协调器给每个接口各开一条线程做性能剖析、试验优化、开 PR；跨仓库工程（如让 API、Web、移动端三个仓库联动弃用某个旧接口）则每仓库一条线程，迁移调用方、跑测试、开 PR，还会告诉你先合并哪个。</p>
+        <div class="flow" role="group" aria-label="Projects 工作生命周期">
+          <div class="node"><span class="k">01 / GOAL</span><b>你定目标</b><small>在项目对话里描述要做成的事；配置云端环境、连接器、插件、项目指令与模型。</small></div>
+          <div class="node"><span class="k">02 / DECOMPOSE</span><b>协调器拆解</b><small>Coordinator 评估请求、拆子任务、派发并行线程；它不写代码只指挥——委派使其永不阻塞。</small></div>
+          <div class="node"><span class="k">03 / PARALLEL</span><b>线程并行干活</b><small>每线程=云端 Claude Code 会话+自己的 Git 分支与仓库副本；跑测试、提 PR；线程内可再起子代理/循环/工作流。</small></div>
+          <div class="node"><span class="k">04 / REVIEW</span><b>审查与组装</b><small>协调器检查产出、跟进测试；重叠改动引发合并冲突（merge conflict）时按普通 PR 流程解决。</small></div>
+          <div class="node"><span class="k">05 / MERGE</span><b>人拍板合并</b><small>PR 走既有 review 流程；进度手机可查、随时插话——全程异步，不需要人守着。</small></div>
+        </div>
+        <div class="metric-grid">
+          <div class="metric"><b>30,000</b><span>Anthropic 内部研发平台任一时刻的并发 Agent 数（2026-08）。规模本身就是编排结构可行性的证据：没有这层结构，3 万个并发会话只会产出 3 万份需要人盯的日志。</span></div>
+          <div class="metric"><b>26%</b><span>核心 AI 研发中由 Claude 主导（AL4，AI 从高层指令起端到端主导大部分工作、人做监督）的占比，六个月前（2026-02）不足 1%；90% 以上研发工作流达到 AL3（AI 协作级）及以上。AL 刻度核心三档见"创新与差异"章。</span></div>
+          <div class="metric"><b>0.002%</b><span>每月超 10 亿决策中被在线监控拦截的高风险占比（约 1/47,000）；被拦截动作由人类在一周内复核。</span></div>
+        </div>
+        <h3>共享记忆：把"重新教"变成"继承"</h3>
+        <p>官方给了三个具体例子：项目记得"发布改到周五了"、记得"为什么砍掉 export 功能"、记得"动计费服务前要先问谁"。每条线程都往共享记忆写、也都从里面读，同步是实时的；除了技术规格与架构决策，它还会记住你的协作偏好（比如汇报要多细），并可调整主动汇报（check-in）的频率。（来源事实）</p>
+        <p>官方认为这直接"降低了对复杂提示词工程（prompt engineering，通过精心设计输入引导模型行为的技术）的需求"。（本文推断）这本质上是把 Agent 的 onboarding（入职引导）成本从"每个会话一次"摊销成"整个项目一份持续资产"——与 Cursor 的共享上下文（"一个 Agent 学会怎么测试某个服务，所有未来 Agent 都能直接用"）是同一个思想，两家都押注"记忆是编排的地基"。</p>
+        <h3>3 万并发的另一面：监控是规模的前提</h3>
+        <p>测量报告披露了内部平台的管控设计，三层叠加：</p>
+        <ul>
+          <li><strong>在线层</strong>：100% 的 Agent 动作在执行前过检、通常秒级返回；被拦截动作由人一周内复核。</li>
+          <li><strong>离线层</strong>：100% 的执行记录（transcript，Agent 执行过程的完整日志）事后全量摄入，每周约 10 万条被标记、由分类器审阅，约 50 条升级人工。</li>
+          <li><strong>身份层</strong>：每个 Agent 持独立身份，数据绑定身份、跨模型升级持久保留、可按 Agent 跨时间审计；Agent 间通过开放式消息系统通信，每条消息绑定身份、附原始引用，Agent 之间可以互相纠正错误。</li>
+        </ul>
+        <p>算力面上，7 月 13-20 那一周约 6% 的 AI 研发算力投向安全与对齐研究，AI 主导的研发中约 12% 的算力投向安全。（来源事实）</p>
+        <div class="callout"><p><strong>规模不在算力在线程里，而在监控在前面。</strong>这个三层设计解释了为什么"并行 Agent 工厂"先出现在安全文化最强的厂商内部：没有监控层的并行只是放大风险，有监控层的并行才是产能。反过来也成立——外部用户拿到的是编排产品本身，Anthropic 内部这套监控栈并不随产品直接交付，企业接入要自建对应层（见工程化视角）。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="difference">
+      <div class="shell">
+        <div class="label">04 / Differentiation</div>
+        <h2>创新与差异：两个"不发明新东西"的决定</h2>
+        <p class="intro">这轮重构里真正新的东西很少——两个关键决定都是"不发明"，第三个创新则发生在度量衡上。三个动作分别解决并行、指挥与可信的问题。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>把 Git 分支/PR 当成 Agent 间的通信协议</h3><p>并行多 Agent 的老问题是"互相踩脚"：两个 Agent 改同一处代码，后写的覆盖先写的。Anthropic 的答案不是发明新的协调协议，而是把软件工程用了十五年的协议直接搬过来：<strong>分支</strong>天然隔离（每线程在仓库副本上干活）、<strong>PR</strong>天然可审查（人审的是变更而非过程）、<strong>合并冲突</strong>天然可见（冲突在合并时暴露而不是运行时炸开）。再叠加跨仓库的"合并顺序建议"，等于让 Agent 团队复用人类团队的全部协作语法。创新不在零件，在"不发明新协议"这个决定本身——（本文推断）这也是它能直接嵌进现有团队工作流的原因：对仓库来说，Agent 开的 PR 和实习生开的 PR 走的是同一条路。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>协调器只委派、不执行</h3><p>传统多 Agent 框架的规划节点经常"顺手动手"，于是规划者变成瓶颈：它执行时就无法响应新指令。Coordinator 的设计约束是只拆解、只派发、只审查——官方类比幕僚长。这个"不执行"让指挥通道永远畅通：人可以任意时刻插话改方向，代价是所有执行都发生在下游线程。（来源事实）Cursor 的协调器是同一约束——"不写代码、只指挥，因此从不阻塞"。（本文推断）两家在同一个设计点上同构，进一步印证这是行业收敛后的共识解，而非某家的巧思。</p></div>
+        </div>
+        <div class="scale-wrap">
+          <table class="scale" aria-label="AL 自动化等级刻度定义">
+            <thead><tr><th scope="col">等级</th><th scope="col">含义</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">AL3</th><td>AI 协作级——在人类的密切指导下，AI 完成大块工作</td></tr>
+              <tr><th scope="row">AL4</th><td>AI 主导级——从一条高层指令出发，AI 端到端完成大部分工作，人类做监督</td></tr>
+              <tr><th scope="row">AL5</th><td>完全自主级——AI 独立完成任务，无需人类介入</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout coral"><p><strong>还有一个讨论最少的创新：把"Agent 采用度"本身做成可测量对象。</strong>自动化指数的测法（来源事实）：每周采样 20% 员工，由一个 Claude 研究 Agent 审读 Slack 与内部文档，归类约 15,000 条粒度任务，冻结成 542 节点的任务树，再由判分模型逐条对照 AL 刻度（0-5 级，数字越大 AI 主导度越高，上表为核心三档）定级、按人力时间加权。判分一致性也一并公开：模型与人完全一致率 59%（人与人之间只有 35%），相差一级以内的一致率 97%。当所有厂商都在说"AI 很能干"时，拿出刻度、样本量、一致性上限与第三方评估计划的，这是第一家。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="compare">
+      <div class="shell">
+        <div class="label">05 / Competition</div>
+        <h2>竞品对比：7 天内先后落地的同构双子</h2>
+        <p class="intro">Cursor 与 Anthropic 的 Projects 在架构上高度同构：协调器只委派、云端默认执行、跨 Agent 共享上下文。差异集中在入口、触发方式与数据披露的取向。模型层的第三方佐证：Arena Agent 榜前十中 Anthropic 系模型占 6 席、榜首 Claude Fable 5.1（Max）净提升 13.71%（数据源 04）——编排产品的竞争底下，是模型 Agent 能力的竞争。</p>
+        <div class="table-wrap" role="region" tabindex="0" aria-label="Claude Code Projects 与 Cursor Projects 竞品对比表"><p class="scroll-hint">← 左右滑动查看对比表 →</p>
+          <table class="compare hero-table">
+            <thead><tr><th scope="col">维度</th><th scope="col">Claude Code Projects（Anthropic）</th><th scope="col">Cursor Projects</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">发布与开放度</th><td>09-17 进入 beta，先开放部分 Pro/Max（Claude Code 云端会话）；官方计划一周内扩大，之后打通聊天、Cowork 与团队/企业版</td><td>09-10 进入 beta，当日开始向全部用户推出</td></tr>
+              <tr><th scope="row">协调器</th><td>只拆解、派发、审查，不写代码；官方类比"幕僚长"</td><td>只委派不执行，"从不阻塞、永远可指挥"</td></tr>
+              <tr><th scope="row">Worker 形态</th><td>每线程=完整的 Claude Code 云会话+独立 Git 分支+自动 PR；线程内可再起子代理/循环/工作流</td><td>可调度数千个子代理，云端默认（关笔记本不中断）；需要本机验证时在用户机器上起本地 Agent</td></tr>
+              <tr><th scope="row">上下文共享</th><td>共享记忆实时同步：技术规格、架构决策、团队偏好、协作风格，随项目持续增长</td><td>共享文件集同步到所有云/本地机器："一个 Agent 学会怎么测试服务，所有未来 Agent 直接复用"</td></tr>
+              <tr><th scope="row">触发方式</th><td>对话+异步：手机查看进度、随时插话；目前以人发起为主</td><td>对话+订阅（Subscriptions）：监听 Slack、按计划定时、跟随全部 PR 事件自动行动、修复 CI（持续集成，Continuous Integration，代码合入前自动跑构建与测试的流水线）失败</td></tr>
+              <tr><th scope="row">量化披露</th><td>过程指标：内部 3 万并发、26% 核心 AL4、月 10 亿决策、0.002% 拦截、判分一致性 59%/97%</td><td>产出指标：新用户合并 PR 量 +30%、重度用户 6 倍；设计系统项目每日触达 20-100 个 PR</td></tr>
+              <tr><th scope="row">特色能力</th><td>多仓库连接+合并顺序建议；协调器与线程分别配置模型与投入档位；资料库归档线程产出</td><td>"园艺"模式：巡检新 PR、提取组件入设计系统、同样错误出现两次即自动加一条 lint 规则</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout"><p><strong>对比结论（本文推断）：</strong>架构同构度极高，选择题暂时是生态题——主力在 Claude 生态、需要移动端异步指挥的选 Anthropic；需要 Slack/定时/PR 事件驱动的自动行动选 Cursor。两者都在 beta：Anthropic 的移动异步与多仓库编排独有但开放面窄，Cursor 的订阅触发更自动化但生态限于 IDE。两边的数据都是厂商自报（一个报过程渗透、一个报产出倍数），生产采用前用自己的仓库各跑一个试点比任何对比表都可靠。</p></div>
+        <p>（本文推断）对照开源路线更能看清这代产品的位置：LangGraph、CrewAI、AutoGen 一类框架早已能搭出"主管拆解、子 Agent 执行"的结构，编排逻辑本身不是护城河。差别在产品化完整度——Projects 把云端执行环境、Git 原生交付、共享记忆、用量分层打包成开箱即用的一体，代价是编排逻辑锁在厂商生态内、不可魔改；开源框架正相反：编排可控、可接私有模型，但执行沙箱、权限、监控、记忆存储全要自建。</p>
+        <p>选型判据：要快速上量、接受托管边界，用产品；要控制编排与数据边界、且有平台工程团队，用框架自建——Anthropic 内部那台 3 万并发的平台，正是"自建框架路线"能跑通的存在证明。</p>
+      </div>
+    </section>
+
+    <section class="section alt" id="production">
+      <div class="shell">
+        <div class="label">06 / Production lens</div>
+        <h2>工程化视角：从"能演示"到"能上线"隔着什么</h2>
+        <p class="intro">三个问题按落地顺序排列：接入前要准备什么、接入后什么会被改变、Demo 与生产之间还差什么。每一项只谈工程动作，不谈愿景。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">Q1</span>生产接入要过哪些关</h3><ul><li><strong>仓库与 CI 就绪</strong>：Agent 线程以独立分支提交 PR，意味着 PR 模板、CI 门禁、测试覆盖率要先行达标——不达标的 CI 会被并行线程放大成 N 倍噪音。</li><li><strong>权限与边界</strong>：云端会话要访问你的仓库与连接器；涉内网或私有代码的场景，要么等"跑在你自己机器上"的能力（官方称"很快"），要么走团队/企业版方案。</li><li><strong>用量预算</strong>：官方明言项目会更快耗尽限额，务必用"协调器与线程分别配模型/投入档位"的旋钮做成本分层（规划用强模型、执行用快模型的思路）。</li><li><strong>审查流程</strong>：Agent PR 涌入后人审是新的瓶颈，先定义哪类 PR 可自动合并（低风险+测试全绿）、哪类必须人审。</li></ul></div>
+          <div class="panel"><h3><span class="mark">Q2</span>对现有研发架构的冲击</h3><p><strong>Code Review 变成 Code Acceptance</strong>：从"人写人审"变为"Agent 写、人验收"，review 队列管理与合并顺序成为新的运维对象——Anthropic 专门做"先合并哪个"的建议正说明这是高频痛点。<strong>CI 资源放大</strong>：N 条并行线程约等于 N 倍构建与测试负载，容量要预留。<strong>权限与审计模型</strong>：参考 Anthropic 内部做法——Agent 独立身份、动作执行前全量过检、记录事后全量摄入；外部用户目前需要自建这层（内部平台的安全栈不随产品直接交付）。（本文推断）<strong>技能结构迁移</strong>：团队时间从"写码"向"指挥+验收"移动，需求拆解能力与审查能力的权重上升。</p></div>
+        </div>
+        <div class="split">
+          <div class="panel wide"><h3><span class="mark">Q3</span>Demo 与生产之间的三段距离</h3><ul><li><strong>成熟度距离</strong>：beta 阶段部分用户可见、无 SLA；网页与桌面端的旧 Projects 尚未升级（官方称全端统一后迁移），能力面与文档面都还会动。</li><li><strong>量化距离</strong>：并行线程的 token（模型处理文本的最小单位，约合四分之三个英文单词）成本放大系数、合并冲突的真实频率、错误记忆的清除机制，全部未披露——上生产前必须在自己的仓库上小样本实测这三项。</li><li><strong>参照系距离</strong>：Cursor 的 +30%/6 倍与 Anthropic 的 26% 都是厂商自报；且 Anthropic 内部 3 万并发的那台平台配了完整监控栈，外部用户拿到的是编排产品本身——监控、身份、审计需要自己补齐，这是最容易被 demo 掩盖的一段。</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="risk">
+      <div class="shell">
+        <div class="label">07 / Risk register</div>
+        <h2>局限与风险：哪些数字要打折扣听</h2>
+        <p class="intro">按对决策的影响力排序：数字怎么打折、成本怎么估、哪里会先出事——每条附一个可执行的缓解动作。</p>
+        <div class="risk-grid">
+          <div class="risk"><h3>自测自报的方法学折扣</h3><p class="level">风险等级：中高</p><p>自动化指数由 Anthropic 自定义、判分的是 Claude（Claude 判 Claude 的任务等级）。模型与人完全一致率 59% 虽高于人与人的 35%（说明刻度可用），但"完全一致"只有六成；26% 是 2026-08 的单月横截面、周采样 20% 员工；AL3 的"大块"与 AL4 的"大部分"边界本身主观。第三方评估者计划目前只是计划。</p></div>
+          <div class="risk"><h3>成本放大系数未知</h3><p class="level">风险等级：中高</p><p>N 条并行线程的 token 开销随 N 放大是物理直觉，但官方只提示"更快耗尽限额"，没有给出"每个 PR 的真实成本"数据；协调器与线程的模型/档位分层虽可缓解，预算模型仍只能自己建。beta 期先设项目级用量上限再放量。</p></div>
+          <div class="risk"><h3>协调器单点</h3><p class="level">风险等级：中</p><p>拆解方向错误时，错误被并行放大 N 倍再交给人审。规划质量的关键变量（协调器用什么模型、计划要不要人审后放行）官方没有给默认策略；高成本任务前先在对话里过一遍计划再放行线程，是 beta 期最便宜的保险。</p></div>
+          <div class="risk"><h3>共享记忆污染</h3><p class="level">风险等级：中</p><p>错误决策一旦写入记忆（"这个服务不用写测试"这类），会被所有后续线程继承；清除机制、版本回滚、记忆的写入权限均无公开说明。这与"越用越聪明"类系统共享同一个未解问题：记忆是资产，也是污染面。</p></div>
+          <div class="risk"><h3>合并冲突的现实频率</h3><p class="level">风险等级：中</p><p>"如同普通 PR"的说法把问题说轻了：Agent 线程不像人类同事会主动避让别人正在改的文件，官方未披露任何线程间的编辑范围协调机制——同文件并行触发的冲突概率可能显著高于人类协作，冲突解决本身也要消耗协调器与人工。</p></div>
+          <div class="risk"><h3>拦截率的双面解读</h3><p class="level low">风险等级：中低</p><p>0.002% 既可以读作"监控精准"（月 10 亿决策只拦万分之二、且有人工一周内复核），也可以读作"漏放"——离线层每周约 10 万条标记最终只约 50 条升级人工，漏检样本无法从这个数字本身排除。企业接入时按自己的风险预算决定叠加哪层。</p></div>
+        </div>
+        <div class="callout coral"><p><strong>诚实声明：</strong>本篇全部结论基于官方博客、测量报告与竞品公开材料，未对该 beta 做一手实测；beta 分批开放，实际功能与本文描述可能存在出入。上生产前，请以自己仓库上的小样本试点数据为准。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="future">
+      <div class="shell">
+        <div class="label">08 / Outlook</div>
+        <h2>未来方向：从"会话"到"项目"的产品原子迁移</h2>
+        <p class="intro">官方路线很短，推断很长——分开摆，别混着读。左边是发布方白纸黑字的计划，右边是本文的三个判断。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>官方路线（来源事实）</h3><p>线程目前全部跑在云端，官方称"跑在你自己的机器上"很快到来；一周内扩大 Claude Code 用户覆盖，之后聊天、Cowork 与团队/企业版全端统一升级、现有项目文件随迁。测量报告同时给出制度化承诺：计划嵌入独立第三方评估者，给予与内部风险团队可比的访问权限——把"信不信 26%"变成可以外部核验的问题。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>三个走向（本文推断）</h3><p><strong>编排层标准化</strong>：协调器+共享上下文+云执行在 7 天内被两家头部厂商同构发布，会像多 Agent 框架里"主管节点拆解派活"的 supervisor（主管）模式一样，固化成 harness（给模型接上工具、存储与循环逻辑的工程外壳）的默认结构；下一轮差异化在记忆治理、监控与权限模型，不再在"能不能并行"。<strong>产品原子从会话迁到项目</strong>：会话是一次性的（上下文随关闭蒸发），项目是持久的（记忆跨会话积累、跨端同步），入口随之从终端扩展到手机——两家的移动端与事件订阅都在把工作重新定义为"始终在线、随时介入"。<strong>测量方法被效仿</strong>：刻度+样本量+一致性上限的披露方式，把"AI 采用度"从宣传话术变成可审计指标；先效仿的是大厂内部工程效能团队，独立测量机构的出现只是时间问题。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="takeaways">
+      <div class="shell">
+        <div class="label">09 / Takeaways</div>
+        <h2>工程师可以借鉴：六件今天就能抄走的事</h2>
+        <div class="steps">
+          <div class="step"><h3>让每条 Agent 任务以"一条分支一个 PR"交付</h3><p>不要让多个 Agent 共享工作区：先把手头的 PR 模板与 CI 门禁设成硬标准，再给 Agent 发独立分支的权限；两个执行体的改动冲突一律留到合并阶段解决，绝不在运行时协调——隔离、可审查、可回滚三个属性 Git 已经免费给了，人类团队的整套协作语法直接复用。</p></div>
+          <div class="step"><h3>把规划节点做成只读</h3><p>在自己的多 Agent 系统里，规划者对仓库只有读权限、没有写权限，产出只能是任务清单。检验标准很硬：人在任何时刻插入新指令，规划者必须能立即响应——做不到，说明它还在"顺手动手"。这是两家头部厂商独立收敛出的同一设计约束，要抄就抄这个约束本身。</p></div>
+          <div class="step"><h3>给项目建一份所有子 Agent 读写的学习档案</h3><p>记录"怎么测、什么规范、动什么先问谁"。最小实现是仓库里一个 markdown 文件：每条线程开工前读、收工后追加。重点是治理——定期人工清一遍错误条目，因为记忆既是资产也是污染面，一条错误记忆会被所有后续线程继承。</p></div>
+          <div class="step"><h3>监控三层直接抄</h3><p>执行前全量过检（在线拦截）+ 事后全量摄入并分级筛选（离线标记）+ 身份绑定与引用溯源（可审计）。并行度每放大一个数量级，这三层的必要性就涨一个数量级——先于规模建监控，而不是反过来。</p></div>
+          <div class="step"><h3>用 AL0-AL5 给自己的团队定刻度</h3><p>把工作拆成可判定的任务清单，定期测"AI 主导占比"与"AI 协作占比"，比"感觉 AI 越来越能干"可管理得多；顺手记录判分一致率并公开它，数字的可信度会大不一样。</p></div>
+          <div class="step"><h3>把"等结果"从工作时间剔除</h3><p>把验收环节设计成手机上随时可介入的：看进度、插一句话、拍板合并。异步指挥不是体验优化，是吞吐优化——人不再被"盯着跑"绑定在工位上，等待时间才真的归零。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt end" id="sources">
+      <div class="shell">
+        <div class="label">10 / Sources</div>
+        <h2>数据源</h2>
+        <div class="sources">
+          <div class="source"><span class="n">01</span><p><a href="https://claude.com/blog/projects-redesigned">Claude 官方博客：Projects redesigned — from folder to conversation</a></p><small>2026-09-17 发布。支撑本文：产品形态、协调器/线程/共享记忆机制、p75 延迟与跨仓库示例、滚动计划、用量与档位说明、本地运行计划。</small></div>
+          <div class="source"><span class="n">02</span><p><a href="https://www.anthropic.com/institute/measuring-pace-of-ai-development">Anthropic Institute：Measuring the pace of AI development</a></p><small>2026-09-17 发布，测量截至 2026-08。支撑本文：AL0-AL5 刻度定义、自动化指数方法（20% 周采样、15,000 任务、542 节点）、26% AL4 与 90% AL3+、3 万并发、月 10 亿决策与 0.002% 拦截、监控三层（在线/离线/身份）、算力分配（6%/12%）、判分一致性（59%/35%/97%）、第三方评估者计划。</small></div>
+          <div class="source"><span class="n">03</span><p><a href="https://cursor.com/blog/projects">Cursor 官方博客：Introducing Projects</a></p><small>2026-09-10 发布。支撑本文：竞品架构（协调器不执行、云默认、共享上下文、订阅触发）、三种使用模式、内部量化数据（新用户 PR +30%、重度用户 6 倍、设计系统项目 20-100 PR/天）。</small></div>
+          <div class="source"><span class="n">04</span><p><a href="https://arena.ai/leaderboard">Arena（LMSYS）排行榜：Agent Arena</a></p><small>数据截至 2026-09-18。支撑本文：第三方 Agent 场景排名——Anthropic 系模型占前十中的 6 席，榜首 Claude Fable 5.1（Max）净提升 13.71%。</small></div>
+          <div class="source"><span class="n">05</span><p><a href="https://www.qbitai.com/2026/09/491711.html">量子位：Claude Code 大重构报道</a></p><small>2026-09-18 发布。支撑本文：发布次日中文社区的传播视角与关注点、规模数据的中文语境解读。</small></div>
+        </div>
+        <p class="footer"><strong>阅读说明：</strong>标注"来源事实"的内容可在对应数据源中核对原文；标注"（本文推断）"的内容为分析判断，依据在各章节内给出。所有外部链接指向发布方官方页面。<strong>人工智能工程技术日报 · 2026-09-18 · ISSUE 09</strong></p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
