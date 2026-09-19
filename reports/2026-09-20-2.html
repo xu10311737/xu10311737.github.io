@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="解读 cloudflare/security-audit-skill（GitHub 今日 Trending 第一）：六阶段安全审计 skill、覆盖账本与三态 findings、零依赖 schema 验证器；Cloudflare Project Glasswing 博客披露 128 仓库 fleet 的漏斗数据、防造假三招与单仓库成本账。">
+  <title>Cloudflare 开源 security-audit-skill：发现者不许定案，验证者不许自报——用对抗验证把 AI 安全审计做成可信流水线</title>
+  <style>
+    :root{
+      --ink:#1d2430;--ink-2:#3a4350;--muted:#5c6771;--paper:#fbfaf8;--panel:#ffffff;
+      --line:#e0ddd5;--teal:#0c7772;--teal-soft:#e2f1ee;--amber:#b96a1b;--amber-soft:#f6e8d5;
+      --lime:#6f7f2a;--lime-soft:#eef2d9;--navy:#20222b;--plum:#8b6389;
+      --shadow-lg:0 12px 30px rgba(27,36,48,.08);--shadow-sm:0 7px 20px rgba(27,36,48,.05);--teal-bright:#35b3a9;--lime-deep:#4c5a1a;
+    }
+    *{box-sizing:border-box}html{overflow-x:clip}
+    @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+    body{margin:0;background:var(--paper);color:var(--ink-2);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.82}
+    a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:3px}
+    a:hover{color:#a4502f;text-decoration-thickness:2px}
+    a:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:16px;top:16px;z-index:20;background:#fff;padding:8px 12px;border:2px solid var(--teal)}
+    .shell{max-width:1120px;margin:0 auto;padding:0 24px}
+    .masthead{background:var(--navy);color:#f4f5f7;border-bottom:5px solid var(--teal)}
+    .masthead .shell{padding-top:20px;padding-bottom:44px}
+    .meta-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#b9c0ca;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+    .meta-row .date{color:#9fd8d2}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:48px;align-items:end;margin-top:38px}
+    h1,h2,h3{color:var(--ink);line-height:1.3;margin:0;font-weight:750}
+    h1,h2{text-wrap:balance}.dek{text-wrap:pretty}
+    h1{color:#f9f8f5;font-size:clamp(2.1rem,4.2vw,3.4rem)}
+    .dek{color:#d3d6db;font-size:1.13rem;max-width:780px;margin:22px 0 0}.dek+.dek{margin-top:10px}
+    .signal{border-left:2px solid var(--teal-bright);padding:4px 0 4px 20px;color:#dcf0ee;font-size:14px;max-width:640px}
+    .signal b{display:block;color:#fff;font-size:17px;margin-bottom:5px}
+    .toc{position:sticky;top:0;z-index:5;background:rgba(251,250,248,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent)}
+    .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
+    main{padding-bottom:80px}main:focus{outline:none}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
+    .section.alt{background:#f2f0eb}.section.end{border-bottom:0}
+    .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);margin-bottom:10px}
+    h2{font-size:clamp(1.65rem,3vw,2.45rem);max-width:900px}.intro{font-size:1.08rem;max-width:880px;margin:16px 0 30px;color:var(--ink-2)}
+    h3{font-size:1.18rem;margin:28px 0 8px}.section p{max-width:880px;margin:0 0 18px}.section p.intro{margin:16px 0 30px}.section p:last-child{margin-bottom:0}.section ul{max-width:880px;margin:0 0 18px;padding-left:22px}.section li{margin:7px 0}.section ul:last-child{margin-bottom:0}.section h2+ul{margin-top:16px}.section h3{max-width:880px}
+    .tldr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+    .tldr article{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--teal);padding:18px 18px 20px;box-shadow:var(--shadow-lg)}
+    .tldr article:nth-child(2){border-top-color:var(--amber)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:var(--plum)}
+    .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr article:nth-child(2) .num{color:#965512}.tldr article:nth-child(3) .num{color:#5d6b22}.tldr article:nth-child(4) .num{color:var(--plum)}
+    .tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
+    .factline{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:start;max-width:880px;margin:22px 0 0;color:var(--ink-2);font-size:14px}
+    .factline dt{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:.05em;justify-self:start}
+    .factline dd{margin:0}.factline dt.fact{background:var(--teal-soft);color:var(--teal)}.factline dt.inference{background:var(--amber-soft);color:#9d4b31}
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}
+    .panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:var(--shadow-sm)}
+    .panel h3{display:flex;gap:10px;align-items:baseline;margin-top:0}.panel .mark{color:var(--amber);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}.panel ul,.panel ol{margin:10px 0 0;padding-left:22px}.panel li{margin:7px 0;font-size:15px}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}
+    .flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);position:relative}
+    .flow .node:nth-child(3n){border-right:0}
+    .flow .node:nth-child(4),.flow .node:nth-child(5),.flow .node:nth-child(6){border-bottom:0}
+    .flow .k{display:block;color:var(--teal);font:700 12px Georgia,serif;letter-spacing:.06em;margin-bottom:9px}
+    .flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:25px}
+    .metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line);box-shadow:var(--shadow-sm)}
+    .metric:nth-child(2){border-top-color:var(--amber)}.metric:nth-child(3){border-top-color:var(--lime)}.metric:nth-child(4){border-top-color:var(--plum)}
+    .metric b{display:block;color:var(--ink);font-size:21px;line-height:1.35;font-weight:800;font-variant-numeric:tabular-nums}
+    .metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
+    .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:880px}
+    .callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.amber{border-left-color:var(--amber);background:var(--amber-soft)}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:26px;border:1px solid var(--line);background:#fff}
+    .table-wrap:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+    .scroll-hint{display:none}
+    .compare{width:100%;min-width:940px;border-collapse:collapse;font-size:14px}
+    .compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}
+    .compare th{background:var(--navy);color:#f5f4f0;font-size:13px}
+    .compare tr:last-child td,.compare tr:last-child th{border-bottom:0}
+    .compare tbody th{text-align:left;font-weight:750;color:var(--ink);width:14%;background:#fff}
+    .compare th:first-child{position:sticky;left:0;z-index:1;box-shadow:inset -1px 0 0 var(--line),6px 0 10px -6px rgba(29,36,48,.14)}
+    .compare td.win{color:var(--ink);font-weight:800;background:#eef7f4}
+    .compare .tbl-note{font-size:12px;color:var(--muted);padding:10px 15px 12px;border-top:1px solid var(--line);background:#fff;min-width:0}
+    .steps{counter-reset:step;display:grid;gap:14px;margin-top:28px}
+    .step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px;box-shadow:var(--shadow-sm)}
+    .step::before{content:counter(step,decimal-leading-zero);color:var(--amber);font:700 23px Georgia,serif;padding-top:2px}
+    .step h3{font-size:17px;margin:0}.step p{font-size:15px;margin:5px 0 0}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}
+    .risk{padding:18px 20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm)}
+    .risk h3{font-size:16px;margin:0}.risk p{font-size:14px;margin:6px 0 0}
+    .risk .level{display:inline-block;padding:2px 8px;border-radius:4px;background:#e9e2cd;color:#6d5726;font-size:12px;font-weight:700;vertical-align:2px;margin-left:6px}
+    .risk .level.low{background:var(--lime-soft);color:var(--lime-deep)}
+    .risk .level.high{background:#f6dfdb;color:#8f2418}
+    .sources{display:grid;gap:10px;margin-top:25px}
+    .source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px;box-shadow:var(--shadow-sm)}
+    .source .n{color:#9d4b31;font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}
+    .source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
+    .footer{color:var(--muted);font-size:13px;padding-top:28px;max-width:880px}.footer strong{color:var(--ink)}
+    @media (max-width:767px),(min-width:901px) and (max-width:987px){.scroll-hint{display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:26px 0 -12px}}
+    @media (max-width:1030px){.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-grid{grid-template-columns:1fr;gap:24px}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:900px){.compare{min-width:720px;font-size:12.5px}.compare th,.compare td{padding:10px 10px}}
+    @media (max-width:820px){.split,.risk-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.section{padding:48px 0}}
+    @media (max-width:520px){h1{font-size:clamp(1.8rem,6.2vw,2.1rem)}.shell{padding-left:17px;padding-right:17px}.masthead .shell{padding-bottom:42px}.meta-row{align-items:flex-start;flex-direction:column;gap:4px}.tldr,.metric-grid{grid-template-columns:1fr}.step{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:16px}.toc .shell{gap:16px}}
+    @media print{.toc,.scroll-hint{display:none}p,li,dd{orphans:3;widows:3}.masthead,.compare th,.callout,.section.alt,.factline dt,.metric,.step,.compare td.win,.risk .level{-webkit-print-color-adjust:exact;print-color-adjust:exact}header.masthead{break-inside:avoid}.panel,.risk,.step,.metric,.tldr article,.callout,.flow .node,.source{break-inside:avoid}.compare tr{break-inside:avoid}.compare{min-width:0;font-size:11px}.compare th:first-child{position:static}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.section{padding:32px 0}h2,h3{break-after:avoid}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="shell">
+      <div class="meta-row"><span>人工智能（AI）工程技术日报 / 研究与判断</span><span class="date">2026-09-20 · ISSUE 14</span></div>
+      <div class="hero-grid">
+        <div>
+          <h1>Cloudflare 开源 security-audit-skill：发现者不许定案，验证者不许自报——用对抗验证把 AI 安全审计做成可信流水线</h1>
+          <p class="dek">2026 年 9 月 20 日，cloudflare/security-audit-skill 登上 GitHub Trending（GitHub 的开源项目热度榜）今日第一（单日 +3,162 stars，数据截至 2026-09-20）。它是一个面向 coding agent（编码智能体：能在终端或 IDE（Integrated Development Environment，集成开发环境，集代码编写、调试、运行于一体的工具，如 VS Code）里自主读写代码、执行命令的 AI 程序，如 Claude Code、Codex CLI）的 skill（技能：以自然语言文档打包的操作手册，放进 agent 环境即可被按需加载执行），让 agent 对任意代码库跑一遍结构化的安全审计：六个阶段、一份覆盖账本、三态机器可读产出，外加两个零依赖验证器把关。项目 2026-06-18 随 Cloudflare 博客《Build your own vulnerability harness》开源，MIT 协议，截至 2026-09-20 累计 15,815 stars、862 forks。</p>
+          <p class="dek">真正值得精读的是它背后的工程哲学：AI 找漏洞这件事，难点从来不是“找不到”，而是“找到了你敢信吗”。Cloudflare 的答案是把安全审计拆成互相制衡的两套系统——发现系统（VDH）只负责找，验证系统（VVS）只负责定案，发现者不许给自己盖章，验证者不许自己报漏洞；再用“覆盖账本”逼着 agent 交代“哪些地方没查”。配套博客披露了这套 harness（包裹模型、使其能力可被使用的执行环境）机群运行的一手数据：20,799 条原始候选如何逐级过滤成 7,245 条可行动结论，初验拒绝率如何从 40% 降到 11%。本文的能力描述均来自仓库 README 与 Cloudflare 官方博客，未包含作者实测数据。</p>
+        </div>
+        <div class="signal"><b>先给结论</b>值得精读的三个理由：一、这是“对抗验证”从论文概念落成开源工程实物的样本——checker（检查者）永远不能是 finder（发现者），这套制衡结构可以平移到任何“AI 产出判断”的场景；二、覆盖账本 + 三态 findings + schema 校验，示范了如何把非确定性的 LLM（Large Language Model，大语言模型）输出契约化、可审计化；三、Cloudflare 把内部数据摊得很开：Semgrep 接入一个月被 agent 零调用、Wishlist 被 128 个仓库写了 25,472 次，这些反直觉数字本身就是 agent 工程的一手观察。</div>
+      </div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="文章目录">
+    <div class="shell"><a href="#tldr">TL;DR（太长不看）</a><a href="#problem">背景与问题</a><a href="#principle">审计原理</a><a href="#innovation">创新点</a><a href="#compare">数据与竞品</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+  <main id="content" tabindex="-1">
+    <section class="section" id="tldr" aria-labelledby="h-tldr">
+      <div class="shell">
+        <div class="label">01 / Decision brief</div>
+        <h2 id="h-tldr">TL;DR（太长不看）：一个 skill 约束不了模型能力，但能约束产出纪律</h2>
+        <div class="tldr" role="list">
+          <article role="listitem"><span class="num">01 / WHAT</span><h3>发生了什么</h3><p>Cloudflare 开源的 security-audit-skill 冲上 GitHub Trending 今日第一（+3,162 stars/日）。它是一份装给 coding agent 的审计手册：六阶段流程（侦察→覆盖驱动狩猎→候选验证→结构化输出→独立记录验证→目标中立报告）+ 覆盖账本 + 三态 findings + 两个零依赖 Node 验证器 + 10 类攻击知识库。</p></article>
+          <article role="listitem"><span class="num">02 / WHY</span><h3>解决谁的问题</h3><p>让 agent 找代码漏洞容易，让产出可信难：LLM 会把“看起来可疑”包装成“确认漏洞”，且说不清自己查过什么、漏了什么。安全团队拿到这种报告既不敢信、也没法核对。这个 skill 把“可信”拆成三件可执行的事：对抗验证、覆盖可审计、产出可机器校验。</p></article>
+          <article role="listitem"><span class="num">03 / HOW</span><h3>怎么做到的</h3><p>流程上把审计切成六个阶段，每阶段有明确产物；纪律上立五条规则：检查者≠发现者、只确认已建立的边界失效、严重性=可能性×影响、纵深防御缺口不算漏洞、单次运行默认只找得到多轮的一半；工程上用 coverage-ledger.json 记录查了什么没查什么，findings.json 按三态（confirmed/needs_validation/rejected）落地，schema 验证器拒绝不合格产出。</p></article>
+          <article role="listitem"><span class="num">04 / SHIP</span><h3>生产判断</h3><p>接入门槛不低：要支持工具与并行子代理的 coding agent、Node.js，外加 OS 级沙箱（隔离的执行环境）——审计过程本身会读遍你的代码，没有沙箱等于请人进门翻箱倒柜。Cloudflare 内部数据是 30k 行仓库约 100 findings/3-4 小时、80 个 distinct bug；该数字来自其内部仓库，外部泛化需要自行验证。</p></article>
+        </div>
+        <dl class="factline"><dt class="fact">来源事实</dt><dd>六阶段流程、三态 findings、覆盖账本、10 攻击类文档、五条设计原则、安装方式（npx skills add；npx 是 Node.js 的包执行命令，无需安装目标包即可直接下载运行）均来自仓库 README（数据截至 2026-09-20）；Trending 榜单位与 star 数据来自 GitHub Trending 与仓库元数据（2026-09-20）；VDH/VVS 双系统、八 agent 组成、漏斗数据（20,799 → 12,057 → 7,245，VVS 池 13,841 条/145 仓库）、拒绝率（40% → 11%）、成本与沙箱细节均来自 Cloudflare 博客《Build your own vulnerability harness》（2026-06-18 发布、2026-07-15 更新）；应用消费数据来自 OpenRouter Rankings（数据截至 2026-09-18）。</dd><dt class="inference">本文推断</dt><dd>"对抗验证范式将外溢到安全审计之外""skills 分发生态正在标准化""星数增长与生产可用性无关"等为本文分析判断，依据在各章节内标注。</dd></dl>
+      </div>
+    </section>
+
+    <section class="section alt" id="problem" aria-labelledby="h-problem">
+      <div class="shell">
+        <div class="label">02 / Background</div>
+        <h2 id="h-problem">背景与问题：AI 审计的可信缺口——结论、过程、产出三处断线</h2>
+        <p class="intro">先看需求侧的火有多旺。OpenRouter（聚合数十家模型厂商 API 的路由平台）应用消费榜前十全部是 agent 与 coding 工具（数据截至 2026-09-18）：Hermes Agent 日消费 1.68 万亿 token 居首，Claude Code 8,800 亿 token 第二。coding agent 已经是 token 消费主力，让它们顺手做安全审计是自然延伸——问题在于产出质量基本没有契约。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>传统方案的困境</h3><p>安全审计的三个既有选项各有短板：<strong>人工渗透测试</strong>贵且慢，覆盖面受制于审计师个人经验；<strong>静态分析工具</strong>（如 Semgrep、CodeQL：按预写规则扫描已知漏洞模式的工具）误报多、规则维护成本高，且只能查规则覆盖过的模式；<strong>LLM 直接扫代码</strong>看似灵活，实际产出三类毛病：幻觉——把理论风险报告成确认漏洞；无过程记录——说不清哪些文件查了、哪些没查；自由文本——报告没法进 CI（Continuous Integration，持续集成：每次代码提交后自动执行构建、测试与检查的工程实践）流水线做机器处理。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>Cloudflare 的起点：一个 450 行的 skill</h3><p>Cloudflare 在 2026-06-18 的博客《Build your own vulnerability harness》（Project Glasswing 系列第二篇）里复盘了这条路：起点不是宏大架构，而是一个约 450 行的 skill——本质是给 coding agent 的一份详细审计操作手册。六周之内，这个 skill 演化成横扫内部 128 个仓库的 fleet（机群：按统一调度批量运行的实例集合）扫描器，分水岭在于引入了第二套验证系统。博客末段声明该 skill 随博文一并发布，仓库创建于同日。</p></div>
+        </div>
+        <div class="callout amber"><p><strong>核心问题的重新表述。</strong>这个项目把“AI 审计不可信”拆成了三个可分别攻克的子问题：①<strong>结论可信</strong>——一个模型既当运动员又当裁判，判定必然向自身倾斜，所以要拆成发现与验证两套系统；②<strong>过程可信</strong>——没有“查过什么”的记录，就没法判断“漏了什么”，所以要覆盖账本；③<strong>产出可信</strong>——自由文本无法对接下游工具链，所以要用 schema（结构化数据格式定义）约束成机器可校验的 JSON（JavaScript Object Notation，一种以键值对表达结构化数据的轻量文本格式）。三件事对应三件工程物：VDH/VVS 双系统、coverage-ledger.json、findings.json + 验证器。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="principle" aria-labelledby="h-principle">
+      <div class="shell">
+        <div class="label">03 / How it works</div>
+        <h2 id="h-principle">审计原理：六阶段流水线，每一步都留下一份可核对的文件</h2>
+        <p class="intro">skill 本体是一组 Markdown 文档与 JSON schema，装进 agent 环境后，一句“security audit this codebase”即可触发。完整流程分六个阶段，前五个阶段有独立文档（SKILL.md、RECONNAISSANCE.md、HUNTING.md、VALIDATION-AND-REPORTING.md 及攻击类文档），每个阶段的产物都会落成文件，供下一阶段和最终验证器消费：</p>
+        <div class="flow" role="list" aria-label="安全审计六阶段流程">
+          <div class="node" role="listitem"><span class="k">PHASE 1</span><b>侦察（Reconnaissance）</b><small>清点代码库：入口点、依赖、信任边界（trust boundary：系统中“受信任”与“不受信任”部分的分界线）与技术栈，产出威胁模型的原料。</small></div>
+          <div class="node" role="listitem"><span class="k">PHASE 2</span><b>覆盖驱动狩猎（Hunting）</b><small>按 10 个攻击类文档逐类排查，同时维护 coverage-ledger.json——计划查什么、实际查了什么、哪些区域明确放弃及原因，全部记录在案。</small></div>
+          <div class="node" role="listitem"><span class="k">PHASE 3</span><b>候选验证（Validation）</b><small>每个候选漏洞要过“已建立的边界失效”检验：只有当代码确实在特定输入下越过安全边界时才算数，纯理论风险不进 confirmed。</small></div>
+          <div class="node" role="listitem"><span class="k">PHASE 4</span><b>结构化输出（Output）</b><small>按 report-schema.json 把结论写进 findings.json，产出即跑 validate-findings.cjs 做 schema 校验；每条带三态标记：confirmed（已证实）、needs_validation（待复核）、rejected（已排除）——被排除的也要留下“为什么排除”。</small></div>
+          <div class="node" role="listitem"><span class="k">PHASE 5</span><b>独立记录验证（Verify）</b><small>validate-coverage-ledger.cjs 贯穿全程：从 Phase 1 建账起，覆盖账本每次更新都会触发校验，Phase 5 做最终总检，追查“声称查过但没有对应记录”的窟窿。</small></div>
+          <div class="node" role="listitem"><span class="k">PHASE 6</span><b>目标中立报告（Report）</b><small>按消费方需求输出报告，措辞不迎合“让结果看起来更严重”的倾向；每条 finding 的严重性按“可能性 × 影响”计算，缺任何一个维度都不允许给高分。</small></div>
+        </div>
+        <h3>两个关键产物的设计细节</h3>
+        <p><strong>coverage-ledger.json（覆盖账本）</strong>是整个流程里最有“会计思维”的设计：agent 必须把每个攻击类在每个代码区域的排查情况登记入账——查了、没查、查不了（比如缺上下文）都要有明确记录。验证器会比对“计划 vs 实际”，发现“声称查了但没有对应记录”直接判不合格。它的价值在事后：审计报告的使用者可以拿着账本核对“这个仓库的供应链攻击类查过吗”，而不是对着一份自由文本猜测审计范围。</p>
+        <p><strong>findings.json 的三态</strong>值得单独说：多数审计工具只有“报/不报”两种状态，被过滤掉的候选直接消失。这里要求 agent 把拿不准的标记为 needs_validation、主动排除的标记为 rejected 并写明理由——这既给人工复核留了工作清单，也让“agent 当时是怎么想的”变成可追溯的记录。</p>
+        <div class="callout"><p><strong>五条纪律原则（README 原文要点）。</strong>①对抗验证：检查者永远不能是发现者；②只确认已建立的边界失效——"代码允许坏事发生“不等于”坏事会发生"，没有证据不落 confirmed；③严重性需要影响——可能性与影响缺一不给分；④纵深防御缺口不是漏洞——"这里少了一层防护"属于加固建议，不是可报告漏洞；⑤多次运行提升覆盖——单次运行默认只找得到多轮运行总量的一半左右，官方明确建议对重要目标多跑几遍。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="innovation" aria-labelledby="h-innovation">
+      <div class="shell">
+        <div class="label">04 / Innovation</div>
+        <h2 id="h-innovation">创新点：双系统制衡、防造假三招，以及两个反直觉的生态观察</h2>
+        <p class="intro">skill 文档约束的是单次审计的纪律；Cloudflare 博客披露的 harness 架构，则展示了这套纪律如何被规模化执行。两层创新值得分开看。</p>
+        <h3>第一层：VDH + VVS 双系统制衡</h3>
+        <p>内部 fleet 的核心架构是两套独立系统：<strong>VDH（Vulnerability Discovery Harness，漏洞发现系统）</strong>负责找，由 8 个专职 agent 组成——Recon（侦察）、Hunt（狩猎）、Validate（初验）、Gapfill（补漏）、Dedup（去重）、Trace（追踪）、Feedback（反馈）、Report（报告）；<strong>VVS（Vulnerability Validation System，漏洞验证系统）</strong>负责定案。两套系统用不同模型独立运行，VDH 的产出进 VVS 的池子重新验证，互相校验对方的结论。工程上每个 agent 的上下文控制在 25% 以下，全部中间状态落 SQLite（嵌入式单文件数据库）持久化，以 run_id/repo/stage 为键——单个 agent 崩溃可以从任意阶段恢复。</p>
+        <h3>第二层：防造假三招</h3>
+        <p>模型造假 finding（编一个“看起来专业”的漏洞报告）是 agent 审计最阴险的失败模式。博客披露的三条硬规则：①<strong>威胁模型前置</strong>——必须先声明针对该仓库的威胁模型（列出资产与攻击面）才有资格提交 finding，杜绝“先编结论再找理由”；②<strong>PoC（Proof of Concept，概念验证：能实际触发漏洞的最小代码）必须针对原始代码</strong>——在 agent 自己改写的代码上“复现”漏洞不算数；③<strong>Validator 不得自报 finding</strong>——验证系统自己发现的漏洞不能直接进入产出，必须绕回发现流程走完整链路。三条规则合起来堵死了模型自证自明的通道。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>反直觉观察一：Semgrep 被零调用</h3><p>Cloudflare 给 Hunter 集成了 Semgrep（开源静态分析工具）作为工具选项，一个月后的统计：Hunter 调用次数为零。agent 宁愿自己读代码也不调用规则引擎。这组数字对“给 agent 塞工具就能提效”的直觉是有力反证（本文推断：至少在这套 fleet 的观察里，工具箱的丰富度不等于使用率，agent 实际伸手拿什么工具由任务语境驱动）。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>反直觉观察二：Wishlist 写了 25,472 次</h3><p>当 agent 遇到能力缺口，正确动作不是硬编造工具，而是把需求写进 Wishlist（愿望清单：agent 表达“我需要什么工具”的登记机制）。128 个仓库累计写入 25,472 次——平均每个仓库约 199 条工具需求。Cloudflare 把这个清单当作 harness 演进的需求池，也当作观察 agent 行为的窗口。sibling forking（兄弟分叉：让子 agent 从同一父状态分叉出并行分支）覆盖了其中 9%-20% 的任务。</p></div>
+        </div>
+        <div class="callout amber"><p><strong>本文推断：这个 skill 的真正产品定位是“纪律约束层”。</strong>README 反复强调它不绑定特定模型、不承诺发现率上限——一个 skill 文档不可能提升模型智力，它能做的是把模型的自由发挥关进结构化流程：该查的类别列全了、该留的记录留了、该排除的写清理由、产出过 schema 校验。也就是说，同一个人用同一个模型，装不装这个 skill 的差别不在“能不能找到漏洞”，而在“找到的东西能不能被信任和使用”。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="compare" aria-labelledby="h-compare">
+      <div class="shell">
+        <div class="label">05 / Data &amp; Competition</div>
+        <h2 id="h-compare">数据与竞品：两万条候选怎么变成七千条结论，以及和现有方案的差异</h2>
+        <p class="intro">博客披露的漏斗数据是理解这套系统收敛效率的最好材料：20,799 条原始候选中 12,057 条通过初验；与另一套 harness 汇入的候选合并后，VVS 验证池共 13,841 条、横跨 145 个仓库；Dedup 折叠 5,442 条重复，1,154 条被路由回发现系统返工，最终剩下 7,245 条带完整证据链的可行动结论。</p>
+        <div class="metric-grid" role="list" aria-label="漏斗关键数字">
+          <div class="metric" role="listitem"><b>20,799 → 7,245</b><span>原始候选 → 可行动结论；中途初验留 12,057 条，与另一 harness 汇入合并成 13,841 条 VVS 池（145 仓库），Dedup 折叠 5,442 条、1,154 条路由返工</span></div>
+          <div class="metric" role="listitem"><b>40% → 11%</b><span>得益于 Recon 阶段上下文注入的改进，初验拒绝率从 40% 降至 11%；高完整性 findings 占比从 35% 升至 58%</span></div>
+          <div class="metric" role="listitem"><b>100 findings / 3-4 小时</b><span>标准 30k 行仓库的典型产出，压缩后约 80 个 distinct（去重后）bug</span></div>
+          <div class="metric" role="listitem"><b>约 14 小时到 PR</b><span>Fixer 以约 5 分钟/bug 出修复并提 PR（Pull Request，请求代码仓库合入变更的正式请求），全程含验证；Fixer 永不自动合并，人审是硬闸门</span></div>
+        </div>
+        <h3>运行环境与成本结构</h3>
+        <p>hunter 的验证动作在 unshare（Linux 系统调用：把进程关进隔离的命名空间，进程内看不到真实文件系统与网络）沙箱中执行，防止审计过程本身读取敏感文件或外传数据；每个仓库有预算上限，worker（并行工作单元）规模在 50-200 之间，最差的 run 跑了 14 个小时以上——Cloudflare 没有回避规模化后的成本问题。这些细节全部来自官方博客（2026-07-15 更新版）。</p>
+        <p class="scroll-hint">下表在窄屏设备上可横向滑动。</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="security-audit-skill 与既有方案对比">
+          <table class="compare">
+            <thead><tr><th scope="col">维度</th><th scope="col">security-audit-skill（+内部 harness）</th><th scope="col">静态分析（Semgrep / CodeQL 等）</th><th scope="col">通用 AI 代码审查 agent</th><th scope="col">人工渗透测试</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">方法论</th><td>威胁建模 + 按攻击类逐区排查 + 独立验证系统复核</td><td>预写规则的模式匹配，只能查规则覆盖过的模式</td><td>模型自由阅读代码，无固定流程与覆盖框架</td><td>审计师经验驱动，方法因人而异</td></tr>
+              <tr><th scope="row">防幻觉机制</th><td class="win">对抗验证（checker≠finder）+ PoC 须针对原始代码 + validator 不得自报</td><td>无幻觉问题（确定性规则），但有误报问题</td><td>基本依赖模型自觉，无结构化制衡</td><td>依赖审计师职业规范</td></tr>
+              <tr><th scope="row">过程可审计</th><td>coverage-ledger.json 全程登记，验证器强制比对</td><td class="win">规则命中记录即过程，天然完整</td><td>无覆盖记录，说不清查了哪些没查哪些</td><td>报告文档，颗粒度不一</td></tr>
+              <tr><th scope="row">产出格式</th><td class="win">三态 findings.json + schema 校验，可直接进工具链</td><td>结构化告警列表</td><td>自由文本，需人工二次整理</td><td>定制化报告</td></tr>
+              <tr><th scope="row">成本与速度</th><td>30k 行仓库约 3-4 小时 agent 时间；成本随模型与并行度变化</td><td>分钟级，规则维护是隐性成本</td><td>快但产出质量不可控，返工成本高</td><td>以周计，人力最贵</td></tr>
+              <tr><th scope="row">主要短板</th><td>依赖强 coding agent + OS 沙箱；发现上限受模型能力约束</td><td>规则库永远滞后于新漏洞模式</td><td>结论不可信、过程不可核、产出不可接</td><td>贵、慢、覆盖受个人经验限制</td></tr>
+            </tbody>
+            <tfoot><tr><td class="tbl-note" colspan="5">绿底加粗为该维度中表现占优的方案。对比基于各方案公开资料整理；"通用 AI 代码审查 agent"列描述的是让通用 LLM 直接读代码且不带流程约束的通行做法，因其产品化形态高度多样，作为类别而非具体产品对比；"内部 harness"一列为 Cloudflare 博客披露数据，开源 skill 本身不含 VDH/VVS 运行时。</td></tr></tfoot>
+          </table>
+        </div>
+        <div class="callout"><p><strong>一个容易被误读的边界。</strong>开源的只是 skill（流程文档 + schema + 验证器），博客明确说 harness 本体“希望很快跟进”（will follow shortly）。也就是说，社区现在能复刻的是审计纪律，不是那套扫 128 仓库的调度系统。把 skill 的开源效果直接等同于博客数据的表现，是对项目边界的误读。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="production" aria-labelledby="h-production">
+      <div class="shell">
+        <div class="label">06 / Production view</div>
+        <h2 id="h-production">工程化视角：接入生产系统要过的三道关</h2>
+        <p class="intro">这套东西要进生产环境，绕不开三个问题。以下分析结合 README 的接入要求与 Cloudflare 博客的运行数据展开。</p>
+        <h3>一、接入生产需要考虑哪些环节？</h3>
+        <ul>
+          <li><strong>agent 选型</strong>：README 要求宿主 agent 支持工具调用与并行子代理——六阶段流水线要靠子代理分工才能跑顺，单线程的轻量 agent 只能跑降级版流程；Node.js 是验证器的运行依赖。</li>
+          <li><strong>沙箱是硬前提</strong>：审计 agent 会读遍整个代码库并执行验证代码，OS 级隔离（容器或虚拟机）必须先行；Cloudflare 内部用 unshare 命名空间隔离 Hunter，开源用户需要自己配等效方案。</li>
+          <li><strong>预算与调度</strong>：官方口径按仓库设预算、50-200 workers 并行、最差 run 14 小时以上——接入 CI 需要评估这笔开销放在哪个环节（每日定时 or 发布前触发），以及超时策略。</li>
+          <li><strong>结果消费流程</strong>：三态 findings 需要配套人工复核队列处理 needs_validation，confirmed 进工单系统，rejected 留档——没有下游流程，三态设计就退化成一堆 JSON。</li>
+        </ul>
+        <h3>二、对现有 LLM 应用架构有什么影响？</h3>
+        <p>它示范的“双系统制衡”是一种可复用的架构模式：任何 LLM 判断类任务（内容审核、代码审查、数据质量校验）都可以拆成“生成判断”与“独立复核”两个模型角色，用不同模型交叉验证。这类架构对现有系统的影响是增加了一次模型调用的成本与延迟，换来判定可信度的结构化提升；同时覆盖账本模式（计划 vs 实际的强制对账）可以移植到一切“过程不可见”的 agent 任务里。对安全团队而言，findings.json 的 schema 化产出意味着 agent 审计结果可以第一次以机器可读形式进 SIEM（Security Information and Event Management，安全信息与事件管理平台）与工单系统，而不是以 PDF 报告的形式躺在邮箱里。</p>
+        <h3>三、从 Demo 到生产可用，主要差距在哪里？</h3>
+        <p>Demo（本地对一个开源仓库跑一遍，拿到一份 findings.json）与生产的差距按 Cloudflare 自己的数据体现在三处：①<strong>重复运行的收敛</strong>——单次运行只找得到多轮的一半左右，生产必须设计多轮运行与去重合并策略；②<strong>防造假的执行</strong>——skill 文档写“validator 不得自报”，但开源版没有独立的 VVS 运行时强制它，生产要自建第二模型验证层；③<strong>成本控制</strong>——从单仓库到 fleet 规模，预算上限、worker 调度、SQLite 状态恢复都要自己搭。Cloudflare 用六周走完了这段路，其轨迹本身是可信的参考路径。</p>
+      </div>
+    </section>
+
+    <section class="section" id="risk" aria-labelledby="h-risk">
+      <div class="shell">
+        <div class="label">07 / Risk &amp; Limits</div>
+        <h2 id="h-risk">局限与风险：纪律约束能力下限，约束不了发现上限</h2>
+        <div class="risk-grid" role="list" aria-label="风险清单">
+          <div class="risk" role="listitem"><h3>数据外推风险 <span class="level high">高</span></h3><p>漏斗数据、拒绝率、单仓库成本全部来自 Cloudflare 内部仓库——代码风格、技术栈分布、威胁面都与其业务高度相关。博客未提供外部基准上的对比数据，80 bug/30k 行的外推需要自行验证。</p></div>
+          <div class="risk" role="listitem"><h3>发现上限受模型约束 <span class="level high">高</span></h3><p>skill 是文档层约束，不能提升模型的安全直觉。模型看不出某段代码的漏洞模式时，覆盖账本只会诚实地记录“查了没发现”。对抗验证能压低假阳性，对假阴性（漏报）没有对称机制。</p></div>
+          <div class="risk" role="listitem"><h3>接入门槛 <span class="level">中</span></h3><p>需要强 coding agent（工具 + 并行子代理）+ Node.js + OS 级沙箱三件套。沙箱缺失时，审计 agent 全库读取本身就是攻击面；企业内落地先要过安全合规关——用一个 AI 读遍全库代码，这件事本身就要安全团队审批。</p></div>
+          <div class="risk" role="listitem"><h3>覆盖账本的边界 <span class="level">中</span></h3><p>账本保证“查过的都有记录”，不保证“记录查过=真的查懂了”。agent 可以在账本上登记完成而实际排查流于形式——对抗验证拦结论造假，拦不住过程敷衍。多轮运行策略是官方给出的部分对冲。</p></div>
+          <div class="risk" role="listitem"><h3>热度与成熟度的错位 <span class="level">中</span></h3><p>14 个 commits、6 月中旬以来最后推送为 2026-09-14，仓库本身处于早期。星数曲线（3 个月 15,815 stars、今日 +3,162）反映的是对“可信 AI 审计”的需求热度，与 skill 的实际效果没有直接关系（本文推断）。</p></div>
+          <div class="risk" role="listitem"><h3>三态产出的运营负担 <span class="level low">低</span></h3><p>needs_validation 与 rejected 都需要下游有人接。没有复核队列的团队会看到“待复核”条目堆积，反而放大信任问题——三态设计的前提是消费端有处置流程。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="future" aria-labelledby="h-future">
+      <div class="shell">
+        <div class="label">08 / What's next</div>
+        <h2 id="h-future">未来方向：harness 本体、skill 分发生态，以及制衡范式的外溢</h2>
+        <ul>
+          <li><strong>harness 本体开源的承诺</strong>：博客结尾明确表示扫描器系统“希望很快跟进”。若 VDH/VVS 运行时真正开源，社区将首次拿到完整的多 agent 对抗验证参考实现；在此之前，复刻者只能按博客文字自行拼装调度层。</li>
+          <li><strong>skills 分发标准化</strong>：安装走 npx skills add（skills.sh 生态的统一命令），security-audit-skill 是该生态里第一批带 schema 验证器的“重度” skill。skill 从“一段提示词”进化为“文档 + schema + 验证器的软件包”，分发标准化会反过来抬高 skill 的工程基线（本文推断）。</li>
+          <li><strong>对抗验证范式外溢</strong>：checker≠finder 的制衡结构不专属于安全审计。内容审核、事实核查、代码合并判定、自动化测试结论判定——一切“LLM 产出判断”的场景都适用同一结构。security-audit-skill 的意义在于把它做成了可安装、可校验的实物（本文推断）。</li>
+          <li><strong>安全审计的岗位变化</strong>：审计工作从“逐行读代码”转向“设计威胁模型 + 复核 needs_validation + 消费机器可读产出”。覆盖账本让审计范围的谈判（"这轮查了什么"）第一次有了客观对账依据（本文推断）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="takeaways" aria-labelledby="h-takeaways">
+      <div class="shell">
+        <div class="label">09 / Takeaways</div>
+        <h2 id="h-takeaways">工程师可以借鉴：五条可以直接搬走的工程手法</h2>
+        <div class="steps">
+          <div class="step"><h3>对抗验证：checker 永远不能是 finder</h3><p>任何 LLM 判断类任务，把“下结论”和“找候选”拆给两个独立模型/系统，能结构性压低假阳性。成本是双倍调用，换来的是判定可信度——这个交换在安全、审核类场景几乎总是划算的。</p></div>
+          <div class="step"><h3>覆盖账本：给非确定性过程配一本"对账单"</h3><p>让 agent 强制登记“计划做什么 vs 实际做了什么 vs 放弃了什么及原因”，再用脚本比对差距。这个模式可以移植到检索、调研、测试等多数过程不可见的 agent 任务。</p></div>
+          <div class="step"><h3>三态产出：不要强迫模型给二元答案</h3><p>confirmed / needs_validation / rejected 三态加“排除理由”，把“拿不准”变成一等公民。对下游而言，"待复核清单"远比一个被硬压成二值的不可信答案有用。</p></div>
+          <div class="step"><h3>Wishlist：给 agent 的能力缺口建登记机制</h3><p>agent 遇到缺工具时，让它写愿望清单而不是现场硬造。25,472 条记录既是 harness 迭代的需求池，也是观察 agent 行为偏好的数据集。</p></div>
+          <div class="step"><h3>上下文预算 + 状态外置：长任务的结构解法</h3><p>每个 agent 上下文控制在 25% 以内、全部中间状态以 (run_id, repo, stage) 为键落 SQLite，单点崩溃可从任意阶段恢复。这套组合是长程 agent 任务的标准工程形态。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt end" id="sources" aria-labelledby="h-sources">
+      <div class="shell">
+        <div class="label">10 / Sources</div>
+        <h2 id="h-sources">数据源</h2>
+        <div class="sources">
+          <div class="source"><span class="n">1</span><p><a href="https://github.com/cloudflare/security-audit-skill">cloudflare/security-audit-skill 仓库 README（GitHub）</a></p><small>用途：六阶段流程、覆盖账本与三态 findings 设计、10 个攻击类文档清单、五条纪律原则、安装方式（npx skills add）与运行要求。数据截至 2026-09-20。</small></div>
+          <div class="source"><span class="n">2</span><p><a href="https://blog.cloudflare.com/build-your-own-vulnerability-harness/">Cloudflare Blog：Build your own vulnerability harness</a></p><small>用途：VDH/VVS 双系统架构、八 agent 组成、防造假三招、漏斗数据（20,799 → 12,057 → 7,245）、拒绝率（40% → 11%）、单仓库成本、unshare 沙箱、Wishlist 与 Semgrep 观察、Fixer 策略。发布于 2026-06-18，更新于 2026-07-15。</small></div>
+          <div class="source"><span class="n">3</span><p><a href="https://github.com/trending">GitHub Trending 榜单</a></p><small>用途：security-audit-skill 今日第一、单日 +3,162 stars。数据截至 2026-09-20。</small></div>
+          <div class="source"><span class="n">4</span><p><a href="https://github.com/cloudflare/security-audit-skill">GitHub 仓库元数据（REST API）</a></p><small>用途：stars（15,815）、forks（862）、创建时间（2026-06-18）、最后推送（2026-09-14）、commits 数、MIT 协议。数据截至 2026-09-20。</small></div>
+          <div class="source"><span class="n">5</span><p><a href="https://openrouter.ai/rankings">OpenRouter Rankings</a></p><small>用途：应用消费榜前十均为 agent/coding 工具的用量事实，支撑背景章节。数据截至 2026-09-18。</small></div>
+        </div>
+        <p class="footer"><strong>诚实边界：</strong>本文的能力与数据描述全部来自仓库 README 与 Cloudflare 官方博客等公开资料，未包含作者实测数据；Cloudflare 披露的漏斗与成本数据来自其内部仓库的运行结果，在读者自己环境中的表现需要独立验证。文中标注“本文推断”的判断为作者观点，不构成对项目方的转述。</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
