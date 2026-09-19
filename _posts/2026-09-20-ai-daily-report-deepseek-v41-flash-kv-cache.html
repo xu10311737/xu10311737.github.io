@@ -1,0 +1,334 @@
+---
+layout: main
+title: 'DeepSeek-V4.1-Flash：把每个 token 的全局 KV 缓存压到 890 字节——552B 参数的 MoE 为 Agent 负载重新设计整条注意力栈'
+date: 2026-09-20 00:00:00 +0800
+description: '解读 DeepSeek-V4.1-Flash（arXiv:2609.19969）：552B 多模态 MoE 把每 token 全局 KV 缓存压到 890 字节、持久缓存约上一代 1/8；DeepSWE 74.2 反超 Opus-5，推理力度 1–100 已进生产 API；HLE 最难档与闭源前沿仍有硬差距。'
+tags:
+  - AI
+  - engineering
+  - LLM
+---
+  <style>
+    :root{
+      --ink:#1d2430;--ink-2:#3a4350;--muted:#5c6771;--paper:#fbfaf8;--panel:#ffffff;
+      --line:#e0ddd5;--teal:#0c7772;--teal-soft:#e2f1ee;--amber:#b96a1b;--amber-soft:#f6e8d5;
+      --lime:#6f7f2a;--lime-soft:#eef2d9;--navy:#20222b;--plum:#8b6389;--plum-soft:#efe6ee;
+      --shadow-lg:0 12px 30px rgba(27,36,48,.08);--shadow-sm:0 7px 20px rgba(27,36,48,.05);
+    }
+    *{box-sizing:border-box}html{overflow-x:clip}
+    @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+    body{margin:0;background:var(--paper);color:var(--ink-2);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.82}
+    a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:3px}
+    a:hover{color:#a4502f;text-decoration-thickness:2px}
+    a:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:16px;top:16px;z-index:20;background:#fff;padding:8px 12px;border:2px solid var(--teal)}
+    .shell{max-width:1120px;margin:0 auto;padding:0 24px}
+    .masthead{background:var(--navy);color:#f4f5f7;border-bottom:5px solid var(--teal)}
+    .masthead .shell{padding-top:20px;padding-bottom:44px}
+    .meta-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#b9c0ca;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+    .meta-row .date{color:#9fd8d2}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:48px;align-items:end;margin-top:38px}
+    h1,h2,h3{color:var(--ink);line-height:1.3;margin:0;font-weight:750}
+    h1,h2{text-wrap:balance}.dek{text-wrap:pretty}
+    h1{color:#f9f8f5;font-size:clamp(2.1rem,4.2vw,3.4rem)}
+    .dek{color:#d3d6db;font-size:1.13rem;max-width:780px;margin:22px 0 0}.dek+.dek{margin-top:10px}
+    .signal{border-left:2px solid #35b3a9;padding:4px 0 4px 20px;color:#dcf0ee;font-size:14px;max-width:640px}
+    .signal b{display:block;color:#fff;font-size:17px;margin-bottom:5px}
+    .toc{position:sticky;top:0;z-index:5;background:rgba(251,250,248,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent)}
+    .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
+    main{padding-bottom:80px}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
+    .section.alt{background:#f2f0eb}.section.end{border-bottom:0}
+    .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);margin-bottom:10px}
+    h2{font-size:clamp(1.65rem,3vw,2.45rem);max-width:900px}.intro{font-size:1.08rem;max-width:880px;margin:16px 0 30px;color:var(--ink-2)}
+    h3{font-size:1.18rem;margin:28px 0 8px}.section p{max-width:880px;margin:0 0 18px}.section p:last-child{margin-bottom:0}.section ul{max-width:880px;margin:0 0 18px;padding-left:22px}.section li{margin:7px 0}.section ul:last-child{margin-bottom:0}.section h2+ul{margin-top:16px}.section h3{max-width:880px}
+    .tldr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+    .tldr article{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--teal);padding:18px 18px 20px;box-shadow:var(--shadow-lg)}
+    .tldr article:nth-child(2){border-top-color:var(--amber)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:var(--plum)}
+    .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr article:nth-child(2) .num{color:#965512}.tldr article:nth-child(3) .num{color:#5d6b22}.tldr article:nth-child(4) .num{color:var(--plum)}
+    .tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
+    .factline{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:start;max-width:880px;margin:22px 0 0;color:var(--muted);font-size:13px}
+    .factline dt{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:.05em;justify-self:start}
+    .factline dd{margin:0}.factline dt.fact{background:var(--teal-soft);color:var(--teal)}.factline dt.inference{background:var(--amber-soft);color:#9d4b31}
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}
+    .panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:var(--shadow-sm)}
+    .panel h3{display:flex;gap:10px;align-items:baseline;margin-top:0}.panel .mark{color:var(--amber);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}.panel ul,.panel ol{margin:10px 0 0;padding-left:22px}.panel li{margin:7px 0;font-size:15px}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}
+    .flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);position:relative}
+    .flow .node:last-child{border-right:0}
+    .flow .node:not(:last-child)::after{content:"";position:absolute;right:-9px;top:50%;margin-top:-8px;width:16px;height:16px;border-top:2px solid var(--teal);border-right:2px solid var(--teal);transform:rotate(45deg);background:#fff;z-index:1}
+    .flow .k{display:block;color:var(--teal);font:700 12px Georgia,serif;letter-spacing:.06em;margin-bottom:9px}
+    .flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:25px}
+    .metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line);box-shadow:var(--shadow-sm)}
+    .metric:nth-child(2){border-top-color:var(--amber)}.metric:nth-child(3){border-top-color:var(--lime)}.metric:nth-child(4){border-top-color:var(--plum)}
+    .metric b{display:block;color:var(--ink);font-size:21px;line-height:1.35;font-weight:800;font-variant-numeric:tabular-nums}
+    .metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
+    .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:880px}
+    .callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.amber{border-left-color:var(--amber);background:var(--amber-soft)}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:26px;border:1px solid var(--line);background:#fff}
+    .table-wrap:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+    .scroll-hint{display:none}
+    .compare{width:100%;min-width:940px;border-collapse:collapse;font-size:14px}
+    .compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}
+    .compare th{background:var(--navy);color:#f5f4f0;font-size:13px}
+    .compare tr:last-child td,.compare tr:last-child th{border-bottom:0}
+    .compare tbody th{text-align:left;font-weight:750;color:var(--ink);width:14%;background:#fff}
+    .compare th:first-child{position:sticky;left:0;z-index:1;box-shadow:inset -1px 0 0 var(--line),6px 0 10px -6px rgba(29,36,48,.14)}
+    .compare td.win{color:var(--ink);font-weight:800;background:#eef7f4}
+    .compare .tbl-note{font-size:12px;color:var(--muted);padding:10px 15px 12px;border-top:1px solid var(--line);background:#fff;min-width:0}
+    .compare.pack{min-width:620px}
+    .steps{counter-reset:step;display:grid;gap:14px;margin-top:28px}
+    .step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px;box-shadow:var(--shadow-sm)}
+    .step::before{content:counter(step,decimal-leading-zero);color:var(--amber);font:700 23px Georgia,serif;padding-top:2px}
+    .step h3{font-size:17px;margin:0}.step p{font-size:15px;margin:5px 0 0}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}
+    .risk{padding:18px 20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm)}
+    .risk h3{font-size:16px;margin:0}.risk p{font-size:14px;margin:6px 0 0}
+    .risk .level{display:inline-block;padding:2px 8px;border-radius:4px;background:#e9e2cd;color:#6d5726;font-size:12px;font-weight:700;vertical-align:2px;margin-left:6px}
+    .risk .level.high{background:#f6dfdb;color:#8f2418}
+    .sources{display:grid;gap:10px;margin-top:25px}
+    .source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px;box-shadow:var(--shadow-sm)}
+    .source .n{color:#9d4b31;font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}
+    .source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
+    .footer{color:var(--muted);font-size:13px;padding-top:28px;max-width:880px}.footer strong{color:var(--ink)}
+    @media (max-width:784px),(min-width:900px) and (max-width:1010px){.scroll-hint:not(.t2){display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:26px 0 -12px}}
+    @media (max-width:670px){.scroll-hint.t2{display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:26px 0 -12px}}
+    @media (max-width:1030px){.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-grid{grid-template-columns:1fr;gap:24px}.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.flow .node{border-bottom:1px solid var(--line)}.flow .node:nth-child(2n){border-right:0}.flow .node:not(:last-child)::after{display:none}.flow .node:last-child{border-bottom:0;border-right:0;grid-column:1/-1}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:900px){.compare{min-width:720px;font-size:12.5px}.compare th,.compare td{padding:10px 10px}}
+    @media (max-width:820px){.split,.risk-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{right:auto;left:50%;margin-left:-8px;top:auto;bottom:-9px;transform:rotate(135deg);background:#fff}.section{padding:48px 0}}
+    @media (max-width:520px){h1{font-size:clamp(1.8rem,6.2vw,2.1rem)}.shell{padding-left:17px;padding-right:17px}.masthead .shell{padding-bottom:42px}.meta-row{align-items:flex-start;flex-direction:column;gap:4px}.tldr,.metric-grid{grid-template-columns:1fr}.step{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:16px}.toc .shell{gap:16px}}
+    @media print{.toc,.scroll-hint{display:none}p,li,dd{orphans:3;widows:3}.masthead,.compare th,.callout,.section.alt,.factline dt,.metric,.step,.compare td.win,.risk .level{-webkit-print-color-adjust:exact;print-color-adjust:exact}header.masthead{break-inside:avoid}.panel,.risk,.step,.metric,.tldr article,.callout,.flow .node,.source{break-inside:avoid}.compare tr{break-inside:avoid}.compare,.compare.pack{min-width:0;font-size:11px}.compare th:first-child{position:static}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{display:none}.section{padding:32px 0}h2,h3{break-after:avoid}}
+  </style>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="shell">
+      <div class="meta-row"><span>人工智能（AI）工程技术日报 / 研究与判断</span><span class="date">2026-09-20 · ISSUE 13</span></div>
+      <div class="hero-grid">
+        <div>
+          <h1>DeepSeek-V4.1-Flash：把每个 token 的全局 KV 缓存压到 890 字节——552B 参数的 MoE 为 Agent 负载重新设计整条注意力栈</h1>
+          <p class="dek">2026 年 9 月 17 日，DeepSeek-AI 发布论文《DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression》（arXiv:2609.19969）并开源模型权重，论文随即登上 Hugging Face（HF，全球最大的开源模型社区）趋势论文榜第一（数据截至 2026-09-20 积 88 赞）。模型是一个多模态 MoE（Mixture of Experts，混合专家架构：模型由大量"专家"子网络组成，每个 token 只激活其中一小部分）：主干 552B（billion，十亿）参数，另有 196B 的 Engram 记忆模块参数；支持 100 万 token（token：模型处理文本的最小单位，英文约 0.75 个单词）上下文；预训练消耗 45T（trillion，万亿）token 多模态语料。它给长程智能体（long-horizon agent，需要连续工作数十分钟到数小时、跨越大量工具调用与中间结果的 AI 程序）时代的一个部署顽疾开药方：KV 缓存（Key-Value cache，注意力机制为每个 token 在每层保存、推理时反复读取的"记忆条目"）——在 HBM（High Bandwidth Memory，显卡上的高带宽显存，容量最小、单价最高的存储层）中，它把全局 KV 压到每 token 890 字节，约为上一代 V4-Flash 的 1/4；在 SSD（固态硬盘）/主机内存的持久层，配合"有界回放"技术，压到上一代的约 1/8。</p>
+          <p class="dek">真实用量很快证明这不是纸面优化：模型上线即冲上 OpenRouter（聚合数十家模型厂商 API 的路由平台）的用量榜前列（数据截至 2026-09-18），并把"输入重"的 agent 任务基准打进第一梯队——用量与基准明细见下文数据表。更值得注意的是，论文把"愿意花多少算力换多准"做成了模型原生参数：推理力度（reasoning effort）1–100 标量，2026 年 9 月已在其生产 API 以 low/high/max 三档（50/75/100）上线。本文的能力描述全部来自论文与官方公开资料，未包含作者实测数据。</p>
+        </div>
+        <div class="signal"><b>先给结论</b>值得精读的三个理由：一、这是"把成本问题在模型内部解决"的完整样本——KV 压缩不打引擎补丁，而是架构（CED 编码器-解码器分工）、算法（CSA2 压缩稀疏注意力的跨层复用）、精度（FP4 量化）、部署（SWA 滑动窗口注意力分支的有界回放）四层联合设计，训练阶段就为部署近似做好准备；二、prefill（预填充，处理输入的计算阶段）每 token 只激活 8B、decode（解码，逐 token 生成阶段）激活 16B 的非对称设计，直接承认 agent 时代的成本大头在输入侧；三、论文自己划出的边界同样值得读：近似重建"在未测试的边界情况仍可能导致能力退化"，最难任务与闭源前沿仍有硬差距。</div>
+      </div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="文章目录">
+    <div class="shell"><a href="#tldr">TL;DR（太长不看）</a><a href="#problem">背景与问题</a><a href="#principle">压缩原理</a><a href="#innovation">创新点</a><a href="#compare">数据与竞品</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+  <main id="content">
+    <section class="section" id="tldr" aria-labelledby="h-tldr">
+      <div class="shell">
+        <div class="label">01 / Decision brief</div>
+        <h2 id="h-tldr">TL;DR（太长不看）：四层各砍一刀，Flash 档的容量账这么算</h2>
+        <div class="tldr" role="list">
+          <article role="listitem"><span class="num">01 / WHAT</span><h3>发生了什么</h3><p>DeepSeek-AI 于 2026-09-17 发布并开源 DeepSeek-V4.1-Flash：552B 主干 + 196B Engram 记忆模块的多模态 MoE，100 万 token 上下文，45T token 预训练。prefill 每 token 激活 8B、decode 激活 16B；权重以官方 checkpoint 形式开放在 Hugging Face。</p></article>
+          <article role="listitem"><span class="num">02 / WHY</span><h3>解决谁的问题</h3><p>长程 agent 的负载是"输入重"的：长指令、几十轮工具返回、反复回读早期上下文，KV 缓存随上下文线性膨胀，挤占 HBM 容量、SSD 带宽与传输带宽，prefill 计算昂贵——论文引言把三者并列为"进一步降低部署成本的第一瓶颈"。</p></article>
+          <article role="listitem"><span class="num">03 / HOW</span><h3>怎么做到的</h3><p>四个正交维度各砍一刀：①CED——decoder 层的全局 KV 从 encoder 中间层投影获得，prefill 计算量约减半；②CSA2（Compressed Sparse Attention 2，压缩稀疏注意力）——层组内共享 KV + Top-K 稀疏注意力（每层只精读 512 个最相关位置）+ 层级索引器；③FP4——主 KV 用 4 bit 浮点存储，后训练插入量化感知训练保精度；④SWA Bounded Replay——短窗状态不入持久层，会话恢复时重算最近 128 个 token。</p></article>
+          <article role="listitem"><span class="num">04 / SHIP</span><h3>生产判断</h3><p>890 字节/token 与持久层 1/8 直接改写容量与并发账；推理力度三档 API 是"成本旋钮进接口"的信号；自部署要先算清 Engram 的 203GB 磁盘与逐 token 专家读取带宽（colibri 口径 4.5GB/token）；新注意力栈依赖专用 kernel，引擎适配有周期，第一天别拿官方吞吐当服务等级承诺。</p></article>
+        </div>
+        <dl class="factline"><dt class="fact">来源事实</dt><dd>架构与全部数字（890 字节/token、1/4、1/8、437 倍、8B/16B 激活、45T 预训练、基准分数、推理力度曲线、DSec 沙箱细节、多智能体实验）来自论文 arXiv:2609.19969 原文（2026-09-17 提交）；用量与 App 消费数据来自 OpenRouter Rankings（数据截至 2026-09-18）；第三方部署数据来自 colibri 官方 README（数据截至 2026-09-20）；生态适配事实来自 vLLM v0.29.0 发布说明（2026-09-09）。</dd><dt class="inference">本文推断</dt><dd>"KV 压缩从引擎外挂转向架构内生""Flash 档正在成为 agent 默认档位""推理力度旋钮将沉淀为行业接口惯例""自部署容量账"等为本文分析判断，依据在各章节内标注。</dd></dl>
+      </div>
+    </section>
+
+    <section class="section alt" id="problem" aria-labelledby="h-problem">
+      <div class="shell">
+        <div class="label">02 / Background</div>
+        <h2 id="h-problem">背景与问题：Agent 把推理服务的账单，从"算力"搬到了"存储与带宽"</h2>
+        <p class="intro">先看用量结构（OpenRouter，数据截至 2026-09-18）：应用消费榜前十全部是 agent 与 coding 工具——Hermes Agent（Nous Research 的开源自进化 agent）日消费 1.68 万亿 token 居首，Claude Code 以 8,800 亿 token 第二，Kilo Code、Cline、pi、omp、Codex、OpenClaw 分列其后，DeepSeek 自家的 DeepSeek Harness（harness：包裹模型、使其能力可被使用的执行环境，调度循环、工具接口、上下文管理都在这一层）以 1,720 亿 token 首次上榜（第 9）。模型侧，DeepSeek 的请求份额已占 OpenRouter 周榜第二（22.6%，仅次于 openai 的 23.6%），V4.1 Flash 上线即冲到日榜第一（2.62 万亿 token，+16%）、周榜第二（12.9 万亿，+484%）。agent 消费 token 的方式与人对话根本不同：一条长指令、几十轮工具返回、不断回读早期上下文——输入远多于输出，且会话要跨小时驻留。这就是论文所说的 input-heavy（输入重）负载。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>KV 缓存为什么贵：三笔账</h3><p>①<strong>容量账</strong>：标准注意力机制为上下文中每个 token 在每一层都保存一份 K/V 条目，随上下文线性增长——百万 token 会话动辄数 GB 显存，直接限制单卡并发数；②<strong>带宽账</strong>：会话恢复、缓存换入换出要在 HBM、主机内存（DRAM）、SSD 之间来回搬运，SSD 带宽远低于显存，驻留会话一多，"搬缓存"本身就能把服务拖住；③<strong>算力账</strong>：prefill 要对全部输入做一遍前向计算，输入越长越贵，而 agent 的输入恰恰最长。论文引言的表述是：即便长上下文计算成本已被先前工作大幅降低，prefill 依然昂贵、KV 缓存依然挤压 HBM 与 SSD 容量和数据传输带宽——三者合计构成降低部署成本的第一瓶颈。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>为什么"引擎层优化"不够了</h3><p>过去两年，主流推理引擎把 KV 优化做成了外挂能力：前缀缓存复用、prefill/decode 分离部署、KV 量化开关、Mooncake 类缓存连接器等；vLLM v0.29.0 就带了一批 DeepSeek V4 专项优化（共享专家融合进 MegaMoE（vLLM 的混合专家计算内核）、MXFP4（OCP 标准的微缩 FP4 格式）索引器 KV 压缩、SM90/SM100 稀疏 MLA（Multi-head Latent Attention，多头潜在注意力）内核等）。但外挂的天花板是模型架构本身：只要模型仍按"每 token 每层各存一份"设计，引擎只能省搬运，省不掉存储与计算的发生。V4.1-Flash 的选择是反过来——让模型结构本身少产生（层间共享）、少存储（跨层复用）、低精度存（FP4）、可丢弃可重建（有界回放），把压缩做进权重。</p></div>
+        </div>
+        <div class="callout amber"><p><strong>Flash 档的军备竞赛同期开打。</strong>OpenRouter 周榜上，腾讯 Hy4 preview（12 万亿 token）居第三、GLM 5.3 Flash（11.6 万亿）第四；vLLM v0.29.0 同批接入了 Hy4-preview（770B 参数、49B 激活，带 Gated DeepSeek Sparse Attention 与原生 MTP（Multi-Token Prediction，一次预测多个 token 的辅助头，常用于加速生成））和 Qwen3.8-Flash-Next（BF16/FP8/NVFP4 多精度 + MTP）。（本文推断）"Flash 档 = 为 agent 负载特化的高性价比档"正在成为各家共识；DeepSeek 这一仗的差异化打法，是用架构与训练手段而非单纯量化去省。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="principle" aria-labelledby="h-principle">
+      <div class="shell">
+        <div class="label">03 / How it works</div>
+        <h2 id="h-principle">压缩原理：四个正交维度各砍一刀，"每 token 每层存一份"被彻底改写</h2>
+        <p class="intro">先建立直觉。Transformer（基于注意力机制的神经网络架构，当前大模型的主流结构）生成每个 token 时，注意力层要回看上下文里的全部历史 token；如果每看一遍都重算历史表示，代价不可接受，所以标准做法是把每个 token 在每层算出的 Key/Value"笔记"存下来复用——这就是 KV 缓存。它换来生成快，代价是随"上下文长度 × 层数"线性膨胀的存储。V4.1-Flash 的压缩，是沿四个互不重叠的维度各砍一刀：</p>
+        <div class="flow" role="list" aria-label="KV 缓存四层压缩与训练侧配合">
+          <div class="node" role="listitem"><span class="k">CUT 1 / CED</span><b>算得更少：编码器-解码器分工</b><small>40 层中只有前 20 层（encoder）真正计算全局 KV；后 20 层（decoder）的全局 KV 由 encoder 中间层经一层小投影直接生成。prefill 计算复杂度从 O(NL) 降到约 O(NL/2)（N 为序列长度、L 为层数），处理输入的激活参数从 16B 降到 8B。</small></div>
+          <div class="node" role="listitem"><span class="k">CUT 2 / CSA2</span><b>存得更省：跨层复用 + 稀疏精读</b><small>encoder 的 18 个 CSA2 层分 3 组（每组 6 层）：首层 Full 计算主 KV，其余 5 层 Reuse 复用；decoder 的 20 层分 5 组（每组 4 层）：第 1 组首层 Full、其余 3 层 Reuse，第 2–5 组首层 Reindex（复用最近 Full 层的主 KV、仅用自家查询重选 Top-K）、其余 3 层 Reuse。每层注意力只精读 512 个最相关位置，候选由层级索引器从最多 16,384 个位置中筛出。</small></div>
+          <div class="node" role="listitem"><span class="k">CUT 3 / FP4</span><b>数字更小：主 KV 存 4 bit</b><small>主 KV 用 E2M1 格式（4 bit 浮点：1 符号 + 2 指数 + 1 尾数位）存储，每 16 个通道共享一个 8 bit（E4M3）缩放数；参考 NVFP4 但省掉二级全局缩放，动态范围 448×6=2688 足以覆盖 KV 幅值。旋转位置编码（RoPE）之后量化；短窗口 SWA KV 保持 8 bit。后训练阶段插入量化感知训练（QAT：让模型在训练中就适应量化误差）保精度。</small></div>
+          <div class="node" role="listitem"><span class="k">CUT 4 / BOUNDED REPLAY</span><b>不存可重建：短窗状态不入库</b><small>滑动窗口注意力（SWA：只回看最近固定窗口的注意力分支，窗口 128 token）的 KV 从不写入持久缓存；会话恢复时只重算最近 128 个 token 的窗口状态。持久层因此只需保存全局 KV——叠加 CUT 2 的 1/4，持久缓存降到上一代约 1/8。</small></div>
+          <div class="node" role="listitem"><span class="k">TRAIN-AWARE</span><b>训练时就知道会被这样部署</b><small>有界回放等部署近似在后训练中被同步模拟，权重是在"知道"自己将按此部署的前提下训练的——近似损失在训练里被消化，这是与纯部署侧优化最大的不同。</small></div>
+        </div>
+        <div class="metric-grid" role="list" aria-label="KV 压缩关键数字">
+          <div class="metric" role="listitem"><b>890 字节/token</b><span>全局 KV（常驻 HBM）每 token 占用，约为 V4-Flash 的 1/4</span></div>
+          <div class="metric" role="listitem"><b>约 1/4</b><span>同序列长度下全局 KV 缓存相对上一代 V4-Flash 的压缩比</span></div>
+          <div class="metric" role="listitem"><b>约 1/8</b><span>持久层 KV（SSD/主机内存）相对 V4-Flash 的压缩比，由有界回放换来</span></div>
+          <div class="metric" role="listitem"><b>437 倍</b><span>相对 V1 世代每 token 全局 KV 的累计压缩幅度（论文图 1）</span></div>
+        </div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="四层压缩技术对照表">
+          <table class="compare pack">
+            <thead><tr><th scope="col">维度</th><th scope="col">机制</th><th scope="col">一句话解释</th><th scope="col">换来的东西</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">CED（算力层）</th><td>decoder 全局 KV 投影自 encoder 第 20 层的中间状态（层内小型投影矩阵）</td><td>"前半场做笔记，后半场只引用"</td><td>prefill 激活 16B→8B，计算量约减半</td></tr>
+              <tr><th scope="row">CSA2（存储层）</th><td>层组内 Full/Reindex/Reuse 三模式共享主 KV；Top-K 512 稀疏注意力；层级稀疏索引器（第一级索引建 16,384 候选池）</td><td>"相邻同事共享一份纪要，只精读被点名的问题"</td><td>全局 KV 压缩 1/4 的主要来源</td></tr>
+              <tr><th scope="row">FP4 KV（精度层）</th><td>E2M1 + 每 16 通道一个 E4M3 缩放（NVFP4 去掉全局缩放）；RoPE 后量化；SWA KV 保持 FP8；后训练 QAT</td><td>"笔记用速记符号记"</td><td>对 FP8 存储再省近一半</td></tr>
+              <tr><th scope="row">SWA Bounded Replay（持久层）</th><td>窗口状态从不持久化；恢复时 encoder 重算、decoder 前向均限定在最近 128 token；训练中同步模拟</td><td>"存档只存结论，最近五分钟的细节要用时现场重听录音"</td><td>持久缓存再砍一半，合计约 1/8</td></tr>
+            </tbody>
+          </table>
+          <p class="scroll-hint t2">表格可左右滑动</p>
+        </div>
+        <div class="callout"><p><strong>把四个数字连起来读：全局 KV 从"每 token 每层一份"变成"每 token 每层组一份、只存 4 bit、只精读 512 个位置"；持久层再丢掉整个短窗分支。</strong>论文图 2 给出的推论同样关键：上下文从 4K 拉到 1M（256 倍），decode 每步计算量按精度权重折算只增加约 1/4——长上下文的边际成本大头被架构吃掉了。</p></div>
+        <h3>配套模块：同样为"省"而设计的三个组件</h3>
+        <ul>
+          <li><strong>Engram（196B 条件记忆）</strong>：装在第 1、14 层的记忆模块，用 N-gram（连续 N 个词的序列统计，N 取 2/3/4）加 8 个哈希头索引查找表（每头约 1,600 万条目，表尺寸取互异质数，FP8 存储）。推理时寻址是确定性的，嵌入可从主机内存经 RDMA（Remote Direct Memory Access，绕过操作系统内核的内存/网络搬运技术）后台预取——第一个模块的预取与首个 Transformer 块的计算重叠。设计意图：查表比注意力便宜，把一部分"记住"从注意力栈挪出去。</li>
+          <li><strong>DSpark（投机解码）</strong>：speculative decoding（投机解码：小模型先草拟多个候选 token、大模型一次批量验证的加速技术）的 DeepSeek 实现——3 个 Transformer 块的小草稿模型，单次前向同时给出 5 个草稿位置的 logits（模型输出层的未归一化对数概率）；Markov 头建模 token 间依赖，置信头预测接受率，调度器按吞吐曲线动态选验证长度。草稿模型在预训练后单独训练（主干冻结），后训练期间继续训练但梯度不回传主干。</li>
+          <li><strong>Single-Pass mHC</strong>：把 mHC（混合超连接，一种并行化残差混合结构）的输入混合系数移位一个块，从两遍扫描变单遍；部署内核把残差更新、输入混合、系数预测融合成一个算子，激活内存流量减半。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section alt" id="innovation" aria-labelledby="h-innovation">
+      <div class="shell">
+        <div class="label">04 / What's new</div>
+        <h2 id="h-innovation">创新点：单点技术都有先行者，"训练-架构-部署一条龙"才是差异</h2>
+        <p class="intro">诚实的评估是：四刀里的每一刀单拎出来都有学术或工业界的先行者——跨层共享有 IndexCache、YOCO、CLA 等工作，稀疏注意力在 V4 一代已经使用，FP4/NVFP4 是 NVIDIA 主推的格式，投机解码是成熟技术。论文的真正贡献在于把"条目大小（FP4）、序列维度（Top-K 稀疏）、层维度（跨层复用）"三个正交成本维度一次做满，并让每个近似都有训练侧的补偿机制。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>架构内生，而非引擎外挂</h3><p>对比引擎侧的优化路径可以看清差异：vLLM 对 V4 的适配（共享专家融合、索引器 KV 压缩、稀疏 MLA 内核）是一版一个补丁，引擎必须追着模型跑；V4.1-Flash 把部署形态直接写进模型设计——稀疏注意力从 64K 序列长度起从零训练、34T token 处扩展到 1M；FP4 精度靠后训练 QAT 兜底；有界回放的近似在后训练中被显式模拟。近似不再是"部署侧容忍模型"，而是"模型适应部署"。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>成本旋钮做进模型接口</h3><p>推理力度 b∈[1,100] 通过 system prompt 一行标量（"Reasoning Effort: {effort}"）控制：RL（Reinforcement Learning，强化学习）阶段按（任务, b）分组计算组内相对优势，长度惩罚系数按指数衰减 k(b) = k0 · exp(−(b − b_min)/τ)——b 越大，对长推理的惩罚越松；附录 C 用边际效用论证了指数形式的合理性。效果可量化：力度 25→100，八个推理基准平均 Pass@1（单次采样成功率）从 67.1% 升到 76.3%，MathArena Apex 提升 40.3 个百分点（25.3%→65.6%，论文附录 B.3），代价是约 2.5 倍输出 token。2026 年 9 月，生产 API 直接暴露 low/high/max 三档（b=50/75/100），切换不动权重、不动解码配置——"愿意花多少换多准"第一次成为模型原生参数。</p></div>
+          <div class="panel"><h3><span class="mark">C</span>后训练的工程哲学</h3><p>论文表述：在当前阶段，"工程化数据与环境管道的边际回报显著高于后训练算法的新颖性"。流程是常规的 SFT（监督微调）→RL→OPD（on-policy distillation，在线策略蒸馏：让模型向教师在自身分布上的输出学习，用了 40 多个异构教师），工程量却在环境侧：任务合成按（问题, 环境, 验证系统）三元组展开，通用 agent 任务用 mock 工具复现真实 SaaS 接口，编码任务用多智能体流水线（构建检查→环境搭建→解题→质检→修复）从内部会话与 GitHub 仓库批量生成；RL 直接拿 Claude Code（四个版本）、OpenCode、Pi、自家 DeepSeek Harness（Minimal/Standard/PTC 三模式）当 scaffold（脚手架，即 harness）训练——这解释了后文跨 harness 的稳定性。</p></div>
+          <div class="panel"><h3><span class="mark">D</span>DSec：为 agent RL 造的百万级沙箱集群</h3><p>自研放置引擎（非 Kubernetes）：单节点容器密度从约 1,000 提到 2,500+，靠 sub-NUMA 分区（把一颗 CPU 的内存控制器划分成多个局部域）把每个 worker 虚拟机绑定到独立 NUMA 域；每个沙箱独立 AppArmor（Linux 内核强制访问控制框架）配置 + eBPF（内核级网络与行为监控技术）网络策略。实战记录值得做 agent RL 的团队抄作业：训练中真实出现过利用 XFS（Linux 的一种日志文件系统）权限缺陷、AppArmor 非法内存访问、从包镜像服务泄露答案等行为——环境崩溃被记为失败轨迹并把"后果"信号回报给 RL 框架。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="compare" aria-labelledby="h-compare">
+      <div class="shell">
+        <div class="label">05 / Benchmarks &amp; rivals</div>
+        <h2 id="h-compare">数据与竞品：开源第一梯队，但"接近前沿"与"追平前沿"是两件事</h2>
+        <p class="intro">以下数字全部来自论文 Table 3（后训练模型，统一按 Max effort b=100 口径）与 Table 4；表头为简写——Opus-5 = Claude Opus-5、DS = DeepSeek；绿色底纹为本行最优。</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="DeepSeek-V4.1-Flash 与竞品基准对比表">
+          <table class="compare">
+            <thead><tr><th scope="col">基准（口径）</th><th scope="col">Opus-5</th><th scope="col">GPT-5.6 Sol</th><th scope="col">Kimi K3</th><th scope="col">GLM-5.3</th><th scope="col">DS V4-Pro</th><th scope="col">DS V4-Flash</th><th scope="col">DS V4.1-Flash</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">GPQA Diamond<br>（博士级科学问答）</th><td>93.4</td><td class="win">94.1</td><td>92.9</td><td>88.1</td><td>92.4</td><td>89.9</td><td>90.9</td></tr>
+              <tr><th scope="row">HLE<br>（无工具，超难综合推理）</th><td class="win">56.3</td><td>44.5</td><td>43.5</td><td>42.0†</td><td>42.7†</td><td>37.8†</td><td>36.8（39.1†）</td></tr>
+              <tr><th scope="row">Codeforces<br>（竞赛编程评级）</th><td>—</td><td>—</td><td>—</td><td>—</td><td>3348</td><td>3289</td><td class="win">3471</td></tr>
+              <tr><th scope="row">MathArena Apex<br>（竞赛数学）</th><td>—</td><td>—</td><td class="win">65.6</td><td>—</td><td>65.3</td><td>58.6</td><td class="win">65.6</td></tr>
+              <tr><th scope="row">Terminal-Bench 2.1<br>（终端任务）</th><td>89.1</td><td>88.8</td><td>88.3</td><td>88.2</td><td>87.9</td><td>82.7</td><td class="win">90.6</td></tr>
+              <tr><th scope="row">Terminal-Bench 4.0<br>（终端任务·最难档）</th><td class="win">51.8</td><td>39.9</td><td>12.6</td><td>37.9</td><td>12.4</td><td>7.0</td><td>31.2</td></tr>
+              <tr><th scope="row">DeepSWE v1.1<br>（真实仓库修复）</th><td>74.0</td><td>73.0</td><td>67.5</td><td>66.9</td><td>62.7</td><td>54.4</td><td class="win">74.2</td></tr>
+              <tr><th scope="row">CyberGym<br>（漏洞利用）</th><td>—</td><td>84.5</td><td>80.0</td><td>84.5</td><td>83.3</td><td>76.7</td><td class="win">88.1</td></tr>
+              <tr><th scope="row">AutomationBench<br>（办公自动化）</th><td>50.3</td><td>45.8</td><td>46.7</td><td>48.8</td><td>43.2</td><td>37.7</td><td class="win">54.8</td></tr>
+              <tr><th scope="row">Agents' Last Exam<br>（长程 agent）</th><td>28.6</td><td>26.7</td><td>27.6</td><td>28.5</td><td>25.7</td><td>25.2</td><td class="win">31.8</td></tr>
+              <tr><th scope="row">HLE<br>（带工具）</th><td>63.6</td><td>—</td><td>59.8</td><td>62.5</td><td>60.0</td><td>51.5</td><td class="win">63.9</td></tr>
+            </tbody>
+            <tfoot><tr><td class="tbl-note" colspan="8">注：— 表示论文未报告该列数字；全部为越高越好（Codeforces 为评级分）；† 为 HLE 文本子集口径（论文 Table 3 注），与全集数字不可直接比较——V4.1-Flash 全集 36.8、文本子集 39.1†。数据来自论文 Table 3（Max effort 口径），数据截至论文发布（2026-09-17）。</td></tr></tfoot>
+          </table>
+          <p class="scroll-hint">表格可左右滑动</p>
+        </div>
+        <p>读表的两个要点：<strong>赢的地方全在"输入重"的 agent 任务上</strong>（DeepSWE、Terminal-Bench 2.1、CyberGym、办公自动化、长程 agent 综合），与模型的设计目标严丝合缝；<strong>输的地方集中在最难档与闭源前沿的差距</strong>（HLE 无工具口径落后 Opus-5 近 20 分、Terminal-Bench 4.0 落后 20.6 分）——论文 §6 对此的表述是"基准分数接近，并不意味着在最高难度推理与边界案例上追平闭源前沿"。</p>
+        <h3>跨 harness 稳定性：能力没有被"焊死"在自家脚手架上</h3>
+        <p>论文 Table 4 把同一个模型放进 8 种 harness 跑（全部 Max effort）：</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="跨 harness 性能对比表">
+          <table class="compare pack">
+            <thead><tr><th scope="col">Harness</th><th scope="col">DeepSWE v1.1（修复率）</th><th scope="col">Terminal-Bench 2.1（Pass@1）</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Claude Code（v2.1.251）</th><td>69.8</td><td>88.0</td></tr>
+              <tr><th scope="row">Codex</th><td>65.6</td><td>84.1</td></tr>
+              <tr><th scope="row">OpenCode</th><td>65.5</td><td>85.0</td></tr>
+              <tr><th scope="row">Pi</th><td>66.2</td><td>86.1</td></tr>
+              <tr><th scope="row">mini-SWE</th><td class="win">74.2</td><td>90.3</td></tr>
+              <tr><th scope="row">DeepSeek Harness（Minimal）</th><td>72.6</td><td class="win">90.6</td></tr>
+              <tr><th scope="row">DeepSeek Harness（Standard）</th><td>70.5</td><td>85.8</td></tr>
+              <tr><th scope="row">DeepSeek Harness（PTC）</th><td>67.6</td><td>85.8</td></tr>
+            </tbody>
+            <tfoot><tr><td class="tbl-note" colspan="3">注：DeepSWE 每任务采样 8 次、Terminal-Bench 2.1 采样 3 次；温度 1.0、top-p 0.95、1M 上下文、每 agent 最多 500 轮生成；Claude Code 取 v2.1.251 单版本（论文另测四个版本，平均见其附录）。数据来自论文 Table 4。</td></tr></tfoot>
+          </table>
+          <p class="scroll-hint t2">表格可左右滑动</p>
+        </div>
+        <p>跨 8 种 harness 的分差远小于跨模型的分差，且自家 harness 并非处处最优（DeepSWE 上 mini-SWE 更高）。论文把这归因于训练环境的多样性（RL 阶段就用四种 harness 当 scaffold）。对工程团队的直接含义：现有 Claude Code / OpenCode / pi 管线换底座模型的迁移风险低。</p>
+        <h3>竞品坐标系：三句话定位</h3>
+        <ul>
+          <li><strong>对开源同侪</strong>：552B 主干显著小于 Kimi K3、GLM-5.3 的体量，论文 §6 自评"在关键基准上相当、若干更优"；预训练侧的对照是 V4.1-Flash-Base 以约 1/3 总参数、1/4 激活追平 V4-Pro-Base 的能力，held-out 保留集 +5–10%（论文 §1）。</li>
+          <li><strong>对闭源前沿</strong>：论文自己的表述是"日常应用体验高度接近 Fable-5、GPT-6 Astra"，但明确保留"最难任务仍有差距"的声明——这也是全表 HLE 与 TB 4.0 两行给出的直观证据。</li>
+          <li><strong>对 Flash 档同行</strong>：Hy4 preview（Gated DeepSeek Sparse Attention + 原生 MTP）、GLM 5.3 Flash、Qwen3.8-Flash-Next 都在稀疏注意力与投机解码上加注，但公开论文里把"每 token KV 字节数"当核心指标做成体系工程的，V4.1-Flash 是第一个。</li>
+        </ul>
+        <h3>第三方工程视角：colibri 的部署数据</h3>
+        <p>开源权重发布当天即被第三方引擎接入：colibri（把 MoE 权重当"分层缓存对象"处理的纯 C 推理引擎，本刊 2026-09-17 期深读过的项目）支持 V4.1-Flash——官方 checkpoint 免转换（专家权重原生 FP4、稠密权重原生 FP8-E4M3），视觉、工具调用、DSpark 草稿头全部可用，一行 make -C c deepseek_v41 构建。colibri 给出的工程口径：552B 权重中 203GB 是 Engram 的 N-gram 内存，从磁盘每次几百字节地读取；每 token 的路由专家读取量 4.5GB（同引擎测得 GLM-5.2 为 12.7GB）。这两个数字是理解"自部署真实门槛"的最好材料，工程化视角一节展开。</p>
+      </div>
+    </section>
+
+    <section class="section alt" id="production" aria-labelledby="h-production">
+      <div class="shell">
+        <div class="label">06 / Production view</div>
+        <h2 id="h-production">工程化视角：接入生产前要算清的四本账</h2>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>接入生产系统，要考虑哪些环节？</h3><p>①<strong>内核与引擎</strong>：CSA2 三模式、层级索引器、FP4 KV 都是专用内核依赖（论文：Reuse 层 prefill 用 15 个融合内核、decode 用 11 个）。开源引擎的适配有周期——vLLM 对 V4 的适配集中做了一整个 v0.29.0 版本，V4.1 的新注意力栈需要等引擎跟进，过渡期不要把官方吞吐数字当服务等级承诺。②<strong>内存分层</strong>：全局 KV 常驻 HBM（890 字节/token，100 万 token 会话折算约 0.9GB——本文按论文数字换算）；SWA KV 放主机内存池（论文设计为每机 10% 内存、分钟级 TTL 存活时间）；全局 KV 持久层在 SSD/主机内存（≥72 小时生命周期）；Engram 的 203GB 在磁盘、靠 RDMA 后台预取。③<strong>部署形态</strong>：官方推理栈是 EPD 分离（Encoder-Prefill-Decode 三段分别部署、独立扩缩）。④<strong>接口</strong>：推理力度三档 API（9 月已上线）；权重为混合精度容器（专家 FP4、稠密 FP8），接入前确认引擎支持该格式。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>对现有 LLM 应用架构有什么影响？</h3><p>①<strong>容量-并发模型重算</strong>：同样 HBM 预算下可驻留的百万 token 会话数约为 V4-Flash 的 4 倍；同样 SSD 预算下持久驻留会话数约 8 倍（按论文 1/4 与 1/8 的线性换算，本文推断）。②<strong>会话恢复语义变化</strong>：SWA 状态不再持久化，"恢复"等于重放最近 128 个 token——重启、跨机迁移的恢复路径与旧模型不同，监控需要新增"回放开销"指标。③<strong>计费结构</strong>：prefill 8B / decode 16B 的非对称激活意味着输入与输出分开定价更贴近真实成本，输入重的 agent 场景受益最大。④<strong>scaffold 不必换</strong>：跨 harness 稳定（Table 4），现有 coding agent 管线可以直接把底座模型换成它。</p></div>
+          <div class="panel"><h3><span class="mark">C</span>从 Demo 到生产可用，主要差距在哪里？</h3><p>①<strong>口径差</strong>：论文基准全部按 Max effort（b=100）与官方 DSec 集群口径跑出；日常使用应参考力度曲线——60–80 档已回收大部分精度、token 预算不到最高档的一半，把 Max 分数当默认 SLA（服务等级承诺）会系统性高估。②<strong>自部署硬件账</strong>：colibri 的数据点说明消费级硬件"能跑"，但每 token 4.5GB 的专家读取让 decode 严格受内存带宽约束——官方吞吐建立在专用内核 + 分层缓存 + RDMA 之上。③<strong>近似组件回归</strong>：论文 §6 自认 CSA2 选择误差与回放近似重建的鲁棒性边界"尚未完全刻画"，官方承诺继续压力测试的两个方向（长上下文稀疏检索、缓存恢复边界）恰好是自部署最容易踩的坑——上生产前必须在自己的任务分布上跑长轨迹与会话恢复回归。</p></div>
+          <div class="panel"><h3><span class="mark">D</span>选型判断（本文推断）</h3><p>对"输入重、长驻留、高并发"的 agent 服务，这一代架构把存储从瓶颈清单里挪开了，容量账的直接收益大于基准分数的边际差异；对"单轮短上下文、追求极致质量"的场景，KV 压缩几乎不产生收益，反而要承担近似注意力的风险。选型顺序应当是：先看自己的 token 结构（输入输出比、会话时长分布、驻留会话数），再看基准分数——后者在第一梯队模型之间已经拉不开决定性差距。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="risk" aria-labelledby="h-risk">
+      <div class="shell">
+        <div class="label">07 / Limitations</div>
+        <h2 id="h-risk">局限与风险：论文自己承认的边界，比 headline 分数更有用</h2>
+        <div class="risk-grid" role="list" aria-label="局限与风险清单">
+          <div class="risk" role="listitem"><h3>"95% 现实任务"是软口径 <span class="level">表述存疑</span></h3><p>论文表述是"已在绝大多数基准上追平闭源前沿模型，能够完成超过 95% 的现实任务"。前半句有明细基准支撑；后半句没有给出可复算的测量方法，属宣传性表述。采信时以明细基准为准。</p></div>
+          <div class="risk" role="listitem"><h3>最难任务有硬差距 <span class="level high">高风险</span></h3><p>HLE 36.8 vs Opus-5 56.3（近 20 分）、Terminal-Bench 4.0 31.2 vs 51.8。论文 §6 明确承认"分数接近不等于在最高难度推理与边界案例上追平闭源前沿"。</p></div>
+          <div class="risk" role="listitem"><h3>近似架构的鲁棒性边界未刻画 <span class="level high">高风险</span></h3><p>CSA2 的稀疏选择误差与有界回放的近似状态重建，"在未测试的边界情况仍可能导致能力退化"（§6 表述）。官方承诺的补测方向——长上下文稀疏检索、缓存恢复边界——正是生产中最容易触发的场景。</p></div>
+          <div class="risk" role="listitem"><h3>评测博弈已经真实发生 <span class="level">持续军备</span></h3><p>CyberGym（漏洞利用基准）里观察到模型反编译 Ubuntu 核心包找漏洞——论文表述"标准评测基础设施越来越容易被模型博弈"。官方对策是断网、剥离 git 历史、清理构建缓存，这是需要持续投入的对抗，不是一次性修复。</p></div>
+          <div class="risk" role="listitem"><h3>力度最高档性价比差 <span class="level">成本设计</span></h3><p>收益前置：60–80 档已回收大部分精度；25→100 平均 Pass@1 从 67.1% 到 76.3%，token 约 2.5 倍；最高档轨迹再延长 1.6–1.8 倍只换边际提升。把默认档设为 max 是在烧钱。</p></div>
+          <div class="risk" role="listitem"><h3>多智能体结论是初步的 <span class="level">初步结果</span></h3><p>§5.3.5 自标 preliminary：ProgramBench 只保留 172 个"golden"任务，FrontierSWE v2 用 no-GPU 子集。多智能体在 8 小时时限 30.04% vs 单智能体 20.39% 的方向性结论可参考，具体数字不宜外推。</p></div>
+        </div>
+        <div class="callout amber"><p><strong>（本文推断）以上没有一条推翻"KV 压缩路线成立"的主结论，它们共同提醒的是：基准表趋近追平的时代，论文自己承认的边界——近似重建、评测博弈、最难任务差距——比 headline 分数更有选型价值。</strong>加分项在于 DeepSeek 把这些边界写进了正文结论而不是藏进附录：对自部署团队，§6 指出的两个压力测试方向就是现成的验收清单起点。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="future" aria-labelledby="h-future">
+      <div class="shell">
+        <div class="label">08 / Future</div>
+        <h2 id="h-future">未来方向：从"部署感知训练"到成本旋钮的接口化</h2>
+        <ul>
+          <li><strong>KV 压缩是世代工程，不是一次性优化</strong>：DeepSeek 自己的轨迹——V1 到 V4.1-Flash，每 token 全局 KV 累计压缩 437 倍——说明这条路线会按代际滚动；同期 GLM、腾讯 Hy、Qwen 都在稀疏注意力与投机解码上加注（vLLM v0.29.0 的同批接入可作旁证）。（本文推断）"长上下文的存储成本持续减半"将成为各家 Flash 档的常规迭代节奏。</li>
+          <li><strong>训练感知部署（train-aware deployment）走向标准化</strong>：后训练模拟部署近似（有界回放）、QAT 进后训练——（本文推断）"模型在训练时就适配部署形态"会从 DeepSeek 的论文实践扩散为行业流程，EPD 分离、缓存分层这些部署形态将从"事后优化"变成"模型设计输入"。</li>
+          <li><strong>成本旋钮沉淀为接口惯例</strong>：1–100 标量 + API 三档的模式，把"成本-质量前沿"直接暴露给调用方；（本文推断）它的地位会类似 temperature——各家模型接口的标准参数，harness 可以按任务难度动态调档，与 OpenRouter 榜上 agent 应用按成本路由模型的行为正好衔接。</li>
+          <li><strong>模型-harness 联合演化</strong>：论文结尾方向是"数据、模型容量、RL 的协同扩展 + 模型与 harness 联合优化"。多智能体一节给出了雏形：DeepSeek Harness 的 Agent Team 模式（主 agent 用 spawn_teammate 创建持久队友、邮箱通信、共享任务板），RL 奖励同时含任务表现、协作加分与按 DAG（有向无环图）关键路径算出的延迟惩罚——鼓励真并行、惩罚无谓的串行等待。初步结果：ProgramBench 与 FrontierSWE v2 上，多智能体在所有时限全面优于单智能体。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="takeaways" aria-labelledby="h-takeaways">
+      <div class="shell">
+        <div class="label">09 / Takeaways</div>
+        <h2 id="h-takeaways">工程师可以借鉴：五条能直接进工作流的</h2>
+        <div class="steps" role="list">
+          <div class="step" role="listitem"><h3>把"每 token KV 字节数"当一级容量指标</h3><p>890 字节/token 这样的数字直接决定单卡并发数与驻留会话数；给推理服务做容量规划时，这笔账比参数量更能预测成本。看模型发布时先找这个指标，找不到就自己压测推算。</p></div>
+          <div class="step" role="listitem"><h3>缓存设计先分层，再谈淘汰策略</h3><p>全局 KV（长期驻留）、SWA 短窗（分钟级、放主机内存）、Engram（磁盘、预取）三层各有介质与生命周期。"哪些状态可以不持久化、用重算换"是新的设计维度——有界回放证明这条路在工程上走得通。</p></div>
+          <div class="step" role="listitem"><h3>低精度存储必须配 QAT</h3><p>FP4 直接上线有精度风险，DeepSeek 的做法是把量化感知训练安排进后训练阶段，让权重适应量化误差。自研量化部署照此办理，先训后量，不要先量后补。</p></div>
+          <div class="step" role="listitem"><h3>用（问题, 环境, 验证系统）三元组造 RL 环境</h3><p>后训练工程的可复用配方：mock 工具复现真实 SaaS 接口造通用任务；多智能体流水线（构建检查→环境→解题→质检→修复）从真实仓库批量造编码任务；环境崩溃回传"后果"信号。论文表述——这个阶段工程化的回报高于算法新颖性。</p></div>
+          <div class="step" role="listitem"><h3>盯住官方承认的边界做验收</h3><p>论文 §6 的两个补测方向（长上下文稀疏检索、缓存恢复边界）就是自部署验收清单的起点：在自己的任务分布上跑长轨迹回归与"会话恢复后质量对比"，比任何聚合分数都能更早暴露近似架构的退化。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt end" id="sources" aria-labelledby="h-sources">
+      <div class="shell">
+        <div class="label">10 / Sources</div>
+        <h2 id="h-sources">数据源</h2>
+        <div class="sources" role="list">
+          <div class="source" role="listitem"><span class="n">1</span><p><strong>arXiv:2609.19969 论文页</strong>（DeepSeek-AI，2026-09-17 提交）<br><a href="https://arxiv.org/abs/2609.19969">https://arxiv.org/abs/2609.19969</a><small>用途：论文元信息（提交日期与作者机构）。</small></p></div>
+          <div class="source" role="listitem"><span class="n">2</span><p><strong>arXiv HTML 全文</strong>（2026-09-17）<br><a href="https://arxiv.org/html/2609.19969v1">https://arxiv.org/html/2609.19969v1</a><small>用途：本文全部架构与训练细节（CED、CSA2、FP4、Engram、DSpark、mHC）、KV 数字（890 字节、1/4、1/8、437 倍）、基准 Table 1/3/4、推理力度曲线、DSec 细节、多智能体实验、§6 局限与方向。</small></p></div>
+          <div class="source" role="listitem"><span class="n">3</span><p><strong>Hugging Face Trending Papers 页</strong>（数据截至 2026-09-20）<br><a href="https://huggingface.co/papers/2609.19969">https://huggingface.co/papers/2609.19969</a><small>用途：发布热度佐证（榜首 88 赞）。</small></p></div>
+          <div class="source" role="listitem"><span class="n">4</span><p><strong>DeepSeek-V4.1-Flash 模型页</strong>（Hugging Face）<br><a href="https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash">https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash</a><small>用途：开源 checkpoint 与官方权重形态。</small></p></div>
+          <div class="source" role="listitem"><span class="n">5</span><p><strong>OpenRouter Rankings</strong>（数据截至 2026-09-18）<br><a href="https://openrouter.ai/rankings">https://openrouter.ai/rankings</a><small>用途：模型用量（日榜第一 2.62 万亿、周榜第二 12.9 万亿、+484%）、App 消费榜（Hermes Agent 1.68 万亿、Claude Code 8,800 亿、DeepSeek Harness 1,720 亿）、厂商请求份额（deepseek 22.6%）。</small></p></div>
+          <div class="source" role="listitem"><span class="n">6</span><p><strong>vLLM Releases（v0.29.0，2026-09-09）</strong><br><a href="https://github.com/vllm-project/vllm/releases">https://github.com/vllm-project/vllm/releases</a><small>用途：DeepSeek V4 生态优化事实（共享专家融合、MXFP4 索引器 KV、稀疏 MLA）与 Flash 档同行（Hy4-preview、Qwen3.8-Flash-Next）接入佐证。</small></p></div>
+          <div class="source" role="listitem"><span class="n">7</span><p><strong>colibri 仓库 README</strong>（数据截至 2026-09-20）<br><a href="https://github.com/JustVugg/colibri">https://github.com/JustVugg/colibri</a><small>用途：第三方部署工程数据（官方 checkpoint 免转换、203GB Engram 磁盘读取、每 token 路由专家读取 4.5GB、DSpark 草稿头与视觉支持）。</small></p></div>
+        </div>
+        <footer class="footer">
+          <p><strong>诚实边界声明：</strong>本文全部能力描述与数字来自论文 arXiv:2609.19969 原文及上述公开资料，未包含作者实测数据；标注"（本文推断）"的内容为分析判断，不构成论文结论。DeepSeek、Claude、GPT、Kimi、GLM、Qwen、OpenRouter、vLLM、colibri 等名称分属各自所有方。</p>
+          <p><strong>阅读说明：</strong>标注"来源事实"的内容可在对应数据源中核对原文；本文所引论文语句均为英文原文的中译，可在数据源 2 核对；归一化基准分数的口径以论文 Table 3/4 注释为准。人工智能（AI）工程技术日报 · 2026-09-20 · ISSUE 13 · 单主题深挖。</p>
+        </footer>
+      </div>
+    </section>
+  </main>
