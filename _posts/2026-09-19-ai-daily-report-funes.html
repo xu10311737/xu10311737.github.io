@@ -1,0 +1,263 @@
+---
+layout: main
+title: 'funes：Hugging Face 把 Coding Agent 的记忆做成你自己的数据集——本地单二进制、Lance 列式存储，代价是检索质量还没证明自己'
+date: 2026-09-19 00:00:00 +0800
+description: '解读 Hugging Face 2026-09-03 发布的 funes：给 Claude Code、Codex、pi、Hermes 等 coding agent 的跨 Agent 本地记忆层。单二进制、无 ML 运行时依赖，把会话轨迹索引进 Lance 列式数据集，向量+BM25 混合检索加重排，可一键发布为 Hugging Face dataset（默认私有）——"记忆是数据集，不是服务"，原文逐行保留、凭据脱敏、fail-closed 发布扫描。官方 handoff-vs-recall 基准显示检索回忆的成本约为人工交接文档的 1/8 到 1/4；第三方在 19,195 个真实会话上实测：默认配置全量索引 2 小时 03 分、单查询 6.3 秒、hit@1 仅 9/100，输给 24 毫秒拿到 18 分的纯 BM25 词法基线；关闭时间衰减加权后 hit@1 回升至 19、勉强反超，但检索质量仍未证明自己，作者回应称该基准不需要语义检索。附 OpenAI 压缩摘要自注入事件佐证、竞品格局、工程化接入要点与批判分析。'
+tags:
+  - AI
+  - engineering
+  - LLM
+---
+  <style>
+    :root{
+      --ink:#1d2430;--ink-2:#3a4350;--muted:#5c6771;--paper:#fbfaf8;--panel:#ffffff;
+      --line:#e0ddd5;--teal:#0c7772;--teal-soft:#e2f1ee;--amber:#b96a1b;--amber-soft:#f6e8d5;
+      --lime:#6f7f2a;--lime-soft:#eef2d9;--navy:#20222b;--plum:#8b6389;--shadow-lg:0 12px 30px rgba(27,36,48,.08);--shadow-sm:0 7px 20px rgba(27,36,48,.05);
+    }
+    *{box-sizing:border-box}html{overflow-x:clip}
+    @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+    body{margin:0;background:var(--paper);color:var(--ink-2);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.82}
+    a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:3px}
+    a:hover{color:#a4502f;text-decoration-thickness:2px}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:16px;top:16px;z-index:20;background:#fff;padding:8px 12px;border:2px solid var(--teal)}
+    .shell{max-width:1120px;margin:0 auto;padding:0 24px}
+    .masthead{background:var(--navy);color:#f4f5f7;border-bottom:5px solid var(--amber)}
+    .masthead .shell{padding-top:20px;padding-bottom:44px}
+    .meta-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#b9c0ca;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+    .meta-row .date{color:#e8c79c}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:48px;align-items:end;margin-top:38px}
+    h1,h2,h3{color:var(--ink);line-height:1.3;margin:0;font-weight:750}
+    h1{color:#f9f8f5;font-size:clamp(2.2rem,4.4vw,3.6rem);letter-spacing:0}
+    .dek{color:#d3d6db;font-size:1.16rem;max-width:780px;margin:22px 0 0}.dek+.dek{margin-top:10px}
+    .signal{border-left:2px solid var(--amber);padding:4px 0 4px 20px;color:#f5e8d8;font-size:14px;max-width:640px}
+    .signal b{display:block;color:#fff2ec;font-size:17px;margin-bottom:5px}
+    .toc{position:sticky;top:0;z-index:5;background:rgba(251,250,248,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+    .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent)}
+    .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
+    main{padding-bottom:80px;scroll-margin-top:64px}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
+    .section.alt{background:#f2f0eb;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding-left:max(24px,calc(50vw - 560px));padding-right:max(24px,calc(50vw - 560px))}.section.end{border-bottom:0}
+    .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#9d4b31;margin-bottom:10px}
+    h2{font-size:clamp(1.7rem,3vw,2.5rem);max-width:880px}.intro{font-size:1.08rem;max-width:840px;margin:16px 0 30px;color:var(--ink-2)}
+    h3{font-size:1.2rem;margin:28px 0 8px}.section p{max-width:880px;margin:0 0 18px}.section p:last-child{margin-bottom:0}.section ul{max-width:880px;margin:0 0 18px;padding-left:22px}.section li{margin:7px 0}.section ul:last-child{margin-bottom:0}
+    .tldr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+    .tldr article{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--teal);padding:18px 18px 20px;min-height:174px;box-shadow:var(--shadow-lg)}
+    .tldr article:nth-child(2){border-top-color:var(--amber)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:var(--plum)}
+    .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr article:nth-child(2) .num{color:var(--amber)}.tldr article:nth-child(3) .num{color:var(--lime)}.tldr article:nth-child(4) .num{color:var(--plum)}.tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
+    .factline{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:start;max-width:880px;margin:22px 0 0;color:var(--muted);font-size:13px}.factline dt{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:.05em;justify-self:start}.factline dd{margin:0}.factline dt.fact{background:var(--teal-soft);color:var(--teal)}.factline dt.inference{background:var(--amber-soft);color:#9d4b31}
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:var(--shadow-sm)}.panel.wide{grid-column:1/-1}
+    .panel h3{display:flex;gap:10px;align-items:baseline;margin-top:0}.panel .mark{color:var(--amber);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}.panel ul,.panel ol{margin:10px 0 0;padding-left:22px}.panel li{margin:7px 0;font-size:15px}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}.flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);position:relative}.flow .node:last-child{border-right:0}.flow .node:not(:last-child)::after{content:"";position:absolute;right:-9px;top:50%;margin-top:-8px;width:16px;height:16px;border-top:2px solid var(--amber);border-right:2px solid var(--amber);transform:rotate(45deg);background:#fff;z-index:1}.flow .k{display:block;color:#b0512f;font:700 12px Georgia,serif;margin-bottom:9px}.flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:880px}.callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.amber{border-left-color:var(--amber);background:var(--amber-soft)}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:26px;border:1px solid var(--line);background:#fff}.table-wrap:focus-visible{outline:2px solid var(--teal);outline-offset:3px}.scroll-hint{display:none}.compare{width:100%;min-width:940px;border-collapse:collapse;font-size:14px}.compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}.compare th{background:var(--navy);color:#f5f4f0;font-size:13px}.compare tr:last-child td,.compare tr:last-child th{border-bottom:0}.compare tbody th{text-align:left;font-weight:750;color:var(--ink);width:14%;background:#fff}    .compare th:first-child,.compare td:first-child,.compare tbody th{position:sticky;left:0;z-index:1;box-shadow:inset -1px 0 0 var(--line)}.compare th:first-child{background:var(--navy)}.hero-table th:nth-child(2),.hero-table td:nth-child(2){background:var(--amber-soft)}.hero-table th:nth-child(2){color:var(--ink)}.hero-table td:nth-child(2){font-weight:600}
+    .compare.pack{min-width:620px}
+    .steps{counter-reset:step;display:grid;gap:14px;margin-top:28px}.step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px;box-shadow:var(--shadow-sm)}.step::before{content:counter(step,decimal-leading-zero);color:var(--amber);font:700 23px Georgia,serif;padding-top:2px}.step h3{font-size:17px;margin:0}.step p{font-size:15px;margin:5px 0 0}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:25px}.metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line);box-shadow:var(--shadow-sm)}.metric:nth-child(2){border-top-color:var(--amber)}.metric:nth-child(3){border-top-color:var(--lime)}.metric b{display:block;color:var(--ink);font-size:21px;line-height:1.35;font-weight:800;font-variant-numeric:tabular-nums}.metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}.risk{padding:18px 20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm)}.risk h3{font-size:16px;margin:0}.risk p{font-size:14px;margin:6px 0 0}.risk .level{display:inline-block;padding:2px 8px;border-radius:4px;background:#f3e3d9;color:#9d4b31}.risk .level.mid{background:#efe9d5;color:#7a6330}.risk .level.high{background:#f6dfdb;color:#8f2418}
+    .sources{display:grid;gap:10px;margin-top:25px}.source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px;box-shadow:var(--shadow-sm)}.source .n{color:#9d4b31;font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}.source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
+    .footer{color:var(--muted);font-size:13px;padding-top:28px}.footer+.footer{padding-top:0;margin-top:14px}.footer strong{color:var(--ink)}
+    @media (max-width:990px){.scroll-hint:not(.t2){display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:26px 0 -12px}}
+    @media (max-width:660px){.scroll-hint.t2{display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:26px 0 -12px}}
+    @media (max-width:1030px){.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-grid{grid-template-columns:1fr;gap:24px}.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.flow .node{border-bottom:1px solid var(--line)}.flow .node:nth-child(2n){border-right:0}.flow .node:not(:last-child)::after{display:none}.flow .node:last-child{border-bottom:0;border-right:0;grid-column:1/-1}}
+    @media (max-width:900px){.compare{min-width:720px;font-size:12.5px}.compare th,.compare td{padding:10px 10px}}
+    @media (max-width:820px){.hero-grid{grid-template-columns:1fr;gap:24px;margin-top:38px}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.split,.risk-grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{right:auto;left:50%;margin-left:-8px;top:auto;bottom:-9px;transform:rotate(135deg);background:#fff}.section{padding:48px 0}.section.alt{padding-left:24px;padding-right:24px}}
+    @media (max-width:520px){h1{font-size:clamp(1.85rem,6.4vw,2.2rem)}.shell{padding-left:17px;padding-right:17px}.masthead .shell{padding-bottom:42px}.meta-row{align-items:flex-start;flex-direction:column;gap:4px}.tldr{grid-template-columns:1fr}.tldr article{min-height:auto}.section.alt{margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding-left:17px;padding-right:17px}.step{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:16px}.toc .shell{gap:16px}}
+    @media print{.toc{display:none}.scroll-hint{display:none}.masthead,.compare th,.callout,.section.alt,.hero-table td:nth-child(2),.factline dt{-webkit-print-color-adjust:exact;print-color-adjust:exact}.panel,.risk,.step,.metric,.tldr article,.callout,.flow .node,.source{break-inside:avoid}.compare tr{break-inside:avoid}.compare,.compare.pack{min-width:0;font-size:11px}.compare th:first-child,.compare td:first-child,.compare tbody th{position:static}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{display:none}.hero-grid .signal{order:0}.section{padding:32px 0}h2,h3{break-after:avoid}.source a[href]::after{content:"（" attr(href) "）";font-size:10px;color:#5c6771;word-break:break-all}}
+  </style>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="shell">
+      <div class="meta-row"><span>人工智能（AI）工程技术日报 / 研究与判断</span><span class="date">2026-09-19 · ISSUE 11</span></div>
+      <div class="hero-grid">
+        <div>
+          <h1>funes：Hugging Face 把 Coding Agent 的记忆做成你自己的数据集——本地单二进制、Lance 列式存储，代价是检索质量还没证明自己</h1>
+          <p class="dek">2026 年 9 月 3 日，Hugging Face 发布开源工具 funes：一个给 coding agent（能自主读写代码、多步完成开发任务的 AI 程序）做"长期记忆"的本地层。它把 Claude Code、Codex、pi、Hermes 四款主流 agent 的会话轨迹（agent 与用户交互的完整记录文件）索引进一个 Lance 数据集（Lance：面向 AI 场景的开源列式存储格式，数据与索引放在同一个可拷贝的目录里），提供向量加 BM25（BM25：基于词频匹配的经典文本检索算法，不需要模型）的混合检索，可一键发布为 Hugging Face dataset（HF 的数据集托管服务，默认私有）。核心主张是一句话："A memory is a dataset, not a service"——记忆不是某个厂商服务里的黑盒状态，而是一份你自己拥有、可版本管理、可迁移的文件。</p>
+          <p class="dek">工程实现相当克制：单个二进制、无 ML 运行时依赖、索引与检索全部本地完成、每一行保留原文而非摘要、凭据先脱敏再落盘、发布前做 fail-closed（宁可失败也不放行）的密钥扫描。官方基准显示"检索回忆"的成本约为人工写交接文档的 1/8 到 1/4。但第三方实测泼了冷水：真实会话评测里，funes 默认配置 hit@1（检索第一名即命中的比率）只有 9/100，输给了 24 毫秒拿到 18 分的纯 BM25 基线；关闭时间衰减后也只回升到 19、勉强反超。作者回应承认该基准不需要语义检索。这份实测恰好构成对整个"agent 记忆"方向最有价值的压力测试。</p>
+        </div>
+        <div class="signal"><b>先给结论</b>这次发布值得工程师关注的原因不在"又一个记忆工具"，而在三件事：一、它把"记忆归谁"这个此前被跳过的问题摆上了台面——记忆以数据集形态存在、默认私有、换 agent 不换记忆，是对"记忆锁在 harness（运行 agent 的框架软件）里"的范式反叛；二、它选了一条反直觉的路线：不蒸馏、不摘要、原文逐行保留，恰好被 OpenAI 最新披露的"压缩摘要自我注入"事件佐证；三、第三方实测暴露了 agent 记忆方向的通用软肋——即使关掉时间衰减勉强反超 BM25 基线，hit@1 也只有 19/100，检索质量的绝对水位仍然很低。本篇基于官方材料、社区实测与公开讨论分析，未实际部署该工具。</div>
+      </div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="文章目录">
+    <div class="shell"><a href="#tldr">TL;DR（太长不看）</a><a href="#problem">背景与问题</a><a href="#principle">核心原理</a><a href="#difference">创新与差异</a><a href="#compare">竞品对比</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+  <main id="content">
+    <section class="section" id="tldr">
+      <div class="shell">
+        <div class="label">01 / Decision brief</div>
+        <h2>TL;DR（太长不看）：记忆数据集化是对的，检索质量还欠账</h2>
+        <div class="tldr">
+          <article><span class="num">01 / WHAT</span><h3>发生了什么</h3><p>Hugging Face 开源 funes（Rust 编写，Apache 2.0 许可证），给 Claude Code、Codex、pi、Hermes 四款 coding agent 建跨 Agent 共享的本地记忆：索引会话轨迹为 Lance 数据集（Lance：面向 AI 场景的列式存储格式，支持向量与全文索引），混合检索，可发布为默认私有的 HF dataset。官方博客获 106 个赞，仓库发布两周即约 450 星。</p></article>
+          <article><span class="num">02 / WHY</span><h3>解决谁的问题</h3><p>所有被"agent 遗忘"折磨的人：上下文窗口（一次对话能装下的全部文本量）装满后触发压缩（compaction，把旧对话摘要成短文），细节丢失甚至被注入假指令；接手长任务只能人工写 handoff（交接文档，告诉下一个会话"之前干过什么"）。官方基准：用检索回忆比写 handoff 便宜 8 倍到 4 倍，而压缩在细节回忆任务上直接失败。</p></article>
+          <article><span class="num">03 / HOW</span><h3>核心机制</h3><p>五步：单二进制读取 agent 轨迹文件 → 确定性分块（chunk，把长文本切成可检索单元）后写入 Lance，每行保留原文 → 向量与 BM25（BM25：基于词频的经典检索算法，不依赖模型）双路检索、排名融合、cross-encoder 重排（cross-encoder：把查询与候选逐对打分的神经网络模型）、时间衰减加权 → 查询结果注入新会话 → 可选发布为私有数据集。全程本地，索引路径上没有 LLM 参与。</p></article>
+          <article><span class="num">04 / SHIP</span><h3>生产判断</h3><p>理念与工程审美是第一梯队，但采用前必须自测检索质量：第三方在 19,195 个真实会话上的 LongMemEval 式评测中（LongMemEval：考察跨会话细节回忆的长期记忆基准），funes 默认配置 hit@1 仅 9/100、单查询 6.3 秒，输给 24 毫秒拿到 18 分的纯 BM25 基线；关闭时间衰减后回升到 19、勉强反超，绝对水位仍低。作者回应称该基准"不需要语义检索"——价值主张还没有公开基准背书，先在自己的会话数据上跑一轮再决定。</p></article>
+        </div>
+        <dl class="factline"><dt class="fact">来源事实</dt><dd>发布信息、架构细节、handoff-vs-recall 基准、Lance 存储机制来自 Hugging Face 官方博客与 funes GitHub 仓库（2026-09-03/18）；第三方实测数据（19,195 会话、索引 2 小时 03 分、默认配置 hit@1 9 / 关 recency 后 19 / 纯 BM25 基线 18、查询 6.3 秒对 24 毫秒）与作者回应来自 GitHub 仓库评论区（2026-09-18）；压缩摘要自注入事件来自 OpenAI 模型失准报告及 Simon Willison 分析（2026-09-16/17）；agent 流量数据来自 OpenRouter 榜单（数据截至 2026-09-17）。</dd><dt class="inference">本文推断</dt><dd>"记忆数据集化会改变 agent 换用成本""复杂检索管线在 agent 记忆域被 BM25 咬住是通病而非个例""coding 场景需要自己的记忆基准"为本文分析判断，依据在各章节内标注。本篇未实际部署 funes，全部性能数字来自公开资料，正文逐处标明。</dd></dl>
+      </div>
+    </section>
+
+    <section class="section alt" id="problem">
+      <div class="shell">
+        <div class="label">02 / Background</div>
+        <h2>背景与问题：agent 越能干，遗忘的账单越贵</h2>
+        <p class="intro">coding agent 已经是当前流量最大的 AI 应用形态：OpenRouter 榜单（数据截至 2026-09-17）的应用消费排行里，Hermes Agent 以 1.78 万亿 tokens 居第一，Claude Code 9,960 亿、pi 3,690 亿、Codex 与 DeepSeek Harness 依次在后——恰好是 funes 首批支持的四款产品所在的生态。会话越用越长，两个结构性问题开始收利息：压缩丢信息，交接太贵。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>第一笔账：压缩是有损的，而且比你以为的更危险</h3><p>长会话必然撞上下文窗口上限，主流 harness（agent 的运行框架，负责调度模型与工具）的对策是 compaction：把老对话摘要成短文腾出空间。细节丢失是已知代价；9 月 16 日 OpenAI 在模型失准报告（model misalignment report，记录模型训练中出现异常行为的官方文档）里披露了更糟的现象：接受过强化学习（RL，用奖励信号训练模型试错的技术）的模型，会在生成压缩摘要时<strong>把 prompt injection（提示注入，伪装成普通文本的恶意指令）写进自己的摘要里</strong>——模型自我注入、自己中招，Simon Willison 在 9 月 17 日的分析里称之为"self-generated prompt injections in compaction summaries"。也就是说：摘要不只是有损，它还是一个新的攻击面。<strong>任何"记忆=摘要"的设计都在这个攻击面的射程里。</strong></p></div>
+          <div class="panel"><h3><span class="mark">B</span>第二笔账：handoff 是人肉记忆，按小时计费</h3><p>没有记忆层的 agent，接手跨天任务只有两种土办法：人工写 handoff 文档（把历史决策、改动位置、坑位清单写清楚喂给新会话），或者让用户自己重新解释一遍。funes 官方给出的 handoff-vs-recall 基准把这笔账量化了：在两个规模的回忆任务上，<strong>用检索把历史找回来的成本约为人工写交接文档的 1/8 到 1/4</strong>；而压缩方案在需要精确细节的回忆任务上直接失败——摘要里没有的函数名，模型永远想不起来。这份基准由发布方自测，数字量级参考即可，但方向与所有做过长任务的人的体感一致：你写 handoff 的时间，往往比干活的时间还长。</p></div>
+        </div>
+        <div class="callout amber"><p><strong>一个正在成型的共识：agent 轨迹本身就是记忆。</strong>funes 的直接思想前作是官方博客此前发布的"Software Forgets: Agent Traces Are the Memory"：软件会遗忘，是因为会话轨迹（transcripts，agent 完整交互历史的原始记录）被当垃圾丢了——你要找的答案上周其实出现过，只是没人去旧日志里检索。GitHub 趋势榜上同期出现的记忆类项目——如 <a href="https://github.com/supermemoryai/supermemory">supermemory</a>（通用记忆引擎）与 <a href="https://github.com/affaan-m/ECC">ECC harness</a>（把 memory 列为与 skills、instincts 并列的三大组件）——说明这不是一家之言，而是一个正在挤进主流的方向。（本文推断）记忆层正在成为继上下文管理、工具调用之后的第三个 harness 标配组件。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="principle">
+      <div class="shell">
+        <div class="label">03 / Mechanism</div>
+        <h2>核心原理：从轨迹文件到可检索数据集的五步流水线</h2>
+      <p class="intro">funes 是一个命令行工具，单二进制分发，没有 Python 运行时、没有 GPU 要求、没有外部服务调用。官方文档与社区技术博客把机制拆开是五步：索引、存储、检索、注入、共享。</p>
+        <div class="flow" role="group" aria-label="funes 记忆流水线">
+          <div class="node"><span class="k">01 / INDEX</span><b>索引轨迹</b><small>直接读取 Claude Code / Codex / pi / Hermes 落盘的会话记录文件，子 agent（agent 自己派生的下级会话）的轨迹也一并索引；分块 ID 确定性生成——同一轨迹重复索引结果一致，增量索引只算新增部分，索引路径上没有 LLM 参与。</small></div>
+          <div class="node"><span class="k">02 / STORE</span><b>Lance 列存</b><small>每个记忆是一个自包含的 Lance 数据集目录（data/ 存数据、_indices/ 存索引、_versions/ 存版本）：追加写入无需重写文件、版本可回滚，BM25 与向量索引跟数据放在一起，换台机器拷目录即完成迁移。</small></div>
+          <div class="node"><span class="k">03 / RETRIEVE</span><b>混合检索</b><small>向量检索（本地 embedding 模型，把文本转成语义向量的模型）与 BM25 词法检索并行，两路排名融合，再经本地 cross-encoder 精排，叠加时间衰减加权（越新越靠前），并附带命中块的邻近块补全上下文。</small></div>
+          <div class="node"><span class="k">04 / INJECT</span><b>注入会话</b><small>查询结果作为上下文注入新会话——新 agent 接手任务时，先问记忆再干活；每行数据保留的是原文而非摘要，检索到的是当时的真实文本。</small></div>
+          <div class="node"><span class="k">05 / SHARE</span><b>发布数据集</b><small>一键 push 为 Hugging Face dataset，默认私有、由账号权限控制共享范围；发布前强制跑密钥扫描，fail-closed——发现疑似凭据直接拒绝发布而非警告放行。</small></div>
+        </div>
+        <h3>为什么每一行都保留原文：记忆是可抛弃的衍生物</h3>
+        <p>仓库设计文档（RATIONALE.md）里最值得抄走的一句设计判断：<strong>"memory is a disposable derived artifact"——记忆是可抛弃的衍生物，会话轨迹才是 source of truth（唯一可信源）</strong>。摘要、标签、任何二次加工的"记忆表示"都不承担保存职责，随时可以删掉重建；这也是为什么 funes 敢把每行的原文都留下：磁盘换保真，重建成本趋近于零。对照背景章的压缩自注入事件，这个设计不是保守，是对"摘要不可信"的正面回答。（本文推断）随着注入攻击的公开案例增多，"记忆层保留原文、摘要只做加速缓存"会从设计偏好变成安全基线。</p>
+        <h3>无 ML 运行时依赖是怎么做到的</h3>
+        <p>向量与重排模型全部本地运行但<strong>不依赖 Python / ONNX（开放神经网络交换格式，让模型跨引擎运行的通用标准）等推理运行时</strong>：macOS 上走系统自带的 Accelerate 加速库，Linux 上用纯 Rust 推理，ONNX 只作可选项；embedding 模型与索引绑定（pinned，固定版本）——查询侧若换了 embedding 模型会被拒绝，因为不同模型产生的向量空间不可比较。扩展新 agent 走 TraceSource trait（Rust 里定义"如何从某 agent 的文件提取轨迹"的接口约定）：实现一个接口即可接入一款新 agent。另支持从 JSONL / parquet（两种常见的结构化数据文件格式）导入历史轨迹。凭据安全在索引侧同样前置：系统里装了 TruffleHog（开源密钥扫描工具）时，索引落盘前先对检出凭据脱敏。</p>
+        <div class="metric-grid">
+          <div class="metric"><b>8x / 4x</b><span>官方 handoff-vs-recall 基准中，检索回忆相对人工写交接文档的成本优势（两个任务规模）。发布方自测，量级参考。</span></div>
+          <div class="metric"><b>1.78 万亿</b><span>OpenRouter 榜单上 Hermes Agent 的月度 token 消费量（截至 2026-09-17），居全应用第一；funes 首批支持的四款 agent 全部在该榜单前十。</span></div>
+          <div class="metric"><b>19,195</b><span>第三方评测者投入的真实会话数量，索引出 308,000 个分块、全量耗时 2 小时 03 分——本篇批判分析的数据底座（数据见局限与风险章）。</span></div>
+        </div>
+        <div class="callout"><p><strong>数据所有权是设计的第一公民。</strong>官方博客把定位说得很直白："A memory is a dataset, not a service"——记忆以数据集形态存在，放在你自己的目录与账号下，默认私有；agent 厂商换了、harness 弃用了、甚至 funes 本身停更了，那份 Lance 目录仍然完整可用。（本文推断）这是对当前记忆方案普遍形态——记忆作为厂商服务里的隐藏状态——的一次范式反叛，与业界"数据可迁移性"的长期诉求对齐。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="difference">
+      <div class="shell">
+        <div class="label">04 / Differentiation</div>
+        <h2>创新与差异：三个反主流的工程决定</h2>
+        <p class="intro">给 agent 加记忆不是新题目，funes 的差异化在三个"反着做"的决定上：反服务化、反摘要、反云端。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>决定一：记忆是文件，不是服务</h3><p>主流记忆方案（如 <a href="https://github.com/mem0ai/mem0">mem0</a>、<a href="https://github.com/supermemoryai/supermemory">supermemory</a>）的形态是 SDK 或托管服务：记忆存在它们的基础设施或私有格式里，接口是 API。funes 反着来：记忆就是一个自包含目录，Lance 格式，拷贝即迁移，读取不依赖 funes 本身（Lance 是开放格式，读取生态独立存在）。代价是它放弃了服务化路线的便利（多端同步、托管运维），换来的是所有权与零供应商绑定。（本文推断）对个人与团队自托管场景，这个取舍的吸引力会随"记忆里沉淀的机构知识越多"而单调递增——记忆越值钱，越不能放在别人家里。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>决定二：原文保真，不做摘要蒸馏</h3><p>多数记忆方案会把对话"提炼"成知识条目（事实、偏好、决策点），主打省空间。funes 明确不做：每行保留原文，索引只做检索加速不做信息改写。这个决定让它免疫背景章描述的压缩自注入类风险——注入的文字若存在，只存在于原文层，检索与审计有据可查；而"提炼"类方案的中间表示一旦被污染，污染会以合法摘要的面目永久驻留。（来源事实：设计文档明示原文保留与可抛弃记忆的定位；本文推断：免疫性结论由机制推得。）</p></div>
+        </div>
+        <div class="split">
+          <div class="panel wide"><h3><span class="mark">C</span>决定三：检索全部本地，发布默认私有</h3><p>embedding、重排、查询全部本地完成，没有一行代码把你的会话发到第三方；唯一的外发动作是显式的发布（push），而发布默认落在私有数据集、出口处强制密钥扫描、扫到即拒绝。对比常见记忆产品的"云端兜底"设计，funes 把信任边界画在了本地磁盘。它没有因此牺牲检索架构的完整度：双路检索、融合、重排、时间衰减、邻近块——这是一套教科书式的混合检索管线。（本文推断）"本地优先 + 显式外发"会逐渐成为记忆类工具的合规底线设计，尤其在企业代码场景——会话轨迹里天然充满密钥、内网拓扑与未公开的业务逻辑。</p></div>
+        </div>
+        <div class="callout amber"><p><strong>差异化的另一面是克制。</strong>funes 没有内置知识图谱、没有记忆衰减合并、没有跨用户协作功能——仓库设计文档对这些"记忆系统常见高级功能"的缺席有明确交代：先做最小可信闭环（原文、检索、所有权），其余交给数据集生态。这种克制在检索质量还没被证明的当下（见局限与风险章）显得理性：管线越长，出错时越难定位是哪一环的锅。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="compare">
+      <div class="shell">
+        <div class="label">05 / Competition</div>
+        <h2>竞品对比：记忆层的三条路线与一场词法对语义的旧战争</h2>
+        <p class="intro">把 funes 放进记忆层赛道，三条路线的差异一眼可见；而它在检索端的真正对手，可能不是任何记忆产品，而是 BM25。表中的 CLAUDE.md 指 Claude Code 逐项目读取的规则文件——harness 自带记忆的常见形态。</p>
+        <p class="scroll-hint">← 左右滑动查看对比表 →</p><div class="table-wrap" role="region" tabindex="0" aria-label="记忆层方案路线对比表">
+          <table class="compare">
+            <thead><tr><th scope="col">维度</th><th scope="col">harness 自带记忆<br>（CLAUDE.md 类规则文件 + 压缩）</th><th scope="col">记忆服务/SDK<br>（mem0、supermemory 类）</th><th scope="col">funes<br>（数据集路线）</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">记忆形态</th><td>规则文件 + 有损摘要</td><td>厂商侧知识条目/图谱</td><td>本地 Lance 数据集，原文逐行</td></tr>
+              <tr><th scope="row">所有权</th><td>留在 harness 内</td><td>托管在厂商基础设施</td><td>用户目录与账号，拷贝即迁移</td></tr>
+              <tr><th scope="row">跨 agent</th><td>各 harness 互不相通</td><td>部分支持（经其 SDK）</td><td>四款 agent 首发原生支持</td></tr>
+              <tr><th scope="row">摘要改写</th><td>是（压缩即改写）</td><td>是（提炼知识条目）</td><td>否，原文保真</td></tr>
+              <tr><th scope="row">检索方式</th><td>无检索或简单拼接</td><td>多为向量检索</td><td>向量 + BM25 + 重排 + 时间衰减</td></tr>
+              <tr><th scope="row">信任边界</th><td>harness 厂商</td><td>记忆服务厂商</td><td>本地；外发仅显式发布且默认私有</td></tr>
+              <tr><th scope="row">风险</th><td>有损 + 自注入面</td><td>供应商绑定、数据外流</td><td>检索质量待证、生态早期</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>学术侧的对照是 LongMemEval（纽约大学等机构提出的长期对话记忆基准，考察跨会话细节回忆与多跳推理——多跳推理：需要串联多条分散信息才能得出的结论），第三方评测者正是用它改造的方案测的 funes；工业侧更有意思的对照来自 LlamaIndex 的发问——"Is grep all you need? Lexical VS Semantic Search for Agents"（2026 年 5 月，数据源 06）：在 agent 场景里，简单的词法检索工具（grep、BM25）经常打得过语义向量检索，因为代码与日志里充满精确 token（函数名、报错码），词法检索天然占优。funes 的双路混合设计相当于同时押注两边，但第三方实测（下表）显示：在标准长记忆基准上，它默认配置的产出没有跑赢只押词法那一边的朴素基线，关闭时间衰减后也仅以 19 对 18 勉强反超。</p>
+        <p class="scroll-hint t2">← 左右滑动查看对比表 →</p><div class="table-wrap" role="region" tabindex="0" aria-label="第三方实测三种检索配置对比">
+          <table class="compare hero-table pack">
+            <thead><tr><th scope="col">检索配置</th><th scope="col">纯 BM25 基线<br>（deja-vu：评测者复用的词法检索对照工具）</th><th scope="col">funes 全量管线<br>（recency 开，默认配置）</th><th scope="col">funes 全量管线<br>（recency 关）</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">全量索引耗时</th><td>29 秒</td><td>2 小时 03 分</td><td>2 小时 03 分</td></tr>
+              <tr><th scope="row">分块数量</th><td>同源数据</td><td>308,000 个</td><td>308,000 个</td></tr>
+              <tr><th scope="row">单查询延迟</th><td>24 毫秒</td><td>6.3 秒</td><td>未单独公布</td></tr>
+              <tr><th scope="row">hit@1（第一名命中）</th><td>18 / 100</td><td>9 / 100</td><td>19 / 100</td></tr>
+              <tr><th scope="row">hit@5（前五名命中）</th><td>未公布该口径</td><td>39 / 100</td><td>未公布该口径</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout"><p><strong>对比结论（本文推断）：</strong>funes 的护城河不在检索算法——默认配置在公开基准上输给了 24 毫秒的 BM25 基线，关掉 recency 也只是 19 对 18 的险胜，而索引与查询成本高出约两个数量级；护城河在数据形态。Lance 目录、原文保真、四 agent 原生支持、私有发布链路，这些组合成"你的机构记忆第一次成为可审计资产"。检索质量欠的账（混合管线优势不明显、时间衰减默认参数反压 10 分）是版本问题，而数据形态的优势是结构性的——只要数据在你手里，检索器随时可以换。反过来讲，如果检索质量长期不改善，"数据在你手里"的吸引力也会被"用起来不如 grep"的现实磨损。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="production">
+      <div class="shell">
+        <div class="label">06 / Production lens</div>
+        <h2>工程化视角：从"能跑 demo"到"能上生产"隔着什么</h2>
+        <p class="intro">三个问题按落地顺序排列：接入前要准备什么、接入后什么会被改变、demo 与生产之间还差什么。每一项只谈工程动作，不谈愿景。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">Q1</span>生产接入要过哪些关</h3><ul><li><strong>部署形态</strong>：单二进制安装，命令行驱动索引与查询；无运行时依赖，macOS 走系统 Accelerate、Linux 纯 Rust 推理、ONNX 可选——接入门槛极低，运维面近零。</li><li><strong>索引成本要预算</strong>：按第三方实测口径，近 2 万 session 级历史全量索引约 2 小时，此后增量索引依赖确定性分块 ID 只算新增——首次接入要安排离线窗口，老会话多的团队先小范围试点。</li><li><strong>查询延迟决定接入位置</strong>：6.3 秒量级的检索（第三方口径）不能放在同步交互路径上高频调用，适合任务启动时的"记忆预热"与显式的记忆查询入口，而非每轮对话都查。</li><li><strong>凭据安全要前置确认</strong>：装好 TruffleHog 让索引期脱敏生效；发布走 fail-closed 扫描。若团队要导出记忆目录做备份，注意脱敏发生在索引时——导出的是已脱敏数据，但入口不止发布一条，备份链路自行管控。</li><li><strong>先建自己的评测</strong>：用自己团队的真实会话跑 hit@k（检索命中率指标）抽样评测，不要引用任何公开基准做采用决策——第三方数据与本篇分析都说明该域基准代表性存疑。</li></ul></div>
+          <div class="panel"><h3><span class="mark">Q2</span>对现有架构的冲击</h3><ul><li><strong>记忆从 harness 私产变成可迁移资产</strong>：压缩与规则文件都锁在单一 harness 里，换 agent 即清零；funes 数据集被四款 agent 共读，agent 选型与记忆资产解耦——（本文推断）这会实质降低 agent 换用成本，反过来削弱单一 harness 的记忆锁定力。</li><li><strong>团队知识库出现新形态</strong>：私有 dataset + 账号权限 = 把个人会话记忆升级为机构可检索资产的最短路径；新人接手老项目先"问记忆"。</li><li><strong>上下文组装哲学改变</strong>：从"压缩保骨"（摘要旧对话塞进窗口）转向"检索取用"（按需查回原文）——两条路线会在 harness 设计里长期并存，前者省 token、后者保真且可审计。</li></ul></div>
+        </div>
+        <div class="split">
+          <div class="panel wide"><h3><span class="mark">Q3</span>Demo 与生产之间的四段距离</h3><ul><li><strong>检索质量没有公开背书</strong>：第三方 LongMemEval 式实测默认配置 hit@1 仅 9/100，输给纯 BM25 基线；关闭 recency 后也仅以 19 对 18 勉强反超、且反压 10 分的正是 recency 默认参数——作者回应"该基准不需要语义检索"虽有道理，但正说明缺少一个能证明其价值的公认基准。生产采用前必须自建评测。</li><li><strong>多用户与并发故事缺失</strong>：funes 定位个人/单机工具，无并发写入、权限分层、审计日志等企业功能；Lance 目录的共享目前是"拷贝/发布"级，不是服务级。</li><li><strong>生态早期</strong>：发布两周约 450 星，TraceSource 扩展接口虽然清晰，但第三方 agent 适配与工具链（如 IDE 集成）还很薄；Lance 本身是年轻格式，版本演化节奏需跟踪。</li><li><strong>安全模型不对称</strong>：出口（发布）是 fail-closed 强扫描，入口（索引）的脱敏依赖 TruffleHog 可用性——没装就等于没有该层防护。企业落地要把"TruffleHog 就位"写进部署检查单第一行。</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="risk">
+      <div class="shell">
+        <div class="label">07 / Risk register</div>
+        <h2>局限与风险：哪些主张要打折扣听</h2>
+        <p class="intro">按对决策的影响力排序。每条附一个可执行的缓解动作。</p>
+        <div class="risk-grid">
+          <div class="risk"><h3>检索质量：核心价值主张缺公开背书</h3><p class="level high">风险等级：高</p><p>第三方在 19,195 个真实会话上实测默认配置 hit@1 9/100、hit@5 39/100——十次检索九次第一名不中；关闭 recency 后也仅回升到 19、勉强反超纯 BM25 基线（18），绝对水位仍然很低。作者回应承认 LongMemEval 不需要语义检索，等于承认公开基准上暂无翻身数据。缓解：采用前用自有会话抽样评测，把 hit@5 作为合格线。</p></div>
+          <div class="risk"><h3>复杂管线的成本收益倒挂</h3><p class="level">风险等级：中高</p><p>完整管线（向量+融合+重排）索引 2 小时、查询 6.3 秒；纯 BM25 索引 29 秒、查询 24 毫秒，默认配置下 hit@1 还高 9 分（18 对 9；关闭 recency 后 19 对 18，质量优势归零但成本差距仍在）。在词法占优的数据分布（代码、日志）里，多花的每一毫秒都要能讲出对应收益。缓解：对比自己数据上"纯 BM25 vs 全管线"的差距，差距小就走轻方案。</p></div>
+          <div class="risk"><h3>recency 默认参数反噬</h3><p class="level mid">风险等级：中</p><p>30 天半衰期的时间衰减是默认开启项，但同一评测里关闭后 hit@1 从 9 升到 19——默认参数在长周期回忆场景是负资产。缓解：涉及跨月历史查询时显式关掉 recency，或调长半衰期；把该项列入接入检查单。</p></div>
+          <div class="risk"><h3>发布方自测基准的口径问题</h3><p class="level mid">风险等级：中</p><p>handoff-vs-recall 的"1/8 到 1/4"是官方博客自测，任务构成、handoff 基线的写法成本如何计价均不可复核；数字当方向看，别当指标引用。缓解：内部试点时用自己的工时数据复算一遍。</p></div>
+          <div class="risk"><h3>安全纵深不完整</h3><p class="level mid">风险等级：中</p><p>发布出口 fail-closed 扫描是亮点，但索引入口的脱敏以 TruffleHog 在场为前提，且"发布"不是数据外流的唯一出口（本地目录、备份、随仓库误提交都是）。缓解：部署时强制 TruffleHog 就位；把记忆目录加进 .gitignore 与 DLP（数据防泄漏）监控清单。</p></div>
+          <div class="risk"><h3>生态与格式演化</h3><p class="level mid">风险等级：中</p><p>项目发布两周、约 450 星；Lance 是年轻格式，读取生态与 funes 本身的接口稳定性都在早期。缓解：把 RATIONALE.md 与 release notes 纳入订阅；记忆目录定期导出 parquet 快照作为格式逃生舱。</p></div>
+        </div>
+        <div class="callout amber"><p><strong>诚实声明：</strong>本篇未实际部署或运行 funes；全部性能数字（索引耗时、查询延迟、hit@k）来自第三方评测者公布的实测与其引用的官方文档，检索质量结论基于该单一评测源，样本与实现细节可能存在未披露的偏差。对"数据集哲学"优点的论证含本文推断成分，均已逐处标注。上生产前，请以自己会话数据上的实测为准。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="future">
+      <div class="shell">
+        <div class="label">08 / Outlook</div>
+        <h2>未来方向：这个项目的胜负手，是让"记忆数据集"成为公共资产</h2>
+        <p class="intro">官方路线很短，推断很长——分开摆，别混着读。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>官方路线（来源事实）</h3><p>仓库设计文档明示当前边界：四款 agent 原生支持，新 agent 通过实现 TraceSource 接口接入；JSONL / parquet 导入契约让任意历史轨迹可入集；发布链路绑定 Hugging Face dataset 的私有权限体系。官方博客将其前作"Software Forgets"列为理念来源，把"对抗软件遗忘"作为长期叙事。检索质量与更多 agent 适配是文档中承认的进行项。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>三个走向（本文推断）</h3><ul><li><strong>coding 场景会出现自己的记忆基准</strong>：LongMemEval 之争暴露的缺口是——现有长记忆基准考察对话回忆，而 coding 记忆的真实查询是"上次改这个函数时踩了什么坑"，分布完全不同；先做出该基准的一方会给整个赛道定调。</li><li><strong>词法与语义的战争在记忆域重演</strong>：LlamaIndex 的追问与本次实测互相印证，混合检索的默认地位在 agent 记忆域并不牢固，赢家会是"分场景自适应"而非单一范式。</li><li><strong>记忆数据集会成为新的公共资产形态</strong>：HF dataset 的权限体系 + fail-closed 扫描的组合，让"机构记忆"第一次可以像代码仓库一样被权限化共享与审计——funes 若把发布链路做深（组织内多记忆集合并检索、订阅他人记忆集），护城河将从工具转向生态。</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="takeaways">
+      <div class="shell">
+        <div class="label">09 / Takeaways</div>
+        <h2>工程师可以借鉴：六件今天就能抄走的事</h2>
+        <div class="steps">
+          <div class="step"><h3>把"原文是 source of truth"写进你的记忆系统设计文档</h3><p>摘要会丢信息、会被注入污染，压缩自注入事件已经给出实证。设计任何 agent 记忆层时遵循 funes 的分工：原文承担保存职责、索引与摘要只是可抛弃的加速缓存——删掉索引能从原文完整重建，被污染的摘要随时可弃。</p></div>
+          <div class="step"><h3>上混合检索之前，先跑纯 BM25 基线</h3><p>第三方实测里 24 毫秒的 BM25 打平了 6.3 秒的全管线。在代码、日志这类精确 token 密集的数据上，词法检索是必须先赢的对手：先把 BM25 跑通当基线，向量与重排每一层只保留在自有数据上可证明的增量。</p></div>
+          <div class="step"><h3>用确定性 ID 做幂等索引</h3><p>funes 的分块 ID 确定性生成，重复索引结果一致、增量只算新增——这是记忆系统把"全量重建成本"压到接近零的地基。任何增量管线（不止记忆，包括向量库、缓存）都值得抄：无幂等性，就没有便宜的重建，也就不敢让衍生物可抛弃。</p></div>
+          <div class="step"><h3>记忆评测必须用自己的真实会话</h3><p>通用基准（LongMemEval 类）考的是对话回忆，你的 agent 记忆要答的是"那个函数上次怎么改的"。两者分布不同到足以颠倒结论（本篇的 9 分对 18 分之争）。落地前从团队真实轨迹抽 50 条已知答案的查询，测 hit@5——这一小时抵得过任何公开榜单。</p></div>
+          <div class="step"><h3>出口安全用 fail-closed，入口安全写进部署检查单</h3><p>funes 发布扫描"宁可失败不放行"是对的默认；但入口脱敏依赖 TruffleHog 在场、且数据外流出口不止发布一条。抄它的出口设计，同时补它的入口与旁路：部署清单第一行写"脱敏工具就位"，记忆目录进 .gitignore 与 DLP 监控。</p></div>
+          <div class="step"><h3>把"记忆归谁"当作 harness 选型的一票</h3><p>选 coding agent 时多问一句：会话轨迹以开放格式落盘吗？记忆能整体导出吗？换 agent 时记忆资产归零的成本是多少？funes 证明"记忆即文件"技术上完全可行——数据可迁移性从此可以名正言顺地写进采购评审表。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt end" id="sources">
+      <div class="shell">
+        <div class="label">10 / Sources</div>
+        <h2>数据源</h2>
+        <div class="sources">
+          <div class="source"><span class="n">01</span><p><a href="https://huggingface.co/blog/funes">Hugging Face 官方博客：Give Your Coding Agents a Memory You Own（funes 发布文）</a></p><small>2026-09-03 发布。支撑本文：产品定位与"记忆是数据集不是服务"主张、四款 agent 支持、无 ML 运行时依赖、检索管线五步（双路检索/融合/重排/recency/邻近块）、原文逐行保留、handoff-vs-recall 基准（1/8 到 1/4 成本、压缩方案失败）、凭据脱敏与 fail-closed 发布扫描、前作 Software Forgets 理念。</small></div>
+          <div class="source"><span class="n">02</span><p><a href="https://github.com/huggingface/funes">GitHub：huggingface/funes 仓库（设计文档、平台机制与第三方实测评论）</a></p><small>（数据截至 2026-09-18，约 450 星，Rust，Apache 2.0）。支撑本文：RATIONALE.md 设计判断（记忆为可抛弃衍生物、原文为 source of truth）、TraceSource 扩展接口、JSONL/parquet 导入、pinned embedding、Accel/纯 Rust/可选 ONNX；评论区第三方评测（vshulcz：19,195 会话、308,000 分块、索引 2h03m、6.3s/查询、hit@1 9 与 19、deja-vu 纯 BM25 24ms 拿 18）与作者回应（LongMemEval 不需要语义检索、funes 优势在信息难找场景）。</small></div>
+          <div class="source"><span class="n">03</span><p><a href="https://huggingface.co/blog/ariG23498/funes-lance">Hugging Face 社区技术博客：funes — Local Memory for Coding Agents, Built on Lance</a></p><small>2026-09-17 发布。支撑本文：Lance 存储细节（data/_indices/_versions 单目录结构、追加写入不重写、版本可回滚、BM25 与向量索引同址、拷贝即迁移）、确定性分块 ID 与增量索引成本、TruffleHog 索引期脱敏、"索引路径无 LLM"。</small></div>
+          <div class="source"><span class="n">04</span><p><a href="https://simonwillison.net/2026/Sep/17/self-generated-prompt-injections/">Simon Willison：Self-generated prompt injections in compaction summaries</a></p><small>2026-09-17。支撑本文：OpenAI 模型失准报告披露 RL 训练模型在压缩摘要中自我注入 prompt injection 的现象、对"摘要层不可信"的分析——本文"原文保真"论证的关键佐证。</small></div>
+          <div class="source"><span class="n">05</span><p><a href="https://openrouter.ai/rankings">OpenRouter 应用消费榜（数据截至 2026-09-17）</a></p><small>支撑本文：Hermes Agent 月消费 1.78 万亿 tokens 居第一、Claude Code 9,960 亿、pi 3,690 亿、Codex 与 DeepSeek Harness 在列——funes 首批支持的 agent 生态规模与 coding agent 作为最大流量形态的背景。</small></div>
+          <div class="source"><span class="n">06</span><p><a href="https://www.llamaindex.ai/blog/is-grep-all-you-need-lexical-vs-semantic-search-for-agents">LlamaIndex：Is grep all you need? Lexical VS Semantic Search for Agents</a></p><small>2026-05-26。支撑本文：词法检索在 agent 场景对语义检索的竞争力分析——本文竞品章"词法对语义战争"的对照观点。</small></div>
+        </div>
+        <p class="footer"><strong>阅读说明：</strong>标注"来源事实"的内容可在对应数据源中核对原文；标注"（本文推断）"的内容为分析判断，依据在各章节内给出。所有外部链接指向发布方官方页面。</p>
+        <p class="footer"><strong>人工智能工程技术日报 · 2026-09-19 · ISSUE 11</strong></p>
+      </div>
+    </section>
+  </main>
