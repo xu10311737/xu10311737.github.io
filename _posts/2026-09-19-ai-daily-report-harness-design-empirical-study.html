@@ -1,0 +1,289 @@
+---
+layout: main
+title: 'Harness 设计没有默认答案：176 组对照实验拆解 Coding Agent 的上下文管理、规划与工具界面——预算越紧越要压缩，弱模型靠规划续命，强模型用 bash 更便宜'
+date: 2026-09-19 00:00:00 +0800
+description: '解读 arXiv 论文 2609.20804：176 组对照实验证明 harness 设计是条件系统问题——上下文管理在 32k 预算下平均提升 35.7 个百分点、128k 下只剩 2.7；分级压缩 T4 性价比最优；recall 工具几乎不被使用；planning 对弱模型是脚手架、对强模型是省钱阀；bash-only 让强模型又准又便宜、让弱模型崩溃。没有可以照抄的默认配置。'
+tags:
+  - AI
+  - engineering
+  - LLM
+---
+  <style>
+    :root{
+      --ink:#1d2430;--ink-2:#3a4350;--muted:#5c6771;--paper:#fbfaf8;--panel:#ffffff;
+      --line:#e0ddd5;--teal:#0c7772;--teal-soft:#e2f1ee;--amber:#b96a1b;--amber-soft:#f6e8d5;
+      --lime:#6f7f2a;--lime-soft:#eef2d9;--navy:#20222b;--plum:#8b6389;--shadow-lg:0 12px 30px rgba(27,36,48,.08);--shadow-sm:0 7px 20px rgba(27,36,48,.05);
+    }
+    *{box-sizing:border-box}html{overflow-x:clip}
+    @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+    body{margin:0;background:var(--paper);color:var(--ink-2);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.82}
+    a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:3px}
+    a:hover{color:#a4502f;text-decoration-thickness:2px}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:16px;top:16px;z-index:20;background:#fff;padding:8px 12px;border:2px solid var(--teal)}
+    .shell{max-width:1120px;margin:0 auto;padding:0 24px}
+    .masthead{background:var(--navy);color:#f4f5f7;border-bottom:5px solid var(--amber)}
+    .masthead .shell{padding-top:20px;padding-bottom:44px}
+    .meta-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#b9c0ca;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+    .meta-row .date{color:#e8c79c}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:48px;align-items:end;margin-top:38px}
+    h1,h2,h3{color:var(--ink);line-height:1.3;margin:0;font-weight:750}
+    h1{color:#f9f8f5;font-size:clamp(2.2rem,4.4vw,3.6rem);letter-spacing:0}
+    .dek{color:#d3d6db;font-size:1.16rem;max-width:780px;margin:22px 0 0}.dek+.dek{margin-top:10px}
+    .signal{border-left:2px solid var(--amber);padding:4px 0 4px 20px;color:#f5e8d8;font-size:14px;max-width:640px}
+    .signal b{display:block;color:#fff2ec;font-size:17px;margin-bottom:5px}
+    .toc{position:sticky;top:0;z-index:5;background:rgba(251,250,248,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent)}
+    .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
+    main{padding-bottom:80px;scroll-margin-top:64px}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
+    .section.alt{background:#f2f0eb;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding-left:max(0px,calc(50vw - 560px));padding-right:max(0px,calc(50vw - 560px))}.section.end{border-bottom:0}
+    .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#9d4b31;margin-bottom:10px}
+    h2{font-size:clamp(1.7rem,3vw,2.5rem);max-width:880px}.intro{font-size:1.08rem;max-width:880px;margin:16px 0 30px;color:var(--ink-2)}
+    h3{font-size:1.2rem;margin:28px 0 8px}.section p{max-width:880px;margin:0 0 18px}.section p:last-child{margin-bottom:0}.section ul{max-width:880px;margin:0 0 18px;padding-left:22px}.section li{margin:7px 0}.section ul:last-child{margin-bottom:0}
+    .tldr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+    .tldr article{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--teal);padding:18px 18px 20px;min-height:174px;box-shadow:var(--shadow-lg)}
+    .tldr article:nth-child(2){border-top-color:var(--amber)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:var(--plum)}
+    .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr article:nth-child(2) .num{color:#965512}.tldr article:nth-child(3) .num{color:#5d6b22}.tldr article:nth-child(4) .num{color:var(--plum)}.tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
+    .factline{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:start;max-width:880px;margin:22px 0 0;color:var(--muted);font-size:13px}.factline dt{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:.05em;justify-self:start}.factline dd{margin:0}.factline dt.fact{background:var(--teal-soft);color:var(--teal)}.factline dt.inference{background:var(--amber-soft);color:#9d4b31}
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:var(--shadow-sm)}.panel.wide{grid-column:1/-1}
+    .panel h3{display:flex;gap:10px;align-items:baseline;margin-top:0}.panel .mark{color:var(--amber);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}.panel ul,.panel ol{margin:10px 0 0;padding-left:22px}.panel li{margin:7px 0;font-size:15px}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}.flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);position:relative}.flow .node:last-child{border-right:0}.flow .node:not(:last-child)::after{content:"";position:absolute;right:-9px;top:50%;margin-top:-8px;width:16px;height:16px;border-top:2px solid var(--amber);border-right:2px solid var(--amber);transform:rotate(45deg);background:#fff;z-index:1}.flow .k{display:block;color:#b0512f;font:700 12px Georgia,serif;margin-bottom:9px}.flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:880px}.callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.amber{border-left-color:var(--amber);background:var(--amber-soft)}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:26px;border:1px solid var(--line);background:#fff}.table-wrap:focus-visible{outline:2px solid var(--teal);outline-offset:3px}.scroll-hint{display:none}.compare{width:100%;min-width:940px;border-collapse:collapse;font-size:14px}.compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}.compare th{background:var(--navy);color:#f5f4f0;font-size:13px}.compare tr:last-child td,.compare tr:last-child th{border-bottom:0}.compare tbody th{text-align:left;font-weight:750;color:var(--ink);width:14%;background:#fff}
+    .compare th:first-child,.compare td:first-child,.compare tbody th{position:sticky;left:0;z-index:1;box-shadow:inset -1px 0 0 var(--line)}.compare th:first-child{background:var(--navy)}
+    .compare.pack{min-width:620px}
+    .steps{counter-reset:step;display:grid;gap:14px;margin-top:28px}.step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px;box-shadow:var(--shadow-sm)}.step::before{content:counter(step,decimal-leading-zero);color:var(--amber);font:700 23px Georgia,serif;padding-top:2px}.step h3{font-size:17px;margin:0}.step p{font-size:15px;margin:5px 0 0}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:25px}.metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line);box-shadow:var(--shadow-sm)}.metric:nth-child(2){border-top-color:var(--amber)}.metric:nth-child(3){border-top-color:var(--lime)}.metric b{display:block;color:var(--ink);font-size:21px;line-height:1.35;font-weight:800;font-variant-numeric:tabular-nums}.metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}.risk{padding:18px 20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm)}.risk h3{font-size:16px;margin:0}.risk p{font-size:14px;margin:6px 0 0}.risk .level{display:inline-block;padding:2px 8px;border-radius:4px;background:#f3e3d9;color:#9d4b31}.risk .level.mid{background:#efe9d5;color:#7a6330}.risk .level.high{background:#f6dfdb;color:#8f2418}
+    .sources{display:grid;gap:10px;margin-top:25px}.source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px;box-shadow:var(--shadow-sm)}.source .n{color:#9d4b31;font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}.source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
+    .footer{color:var(--muted);font-size:13px;padding-top:28px}.footer+.footer{padding-top:0;margin-top:14px}.footer strong{color:var(--ink)}
+    @media (max-width:1040px){.scroll-hint:not(.t2){display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:26px 0 -12px}}
+    @media (max-width:670px){.scroll-hint.t2{display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:26px 0 -12px}}
+    @media (max-width:1030px){.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-grid{grid-template-columns:1fr;gap:24px}.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.flow .node{border-bottom:1px solid var(--line)}.flow .node:nth-child(2n){border-right:0}.flow .node:not(:last-child)::after{display:none}.flow .node:last-child{border-bottom:0;border-right:0;grid-column:1/-1}}
+    @media (max-width:900px){.compare{min-width:720px;font-size:12.5px}.compare th,.compare td{padding:10px 10px}}
+    @media (max-width:820px){.hero-grid{grid-template-columns:1fr;gap:24px;margin-top:38px}.hero-grid .signal{order:-1}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.split,.risk-grid{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{right:auto;left:50%;margin-left:-8px;top:auto;bottom:-9px;transform:rotate(135deg);background:#fff}.section{padding:48px 0}}
+    @media (max-width:520px){h1{font-size:clamp(1.85rem,6.4vw,2.2rem)}.shell{padding-left:17px;padding-right:17px}.masthead .shell{padding-bottom:42px}.meta-row{align-items:flex-start;flex-direction:column;gap:4px}.tldr{grid-template-columns:1fr}.tldr article{min-height:auto}.section.alt{margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}.step{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:16px}.toc .shell{gap:16px}}
+    @media print{.toc{display:none}.scroll-hint{display:none}p,li,dd{orphans:3;widows:3}.masthead,.compare th,.callout,.section.alt,.factline dt{-webkit-print-color-adjust:exact;print-color-adjust:exact}.panel,.risk,.step,.metric,.tldr article,.callout,.flow .node,.source{break-inside:avoid}.compare tr{break-inside:avoid}.compare,.compare.pack{min-width:0;font-size:11px}.compare th:first-child,.compare td:first-child,.compare tbody th{position:static}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.flow .node:not(:last-child)::after{display:none}.hero-grid .signal{order:0}.section{padding:32px 0}h2,h3{break-after:avoid}.source a[href]::after{content:"（" attr(href) "）";font-size:10px;color:#5c6771;word-break:break-all}}
+  </style>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="shell">
+      <div class="meta-row"><span>人工智能（AI）工程技术日报 / 研究与判断</span><span class="date">2026-09-19 · ISSUE 12</span></div>
+      <div class="hero-grid">
+        <div>
+          <h1>Harness 设计没有默认答案：176 组对照实验拆解 Coding Agent 的上下文管理、规划与工具界面——预算越紧越要压缩，弱模型靠规划续命，强模型用 bash 更便宜</h1>
+          <p class="dek">2026 年 9 月 17 日，马萨诸塞大学阿默斯特分校（UMass Amherst）等机构的研究者发布论文《An Empirical Study of Harness Design for Coding Agents》（arXiv:2609.20804，43 页）。harness（本义"挽具"，指包裹模型、使其能力可被使用的执行环境——调度循环、工具接口、上下文管理都在这层）决定了 coding agent（能自主读写代码、多步完成开发任务的 AI 程序）的实际表现，但每个组件到底贡献多少，此前几乎没有受控证据。研究者构建了一个轻量 harness，固定执行循环不动，每次只改一个组件：上下文管理（5 种策略）、规划（planning，开/关）、动作空间（预定义工具集 / 只给 bash），在 4 个模型、2 个基准、4 档上下文预算上跑了 176 组设置，用 McNemar 检验（配对的统计显著性检验，判断两组设置在同一批任务上的成败差异是否超出随机波动）加 BH FDR 校正（多重比较时的错误发现率校正，防止大量对比产生假阳性）验显著性。</p>
+          <p class="dek">结论是一句泼冷水的话：harness 设计是"条件系统问题"（conditional systems problem），每个组件的最优选择取决于目标模型的能力、任务类型和资源预算，没有一套可以无脑照抄的默认配置。量化证据包括：32k 预算下上下文管理平均拉升 35.7 个百分点（pp，percentage point，百分点），128k 下只剩 2.7；分级压缩策略 T4（先用规则省略、再对剩余内容做 LLM 摘要）在 8 个成本面板中的 7 个拿到最低成本；号称"可逆压缩"的 recall 召回工具被 56.3% 的设置从未调用过一次；planning 对 30B 弱模型是续命脚手架（成功率 +11.6pp、成本最高 +75%），对强模型反而纯省钱（成本最高降约 40%）；bash 能力强的模型砍掉预定义工具又准又便宜（Nemotron-3 550B：成功率 +3.6pp、成本 -52%），bash 弱的模型当场崩溃（Mistral 在 SWE-Bench（基于真实 GitHub issue 修复任务的代码基准）上从 68.6% 跌到 45.4%）。论文发布两天即在 Hacker News 引爆讨论（数据截至 2026-09-19 达 181 分）。</p>
+        </div>
+        <div class="signal"><b>先给结论</b>这篇论文值得每个做 agent 工程的人精读的原因有三：一、它是第一篇把"harness 组件价值"拆成模型能力×上下文预算两个坐标轴、按实现级别做受控对比的研究——SWE-Bench 分数从此不能再只归功于模型；二、它用便宜的规则式方法（分级压缩 T4）打败了更贵的方案，并且给出了"可逆性是伪需求"的反直觉证据（recall 工具几乎没人用）；三、它把"抄大厂默认配置"这个普遍习惯证伪了——同一组件对 30B 是救命稻草、对 550B 是成本黑洞。本文所有实验数据均来自论文原文，未包含复现结果。</div>
+      </div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="文章目录">
+    <div class="shell"><a href="#tldr">TL;DR（太长不看）</a><a href="#problem">背景与问题</a><a href="#principle">实验设计</a><a href="#findings">五个发现</a><a href="#mechanism">行为机制</a><a href="#compare">相关工作对比</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+  <main id="content">
+    <section class="section" id="tldr">
+      <div class="shell">
+        <div class="label">01 / Decision brief</div>
+        <h2>TL;DR（太长不看）：组件价值随模型和预算变，没有默认答案</h2>
+        <div class="tldr" role="list">
+          <article role="listitem"><span class="num">01 / WHAT</span><h3>发生了什么</h3><p>UMass Amherst 等机构的九人团队（Run-Ze Fan 等）用 LangGraph（开源 agent 编排框架）构建轻量 harness + Harbor（开源基准驱动器）跑受控实验：固定 ReAct 循环（Reasoning + Acting，"推理—行动"交替的 agent 执行范式），单变量改动上下文管理 / planning / 动作空间，覆盖 Nemotron-3 30B、120B、550B 与 Mistral-Medium-3.5-128B 四模型、SWE-Bench Verified（基于真实 GitHub issue 修复的代码基准，Verified 为人工校验过的 500 题子集）与 Terminal-Bench 2.1（终端命令行任务基准，89 题）、32k/64k/96k/128k 四档预算，共 176 组设置。</p></article>
+          <article role="listitem"><span class="num">02 / WHY</span><h3>解决谁的问题</h3><p>所有自建或选型 coding agent 的工程团队。SWE-Bench 类基准测的是"模型 + harness"的捆绑系统，分数涨了分不清是模型进步还是 harness 改进；换模型后抄上一套 harness 配置，可能把省钱开关当成了必选项（或反之）。论文把两个高频决策——"要不要开规划""工具面给多少"——变成了可用数据回答的条件问题。</p></article>
+          <article role="listitem"><span class="num">03 / HOW</span><h3>核心发现</h3><p>①上下文管理的价值与预算强耦合：32k 平均 +35.7pp、128k 只剩 +2.7pp；不做管理的基线在 32k 有 78.7% 的运行因窗口溢出硬终止，所有受管策略把溢出率压到 0。②分级策略 T4 性价比最优：8 个面板中 7 个成本最低。③recall 召回几乎不被使用：56.3% 的设置零调用，成功率平均比纯省略还低 0.36pp。④planning 角色随模型能力反转。⑤动作空间的分水岭是模型 bash 能力。</p></article>
+          <article role="listitem"><span class="num">04 / SHIP</span><h3>生产判断</h3><p>可直接落地的三条：预算紧的部署优先实现 T4 式分级压缩（规则省略在 60% 水位触发、LLM 摘要在 85% 水位兜底）；接新模型先测它"无规划时的存活率"与"纯 bash 存活率"两个探针，再决定 planning 与工具面配置；上下文管理策略里的"可逆召回"机制在验证被真实使用之前不值得投入。强模型的 planning 开关更像成本旋钮而非能力旋钮。</p></article>
+        </div>
+        <dl class="factline"><dt class="fact">来源事实</dt><dd>实验设计、全部数字（176 组设置、+35.7pp / +2.7pp、溢出率 78.7%→0、T4 七面板最低成本、recall 零调用 56.3% / -0.36pp、planning +11.6pp 与成本变化、bash-only 各模型成功率与成本、轨迹机制数据）均来自论文 arXiv:2609.20804 原文（2026-09-17 提交）；社区热度来自 Hacker News 讨论帖（数据截至 2026-09-19，181 分）；Nemotron-3 用量生态佐证来自 OpenRouter 榜单（数据截至 2026-09-17）。</dd><dt class="inference">本文推断</dt><dd>"recall 不被使用意味着可逆压缩是伪需求""planning 开关应建模为成本旋钮""harness 选型可前移为两个探针测试""组件级市场会分化"为本文分析判断，依据在各章节内标注。本文未复现论文实验，全部性能数字来自论文原文。</dd></dl>
+      </div>
+    </section>
+
+    <section class="section alt" id="problem">
+      <div class="shell">
+        <div class="label">02 / Background</div>
+        <h2>背景与问题：SWE-Bench 的分数里，藏着一个从未被拆开的变量</h2>
+        <p class="intro">coding agent 是当前 AI 应用里消费量最大的形态之一：OpenRouter 平台应用用量榜（数据截至 2026-09-17）上，排名第一的 Hermes Agent 月消费 1.78 万亿 tokens（token：模型处理文本的最小单位，英文约 0.75 个单词），Claude Code 以 9,960 亿 tokens 居第二。这些 agent 的表现由两层共同决定：底下的大语言模型（LLM，Large Language Model），和上面的 harness——控制循环、工具接口、上下文管理策略都在 harness 这层。问题在于：社区衡量进步的标尺是 SWE-Bench 这类基准分数，而基准测的是"模型 × harness"的捆绑系统。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>第一笔糊涂账：分数涨了，功劳算谁的</h3><p>论文在相关工作一节直接点破：前沿模型（Qwen3-Coder、Kimi K2.5/K2.6、GLM-5、Mistral Medium 3.5 等）都按 SWE-Bench / Terminal-Bench 上的 agent 式表现来宣传，但这些基准"把模型能力与控制循环、动作接口、上下文管理策略混在一起"。一个团队把 SWE-Bench 分数从 40% 提到 55%，可能来自模型升级，也可能只是把上下文压缩调好了——外部完全无法区分。已有的 harness 研究要么整体打包优化、要么只在单模型上做局部消融，"同一套实现级干预，跨模型能力、跨预算梯度怎么变"此前没有系统答案。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>第二笔实践账：抄默认配置，可能是抄错药方</h3><p>工程团队的普遍做法是照抄头部产品的 harness 配置：开规划、给全套工具、配一套压缩策略。但头部产品的配置是为头部模型调的。论文的核心追问是：当你的模型是 30B 而不是 550B、当你的预算是 32k 而不是 128k、当你的任务在终端而不是 Python 仓库，同一套组件还是最优解吗？答案大部分时候是"不是"——而且错得有规律：给强模型开 planning 会白花钱，给弱模型砍工具面会当场崩溃。</p></div>
+        </div>
+        <div class="callout amber"><p><strong>harness 正在成为本月的热词。</strong>这篇论文 9 月 17 日发布，当天即进入 Hacker News 首页并持续发酵（数据截至 2026-09-19 积累 181 分、超过 240 条评论）；同日 NVIDIA 在 Hugging Face 趋势论文榜发布 SoL-Pi（用递归自我改进方式自动发现 harness 层优化，报告 token 流量下降 44.7%–49.0%）；LangChain 也在 9 月 17 日发布《Building a Harness with Jev》博客。一周之内三件事从学术、工业、框架三个方向同时指向"harness 层"——（本文推断）模型能力趋同后，harness 工程正在成为 agent 领域下一个主战场。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="principle">
+      <div class="shell">
+        <div class="label">03 / Experiment design</div>
+        <h2>实验设计：把 harness 拆成三个旋钮，一次只动一个</h2>
+        <p class="intro">研究者用 LangGraph 搭了一个刻意"轻量"的 harness，由 Harbor 驱动跑基准：执行循环固定为 ReAct 式（模型每轮决定下一步动作、工具结果追加进上下文、循环直到任务完成或步数用尽，上限 300 步）。全部会共享的基础配置包括：只读工具最多 8 个并行调用、单个工具结果超过 24k 字符截断、卡死检测（同一调用连续 5 次触发提醒、同一失败调用连续 8 次直接终止）、写前必读检查（写文件前必须先读过该文件并校验内容哈希）、workspace 守卫（解析路径并拒绝逃逸出工作目录的写操作）、每次编辑后自动跑 ruff / pyflakes（两个 Python 静态检查器，捕捉语法与低级错误）做即时诊断。在此之上，三个组件作为实验变量。</p>
+        <div class="flow" role="list" aria-label="harness 实验的五个组成块：三个变量、对照组与统计纪律">
+          <div class="node" role="listitem"><span class="k">VARIABLE 1</span><b>上下文管理</b><small>上下文窗口（一次对话能装下的全部文本量）装不下时怎么办。从"不管"到"分级处理"共 5 档策略（T0–T4），是覆盖最全的变量：4 模型 × 2 基准 × 4 预算全扫描。</small></div>
+          <div class="node" role="listitem"><span class="k">VARIABLE 2</span><b>规划（planning）</b><small>会话开始时让模型先产出一份计划、每步执行后更新。消融测试在默认配置（T4 / 128k / 全工具）下开 vs 关。</small></div>
+          <div class="node" role="listitem"><span class="k">VARIABLE 3</span><b>动作空间</b><small>预定义工具集（结构化的读文件、写文件、搜索等接口）vs 只给一个 bash（Unix shell，终端命令解释器）。同样在默认配置下对比。</small></div>
+          <div class="node" role="listitem"><span class="k">CONTROL</span><b>固定不动的部分</b><small>执行循环、安全三道门（路径守卫 / 写前必读 / 权限分类）、卡死检测、编辑后诊断——保证组间差异可归因到单个变量。</small></div>
+          <div class="node" role="listitem"><span class="k">STATS</span><b>统计纪律</b><small>同一任务上成对比较，McNemar 检验判断差异是否显著；全部对比过 BH FDR 校正控制假阳性。176 组设置全部跑完。</small></div>
+        </div>
+        <h3>五档上下文管理策略：从硬终止到分级处理</h3>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="上下文管理五档策略对比表">
+          <table class="compare pack">
+            <thead><tr><th scope="col">策略</th><th scope="col">机制</th><th scope="col">一句话解释</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">T0 无管理</th><td>不做任何处理，窗口装满即硬终止</td><td>基线。预算紧时大量任务直接"猝死"</td></tr>
+              <tr><th scope="row">T1 省略（elision）</th><td>纯规则：过旧的工具输出正文替换为占位 stub</td><td>elision（省略/遮蔽）：最便宜的丢历史方案，不可逆</td></tr>
+              <tr><th scope="row">T2 省略+召回</th><td>T1 基础上把省略内容存外部，暴露 recall_event 工具供模型取回</td><td>"可逆压缩"：理论上丢的信息随时找得回来</td></tr>
+              <tr><th scope="row">T3 LLM 摘要</th><td>窗口紧张时让模型把历史摘要成短文</td><td>有损压缩，信息经模型转述；调用本身也花钱</td></tr>
+              <tr><th scope="row">T4 分级</th><td>软阈值 60% 水位先做 T1 式省略，硬阈值 85% 水位再对剩余内容做摘要；最近 30% 窗口的内容永远保留</td><td>便宜的方法先用，贵的兜底——论文的性价比冠军</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="scroll-hint t2">表格可左右滑动</p>
+        <p>模型覆盖刻意拉开能力梯度：Nemotron-3 家族的 30B、120B、550B 三档 + Mistral-Medium-3.5-128B（一个不同家族、bash 风格不同的对照点；Nemotron-3 550B 的免费版在 OpenRouter 上月消费 3.64 万亿 tokens、用量排全站第 9，数据截至 2026-09-17——被测模型就是当前真实在被大量使用的模型）。两个基准互补：SWE-Bench Verified 测仓库级 issue 修复（Python，500 题为人工校验子集），Terminal-Bench 2.1 测端到端终端任务。四档预算 32k–128k 是显式变量——这正是此前研究缺的维度：压缩策略的价值"无法与窗口大小分离"。</p>
+      </div>
+    </section>
+
+    <section class="section alt" id="findings">
+      <div class="shell">
+        <div class="label">04 / Findings</div>
+        <h2>五个发现：每个组件的价值都有一个"生效条件"</h2>
+        <p class="intro">以下全部数字来自论文原文（SWE-Bench Verified 为 500 题、Terminal-Bench 2.1 为 89 题，每设置每任务跑一次，成功率差异经 McNemar + BH FDR 检验）。</p>
+
+        <h3>发现一：上下文管理的价值与预算强耦合——预算越紧越是刚需</h3>
+        <p>不做任何管理的 T0 基线，在 32k 预算下 78.7% 的运行因窗口溢出被硬终止；预算放宽到 128k，溢出率仍有 8.7%。所有受管策略（T1–T4）把溢出率压到 0。价值随之变化：四个模型平均，上下文管理在 32k 预算下把成功率拉升 35.7 个百分点，64k 下 15.7，96k 下 6.0，128k 下只剩 2.7。结论不是"压缩策略不重要"，而是它的形态在变：预算越紧，上下文管理越像生命维持系统；预算越宽，它越像锦上添花。</p>
+        <div class="callout"><p><strong>通俗地说：32k 预算下，没有上下文管理的 agent 十次里八次干到一半"记忆溢出"当场死掉；装上任何一档管理策略就都活下来了。</strong>（本文推断）这也解释了为什么头部产品（普遍配 128k 以上窗口）感觉"压缩可有可无"，而本地部署（常常只有 32k）把压缩视作命根子——两边都没有说错，只是坐标不一样。</p></div>
+
+        <h3>发现二：分级策略 T4 拿到最佳性价比——便宜的方法先用，贵的兜底</h3>
+        <p>准确率在 T1–T4 各策略间大体相当（差异多不显著），成本差距却拉开了：T4 在 8 个"模型 × 基准"面板中的 7 个取得最低总成本。原理不复杂：T4 在 60% 水位先触发免费的规则式省略，把大多数运行挡在收费的 LLM 摘要之前；只有真正拖到 85% 水位的少数长轨迹才动用摘要。纯 LLM 摘要（T3）则每一步都花钱。以 SWE-Bench、128k、T4 为例：Nemotron-3 30B 成功率 25.2% / 单任务成本 $0.09，120B 为 44.0% / $0.34，550B 为 65.8% / $2.33，Mistral 为 68.6% / $3.14。</p>
+
+        <h3>发现三："可逆压缩"的召回工具，模型几乎从来不用</h3>
+        <p>T2 的设计逻辑是"省略不可逆是个缺陷，所以给模型一个 recall_event 工具，随时取回被省略的内容"。数据给出了相反的答案：56.3% 的 T2/T4 设置从头到尾零调用，调用量中位数为 0；启用召回相比纯省略（T1），成功率平均还低 0.36 个百分点。强模型调用得更少。（本文推断）"把取回历史的责任交还给模型"这个交互设计在 coding 场景失败了——模型宁可基于现存上下文硬推理，也不主动回头翻旧账；这为"可逆性"这一卖点敲了警钟：为可逆性付出的工程与 token 成本，先要证明自己会被使用。</p>
+
+        <h3>发现四：planning 的角色随模型能力反转——弱模型的脚手架，强模型的省钱阀</h3>
+        <p>在默认配置（T4 / 128k / 全工具）下开关节点式规划：</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="四模型规划消融对比表">
+          <table class="compare">
+            <thead><tr><th scope="col">模型</th><th scope="col">成功率变化（开 vs 关）</th><th scope="col">成本变化</th><th scope="col">机制（轨迹证据）</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Nemotron-3 30B</th><td>SWE-Bench 25.2% vs 13.6%（+11.6pp）</td><td>上升：轮数 +293%、工具调用 +474%；Terminal-Bench 成本 +75%</td><td>无规划时 68.6% 的运行没有任何编辑就终止、58.4% 卡死在定位阶段；开了规划，这两个数字降到 27.8% / 10.4%，轨迹中位数从 5 轮拉到 40 轮</td></tr>
+              <tr><th scope="row">Nemotron-3 120B</th><td>44.0% vs 46.6%（差异不显著）</td><td>Terminal-Bench 成本 -26%</td><td>轨迹长度分布几乎重叠；planning 主要砍掉拖得过长的尾巴</td></tr>
+              <tr><th scope="row">Nemotron-3 550B</th><td>65.8% vs 67.8%（-2.0pp）</td><td>SWE-Bench 成本约 -30%；Terminal-Bench -3.6%</td><td>轨迹中位数 108 → 74 轮，减的主要是编辑后的重复验证阶段</td></tr>
+              <tr><th scope="row">Mistral-Medium-3.5-128B</th><td>68.6% vs 69.0%（-0.4pp）</td><td>SWE-Bench 成本约 -32%；Terminal-Bench 约 -40%</td><td>轨迹中位数 68 → 53 轮，同样是验证阶段收缩</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="scroll-hint">表格可左右滑动</p>
+        <p>翻译成人话：30B 弱模型没有规划就活不到写代码那一步——planning 是续命设备，但续命本身很贵；120B 以上，规划不再提升成功率，它的全部价值变成了"让模型早点收手"：少做重复验证、砍掉过长尾巴，从而省钱，代价是成功率动辄掉一两个点。（本文推断）对强模型来说，planning 开关的真实身份是成本旋钮，而不是能力旋钮——这个定位反直觉到值得写进每个 harness 的配置文档。</p>
+
+        <h3>发现五：动作空间的分水岭是模型的 bash 能力——砍工具面前，先看模型出身</h3>
+        <p>同样是"只给一个 bash、砍掉全部预定义工具"，两个强模型给出了完全相反的答卷：Nemotron-3 550B 在 SWE-Bench 上从 65.8% / $2.33 提升到 69.4% / $1.11——成功率 +3.6pp 的同时成本砍掉 52%，在 Terminal-Bench 上同样反超（50.6% / $1.70 vs 44.9% / $2.43）；Mistral-Medium-3.5 却从 68.6% 直接崩到 45.4%。弱模型同样崩：30B 的 bash-only 在 Terminal-Bench 上只剩 3.4%。论文没有把这条线归因于参数量，而是明确指向"原生 shell 熟练度"——Mistral 的接口偏好还随基准切换（它在 Terminal-Bench 的 bash-only 没有崩得那么彻底），说明这不是能力标尺而是训练履历。</p>
+        <div class="metric-grid">
+          <div class="metric"><b>69.4% / $1.11</b><span>Nemotron-3 550B bash-only 在 SWE-Bench（128k / T4）的成功率与单任务成本——对比全工具 65.8% / $2.33，又准又便宜</span></div>
+          <div class="metric"><b>45.4%</b><span>Mistral-Medium-3.5 同配置 bash-only 的 SWE-Bench 成功率——相对全工具的 68.6% 崩掉 23.2 个百分点</span></div>
+          <div class="metric"><b>3.4%</b><span>Nemotron-3 30B bash-only 在 Terminal-Bench 的成功率——弱模型 + 裸 shell 的组合当场失效</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="mechanism">
+      <div class="shell">
+        <div class="label">05 / Mechanism</div>
+        <h2>行为机制：三个组件分别改了轨迹的什么</h2>
+        <p class="intro">聚合数字回答"哪个组件重要"，轨迹（trajectory，agent 完成一个任务的完整动作序列）分析回答"为什么"。论文用 LLM 裁判给每轮动作打工作流阶段标签（定位 / 修复 / 验证等），人工标注员校验裁判一致性后，得到三条机制结论。</p>
+        <div class="steps" role="list">
+          <div class="step" role="listitem"><h3>上下文管理：延长轨迹，不改行为</h3><p>32k 下无管理的轨迹中位数只有 20–30 轮、大多死在"定位"阶段；受管策略把中位数拉长到 50–180 轮，让运行活到"验证"阶段——但各阶段的比例结构与同类轮次的组成基本不变。也就是说压缩不改变 agent 怎么干活，只是让它干得久。128k 下各策略的轨迹长度几乎收敛（30B 约 39–42 轮、550B 约 70–74 轮），再次印证"预算宽时策略无所谓"。</p></div>
+          <div class="step" role="listitem"><h3>planning：改变停止位置</h3><p>对弱模型是"防提前死"（见发现四表格），对强模型是"防拖堂"：550B 的验证阶段被砍掉大半。planning 干预的是"什么时候停"，而不是"怎么干"。</p></div>
+          <div class="step" role="listitem"><h3>动作空间：改变写码粒度</h3><p>bash-only 让强模型把多个底层操作打包进一条命令：550B 在 Terminal-Bench 的轨迹中位数从 47 个动作缩到 31 个，写代码动作占比从 16% 提到 27%；对同一文件的重复修补（re-patch）从 4.6 次降到 1.5 次，"整体创建/替换"式写入占比从 51% 提到 76%。结构化工具把同样的工作摊成更多小步——每步更简单，但交互与增量修复的循环次数更多。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="compare">
+      <div class="shell">
+        <div class="label">06 / Related work</div>
+        <h2>相关工作对比：这篇论文真正的新维度是什么</h2>
+        <p class="intro">harness 与上下文管理都不是新话题，论文的贡献在于把已有研究缺的"两个坐标轴"补齐了：同一套实现级干预，跨模型能力梯度、跨预算梯度怎么做受控比较。</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="相关工作方向对比表">
+          <table class="compare">
+            <thead><tr><th scope="col">方向</th><th scope="col">代表工作</th><th scope="col">思路</th><th scope="col">本文差异点</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">约束流水线</th><td>Agentless、AutoCodeRover</td><td>不用复杂 agent 架构，固定"定位—修复—验证"流水线也能拿高分</td><td>它们证明"简单架构可行"；本文证明"组件价值是有条件的"，两者互补而非替代</td></tr>
+              <tr><th scope="row">harness 消融</th><td>AgentArch；Mehtiyev &amp; Assunção 轨迹研究；Liu (2026) 全因子 prompt 研究</td><td>分别报告"架构偏好随模型变""框架差异随模型代际变""prompt 级脚手架的因子效应"</td><td>最接近的 Liu (2026) 只做短程推理任务的 prompt 级干预、不显式操纵窗口压力；本文做实现级干预 + 长程 coding 轨迹 + 显式预算变量</td></tr>
+              <tr><th scope="row">产品级 harness</th><td>Claude Code、Codex、OpenCode、OpenHands</td><td>工业界最强的捆绑设计，长期记忆、子 agent、任务图各自演化</td><td>报告的都是打包后的整体表现，个别带局部消融，但没有跨模型/跨预算的同干预比较——本文提供了它们内部缺失的坐标系</td></tr>
+              <tr><th scope="row">上下文管理研究</th><td>LLMLingua（prompt 压缩）、MemGPT 类外部存储、摘要式历史管理、RL 训练模型自管上下文</td><td>静态规则 / 外部召回 / 摘要 / 模型自管四条路线，各自宣称改进</td><td>几乎都在单一模型上评估"改进与否"；本文证明其价值无法与窗口预算、模型能力分离——脱离这两个坐标谈"更好的压缩算法"没有意义</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="scroll-hint">表格可左右滑动</p>
+        <div class="callout"><p><strong>一句话说清贡献：它把"harness 组件有没有用"从一个信仰问题，变成了一个有坐标系的测量问题。</strong>以前说"上下文压缩很重要"或"规划有用"，都隐含着某个模型、某个预算的假设；现在这个假设被摆上了台面，并且给出了量化拐点（32k：+35.7pp；128k：+2.7pp）。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="production">
+      <div class="shell">
+        <div class="label">07 / Production view</div>
+        <h2>工程化视角：把论文翻译成接入清单</h2>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>接入生产系统，要考虑哪些环节？</h3><p>①<strong>先测两个探针再选型</strong>：换任何新模型，先跑"无规划存活率"（关 planning 看它是否大量无编辑终止）和"纯 bash 存活率"两个低成本探针，结果直接决定 planning 开关与工具面给法——论文证明这两个数字的分布跨模型差异巨大。②<strong>压缩策略选 T4 起步</strong>：规则省略（60% 水位）+ LLM 摘要兜底（85% 水位）+ 最近 30% 窗口保护，这套阈值是论文的性价比冠军配置。③<strong>预算监控分级</strong>：32k 部署把溢出率当一级报警（受管策略下应为 0，非 0 即 bug）；128k 部署把压缩触发频率当成本指标看。</p></div>
+          <div class="panel"><h3><span class="mark">B</span>对现有 LLM 应用架构有什么影响？</h3><p>harness 配置从"静态常量"变成"模型 × 预算 × 任务类型的条件函数"：同一套 agent 代码，模型路由切到不同档位时，planning、工具面、压缩阈值都应随之切换——（本文推断）这会推动"harness 配置即代码"的实践，配置的版本要与模型版本一起管理。同时，"可逆召回"这类为模型自主性设计的机制，在被证实真实使用率之前，应降级为可选件而非默认件。对 agent 平台方，评测报告从此应附带 harness 配置与预算档位，否则分数不可解释。</p></div>
+          <div class="panel"><h3><span class="mark">C</span>从 Demo 到生产可用，主要差距在哪里？</h3><p>①<strong>统计功效</strong>：论文每设置每任务只跑一次，Terminal-Bench 只有 89 题，很多对比没过显著性检验——生产选型要用自己的任务分布重测并多次采样；②<strong>干预纯度</strong>：动作空间实验是捆绑变化（工具数量、接口提示词、文件状态跟踪、编辑后诊断一起变），生产归因时要小心；③<strong>域外有效性</strong>：全部结论建立在 Python 仓库 + 终端任务 + 两族模型上，跨界（其他语言、其他任务形态、其他模型家族）前拐点必须重测——Mistral 的偏好甚至随基准都不同。这三条也是论文 Limitations 一节自己如实声明的。</p></div>
+          <div class="panel"><h3><span class="mark">D</span>成本视角（本文推断）</h3><p>以论文数字估算配置错误的代价量级：给 550B 级模型错开 planning，SWE-Bench 单任务多花约 30%；错配工具面（该给 bash 只给结构化工具）多花一倍以上（$2.33 vs $1.11）。反过来说，这也是最便宜的优化杠杆之一：改的是配置而不是模型，一分推理质量不用牺牲（多数配置下成功率差异不显著）。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="risk">
+      <div class="shell">
+        <div class="label">08 / Limitations</div>
+        <h2>局限与风险：论文自己承认的，和它没说的</h2>
+        <div class="risk-grid">
+          <div class="risk"><h3>每个组件只测了一种实现 <span class="level mid">外推受限</span></h3><p>planning 只有"一个提示词 + 一套更新机制"的实现；上下文管理只有一套阈值策略。"planning 对强模型没用"严格说是"这一种 planning 没用"——换一种规划形式（如多步前瞻、工具级计划）结论未必成立。</p></div>
+          <div class="risk"><h3>消融维度不完整 <span class="level mid">计算资源所限</span></h3><p>planning 与动作空间只在默认配置（T4 / 128k）下消融，没有做全因子扫描。比如"32k + 关 planning"会不会有交互效应，论文没有数据。</p></div>
+          <div class="risk"><h3>统计功效不足 <span class="level high">Terminal-Bench 大部分不显著</span></h3><p>每设置每任务单次运行 + 89 题的小基准，很多 Terminal-Bench 对比未过 McNemar 显著性；论文在那里依赖"跨模型方向一致"而非单格显著——证据等级要打折看。</p></div>
+          <div class="risk"><h3>动作空间是捆绑干预 <span class="level high">归因要小心</span></h3><p>"bash-only vs 全工具"同时改了工具数量、接口提示词、文件状态跟踪与自动诊断四件事，工具数量本身的影响没有被隔离。</p></div>
+          <div class="risk"><h3>模型规模 ≠ 能力 <span class="level mid">代理变量粗糙</span></h3><p>30B/120B/550B 的"能力梯度"混入了训练差异、工具接口先验、原生 shell 熟练度——Mistral 的基准依赖偏好就是证据。拐点数字迁移到其他模型家族前要重测。</p></div>
+          <div class="risk"><h3>域覆盖窄 <span class="level mid">Python only</span></h3><p>SWE-Bench Verified 全部是 Python 仓库；其他语言、其他任务形态（前端、数据分析）无数据。论文明确说"报告的交叉点在迁移前需要验证"。</p></div>
+        </div>
+        <div class="callout amber"><p><strong>（本文推断）以上局限没有一条推翻主结论，但它们共同划定了使用边界：把这篇论文当"坐标系与方法论"用是可靠的，把具体数字当"配置常数"抄是危险的。</strong>它最大的价值是给了测量框架——固定循环、单变量、双基准、预算梯度、成对检验——团队完全可以照此在自己的模型与任务上跑一遍再定配置。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="future">
+      <div class="shell">
+        <div class="label">09 / Future</div>
+        <h2>未来方向：从"人工选配置"到"配置自己选自己"</h2>
+        <p>论文结尾给自己的定位是"harness 设计是条件系统问题"。沿着这个定义，三个方向已经隐约可见：</p>
+        <ul>
+          <li><strong>全因子扫描补全</strong>：把 planning × 动作空间 × 上下文管理的交互项补上（论文受算力所限只做了单变量），尤其是紧预算下的组合效应——这是当前数据最大的洞。</li>
+          <li><strong>自适应 harness</strong>：（本文推断）既然最优配置是模型×预算×任务类型的函数，下一步自然是让 harness 在运行时自己探测这些条件——按卡死信号自动开关规划、按文件类型切换动作面。同期发布的 NVIDIA SoL-Pi（用递归自我改进自动发现 harness 层优化）正是这个方向的先行者。</li>
+          <li><strong>评测规范的连锁修改</strong>：（本文推断）"基准分数 = 模型 × harness 捆绑"这个问题被摆上台面后，基准排行榜附带 harness 配置与预算档位可能成为新的社区规范——不附带配置的分数，解释权将归零。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section alt" id="takeaways">
+      <div class="shell">
+        <div class="label">10 / Takeaways</div>
+        <h2>工程师可以借鉴：五条能直接进工作流的</h2>
+        <div class="steps" role="list">
+          <div class="step" role="listitem"><h3>默认值不是答案，探针才是</h3><p>换模型先跑两个低成本探针（无规划存活率、纯 bash 存活率），用数据决定配置，不抄头部产品的默认值——同一组件对不同模型可能是救命稻草或成本黑洞。</p></div>
+          <div class="step" role="listitem"><h3>压缩策略用"便宜优先、昂贵兜底"的分级设计</h3><p>规则省略（免费）在 60% 水位先触发，LLM 摘要（收费）只在 85% 水位兜底，最近 30% 窗口永远不动——T4 用这个顺序在 8 个面板中的 7 个拿到最低成本。</p></div>
+          <div class="step" role="listitem"><h3>为"可逆性"付费前，先证明它被使用</h3><p>召回工具 56.3% 的设置零调用、成功率还倒挂 0.36pp。任何"给模型自主取回历史"的机制，上线前先埋点看真实调用率，不要为理论上的完备性预付成本。</p></div>
+          <div class="step" role="listitem"><h3>强模型的 planning 是成本旋钮</h3><p>对强模型开关 planning 基本不改成功率、只改成本（-30% 到 -40%）。预算紧张时优先砍它，而不是砍上下文管理。</p></div>
+          <div class="step" role="listitem"><h3>诊断要打在轨迹的阶段上</h3><p>论文的失败归因方法值得复用：把轨迹按"定位 / 修复 / 验证"打标，看运行死在哪个阶段。无规划时 30B 有 68.6% 的运行没做任何编辑就终止、开规划后降到 27.8%——这种阶段级差距，比任何聚合分数都更能指出该修 harness 的哪里。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section end" id="sources">
+      <div class="shell">
+        <div class="label">11 / Sources</div>
+        <h2>数据源</h2>
+        <div class="sources" role="list">
+          <div class="source" role="listitem"><span class="n">1</span><p><strong>arXiv:2609.20804 论文页</strong>（An Empirical Study of Harness Design for Coding Agents，Run-Ze Fan 等 9 人，2026-09-17 提交，43 页）<br><a href="https://arxiv.org/abs/2609.20804">https://arxiv.org/abs/2609.20804</a><small>用途：论文元信息（作者、提交日期、页数、标题）。</small></p></div>
+          <div class="source" role="listitem"><span class="n">2</span><p><strong>arXiv HTML 全文</strong>（2026-09-17）<br><a href="https://arxiv.org/html/2609.20804v1">https://arxiv.org/html/2609.20804v1</a><small>用途：本文全部实验数据——176 组设置、上下文管理五策略、+35.7pp / +2.7pp、溢出率、T4 成本、recall 调用率、planning 与 bash-only 各表、轨迹机制、Limitations。</small></p></div>
+          <div class="source" role="listitem"><span class="n">3</span><p><strong>Hacker News 讨论帖</strong>（数据截至 2026-09-19，181 分）<br><a href="https://news.ycombinator.com/item?id=49753878">https://news.ycombinator.com/item?id=49753878</a><small>用途：论文发布后的社区热度与讨论佐证。</small></p></div>
+          <div class="source" role="listitem"><span class="n">4</span><p><strong>OpenRouter Rankings</strong>（数据截至 2026-09-17）<br><a href="https://openrouter.ai/rankings">https://openrouter.ai/rankings</a><small>用途：Hermes Agent 1.78 万亿 tokens 应用用量第一、Claude Code 9,960 亿、Nemotron-3 550B 免费版用量 3.64 万亿 tokens——被测模型的现实使用量佐证。</small></p></div>
+          <div class="source" role="listitem"><span class="n">5</span><p><strong>LangChain Blog：Building a Harness with Jev</strong>（Sydney Runkle、Hunter Lovell，2026-09-17）<br><a href="https://blog.langchain.com/building-a-harness-with-jev">https://blog.langchain.com/building-a-harness-with-jev</a><small>用途：harness 话题同期热度佐证。</small></p></div>
+          <div class="source" role="listitem"><span class="n">6</span><p><strong>SoL-Pi: Recursively Scaling Auto-Research Loops for Efficient Agent Harness</strong>（NVIDIA，Hugging Face Trending Papers 页，2026-09-17）<br><a href="https://huggingface.co/papers/2609.20519">https://huggingface.co/papers/2609.20519</a><small>用途：harness 话题同期热度佐证；未来方向一节"token 流量下降 44.7%–49.0%"的数字出处。</small></p></div>
+        </div>
+        <footer class="footer"><p style="margin:0"><strong>诚实边界声明：</strong>本文全部实验数字与机制描述来自论文 arXiv:2609.20804 原文及上述公开资料，本文作者未复现实验、未实际运行该 harness；文中标注"（本文推断）"的内容为作者分析判断，不构成论文结论。Nemotron-3、Mistral、LangGraph、Harbor 等名称分属各自所有方。</p></footer>
+      </div>
+    </section>
+  </main>
