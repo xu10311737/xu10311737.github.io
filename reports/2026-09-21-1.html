@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="解读 arXiv 2609.20541：DeepSeek Flash 与 Claude Sonnet 5 上横测三种免训练置信度信号及其固定平均组合。审计后随答案自报 AUROC 0.956/0.937，是唯一在两个模型上都位居前二的信号；三样本一致仅 0.765/0.790 且错误获全票支持；等价 prompt 改写翻转 4.0%-9.1% 的 0.8 阈值决策。">
+  <title>模型自报"我 90% 确定"，是真自信还是背话术？——三种免训练置信度信号及其组合的黑盒横测</title>
+  <style>
+    :root{
+      --ink:#1d2430;--ink-2:#3a4350;--muted:#5c6771;--paper:#fbfaf8;--panel:#ffffff;
+      --line:#e0ddd5;--teal:#0c7772;--teal-soft:#e2f1ee;--amber:#b96a1b;--amber-soft:#f6e8d5;
+      --lime:#6f7f2a;--lime-soft:#eef2d9;--navy:#20222b;--plum:#8b6389;
+      --shadow-lg:0 12px 30px rgba(27,36,48,.08);--shadow-sm:0 7px 20px rgba(27,36,48,.05);--teal-bright:#35b3a9;--lime-deep:#4c5a1a;
+    }
+    *{box-sizing:border-box}html{overflow-x:clip}
+    @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+    body{margin:0;background:var(--paper);color:var(--ink-2);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.82}
+    a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:3px}
+    a:hover{color:#a4502f;text-decoration-thickness:2px}
+    a:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:16px;top:16px;z-index:20;background:#fff;padding:8px 12px;border:2px solid var(--teal)}
+    .shell{max-width:1120px;margin:0 auto;padding:0 24px}
+    .masthead{background:var(--navy);color:#f4f5f7;border-bottom:5px solid var(--teal)}
+    .masthead .shell{padding-top:20px;padding-bottom:44px}
+    .meta-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#b9c0ca;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+    .meta-row .date{color:#9fd8d2}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:48px;align-items:end;margin-top:38px}
+    h1,h2,h3{color:var(--ink);line-height:1.3;margin:0;font-weight:750}
+    h1,h2{text-wrap:balance}.dek{text-wrap:pretty}
+    h1{color:#f9f8f5;font-size:clamp(2.1rem,4.2vw,3.4rem)}
+    .dek{color:#d3d6db;font-size:1.13rem;max-width:780px;margin:22px 0 0}.dek+.dek{margin-top:10px}
+    .signal{border-left:2px solid var(--teal-bright);padding:4px 0 4px 20px;color:#dcf0ee;font-size:14px;max-width:640px}
+    .signal b{display:block;color:#fff;font-size:17px;margin-bottom:5px}
+    .toc{position:sticky;top:0;z-index:5;background:rgba(251,250,248,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent)}
+    .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
+    main{padding-bottom:80px}main:focus{outline:none}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
+    .section.alt{background:#f2f0eb}.section.end{border-bottom:0}
+    .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);margin-bottom:10px}
+    h2{font-size:clamp(1.65rem,3vw,2.45rem);max-width:900px}.intro{font-size:1.08rem;max-width:880px;margin:16px 0 30px;color:var(--ink-2)}
+    h3{font-size:1.18rem;margin:28px 0 8px}.section p{max-width:880px;margin:0 0 18px}.section p.intro{margin:16px 0 30px}.section p:last-child{margin-bottom:0}.section ul{max-width:880px;margin:0 0 18px;padding-left:22px}.section li{margin:7px 0}.section ul:last-child{margin-bottom:0}.section h2+ul{margin-top:16px}.section h3{max-width:880px}
+    .tldr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+    .tldr article{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--teal);padding:18px 18px 20px;box-shadow:var(--shadow-lg)}
+    .tldr article:nth-child(2){border-top-color:var(--amber)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:var(--plum)}
+    .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr article:nth-child(2) .num{color:#965512}.tldr article:nth-child(3) .num{color:#5d6b22}.tldr article:nth-child(4) .num{color:var(--plum)}
+    .tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
+    .factline{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:start;max-width:880px;margin:22px 0 0;color:var(--ink-2);font-size:14px}
+    .factline dt{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:.05em;justify-self:start}
+    .factline dd{margin:0}.factline dt.fact{background:var(--teal-soft);color:var(--teal)}.factline dt.inference{background:var(--amber-soft);color:#9d4b31}
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}
+    .panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:var(--shadow-sm)}
+    .panel h3{display:flex;gap:10px;align-items:baseline;margin-top:0}.panel .mark{color:var(--amber);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}.panel ul,.panel ol{margin:10px 0 0;padding-left:22px}.panel li{margin:7px 0;font-size:15px}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}
+    .flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);position:relative}
+    .flow .node:nth-child(3n){border-right:0}
+    @media (min-width:821px){.flow .node:nth-child(4),.flow .node:nth-child(5),.flow .node:nth-child(6){border-bottom:0}}
+    .flow .k{display:block;color:var(--teal);font:700 12px Georgia,serif;letter-spacing:.06em;margin-bottom:9px}
+    .flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:25px}
+    .metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line);box-shadow:var(--shadow-sm)}
+    .metric:nth-child(2){border-top-color:var(--amber)}.metric:nth-child(3){border-top-color:var(--lime)}.metric:nth-child(4){border-top-color:var(--plum)}
+    .metric b{display:block;color:var(--ink);font-size:21px;line-height:1.35;font-weight:800;font-variant-numeric:tabular-nums}
+    .metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
+    .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:880px}
+    .callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.amber{border-left-color:var(--amber);background:var(--amber-soft)}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:26px;border:1px solid var(--line);background:#fff}
+    .table-wrap:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+    .scroll-hint{display:none}
+    .compare{width:100%;min-width:940px;border-collapse:collapse;font-size:14px}
+    .compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}
+    .compare td{font-variant-numeric:tabular-nums}
+    .compare th{background:var(--navy);color:#f5f4f0;font-size:13px}
+    .compare tr:last-child td,.compare tr:last-child th{border-bottom:0}
+    .compare tbody th{text-align:left;font-weight:750;color:var(--ink);width:14%;background:#fff}
+    .compare th:first-child{position:sticky;left:0;z-index:1;box-shadow:inset -1px 0 0 var(--line),6px 0 10px -6px rgba(29,36,48,.14)}
+    .compare td.win{color:var(--ink);font-weight:800;background:#eef7f4}
+    .compare .tbl-note{font-size:12px;color:var(--muted);padding:10px 15px 12px;border-top:1px solid var(--line);background:#fff;min-width:0}
+    .steps{counter-reset:step;display:grid;gap:14px;margin-top:28px}
+    .step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px;box-shadow:var(--shadow-sm)}
+    .step::before{content:counter(step,decimal-leading-zero);color:var(--amber);font:700 23px Georgia,serif;padding-top:2px}
+    .step h3{font-size:17px;margin:0}.step p{font-size:15px;margin:5px 0 0}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}
+    .risk{padding:18px 20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm)}
+    .risk h3{font-size:16px;margin:0}.risk p{font-size:14px;margin:6px 0 0}
+    .risk .level{display:inline-block;padding:2px 8px;border-radius:4px;background:#e9e2cd;color:#6d5726;font-size:12px;font-weight:700;vertical-align:2px;margin-left:6px}
+    .risk .level.mid{background:#e9e2cd;color:#6d5726}
+    .risk .level.low{background:var(--lime-soft);color:var(--lime-deep)}
+    .risk .level.high{background:#f6dfdb;color:#8f2418}
+    .sources{display:grid;gap:10px;margin-top:25px}
+    .source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px;box-shadow:var(--shadow-sm)}
+    .source .n{color:#9d4b31;font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}
+    .source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
+    .footer{color:var(--muted);font-size:13px;padding-top:28px;max-width:880px}.footer strong{color:var(--ink)}
+    @media (max-width:767px),(min-width:901px) and (max-width:987px){.scroll-hint{display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:26px 0 -12px}}
+    @media (max-width:1030px){.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-grid{grid-template-columns:1fr;gap:24px}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:900px){.compare{min-width:720px;font-size:12.5px}.compare th,.compare td{padding:10px 10px}}
+    @media (max-width:820px){.split,.risk-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.section{padding:48px 0}}
+    @media (max-width:520px){h1{font-size:clamp(1.8rem,6.2vw,2.1rem)}.shell{padding-left:17px;padding-right:17px}.masthead .shell{padding-bottom:42px}.meta-row{align-items:flex-start;flex-direction:column;gap:4px}.tldr,.metric-grid{grid-template-columns:1fr}.step{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:16px}.toc .shell{gap:16px}}
+    @media print{.toc,.scroll-hint{display:none}p,li,dd{orphans:3;widows:3}.masthead,.compare th,.callout,.section.alt,.factline dt,.metric,.step,.compare td.win,.risk .level{-webkit-print-color-adjust:exact;print-color-adjust:exact}header.masthead{break-inside:avoid}.panel,.risk,.step,.metric,.tldr article,.callout,.flow .node,.source{break-inside:avoid}.compare tr{break-inside:avoid}.compare{min-width:0;font-size:11px}.compare th:first-child{position:static}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.section{padding:32px 0}h2,h3{break-after:avoid}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="shell">
+      <div class="meta-row"><span>人工智能（AI）工程技术日报 / 研究与判断</span><span class="date">2026-09-21 · ISSUE 15</span></div>
+      <div class="hero-grid">
+        <div>
+          <h1>模型自报"我 90% 确定"，是真自信还是背话术？——三种免训练置信度信号及其组合的黑盒横测</h1>
+          <p class="dek">9 月 17 日提交到 arXiv 的论文 <a href="https://arxiv.org/abs/2609.20541">2609.20541</a>（DreamAI 团队）在 DeepSeek Flash 与 Claude Sonnet 5 两个模型上，用同一批 99 道 TriviaQA（开放域问答基准，答案为简短事实）题横测了三种免训练置信度信号：随答案口头自报、事后二次自评 P(True)、三样本一致。人工审计标签后，最便宜的自报信号是唯一在两个模型上都位居前二的信号——区分对错的 AUROC（受试者工作特征曲线下面积：衡量信号把"对"排在"错"前面的能力，0.5 等于随机、1.0 为完美）达 0.956 与 0.937；而每题多花三次调用的三样本一致只有 0.765 与 0.790，且错误答案也能拿到全票支持。等价措辞的 prompt（给模型的输入提示词）改写，能让 4.0%-9.1% 的固定答案跨过 0.8 的置信阈值。</p>
+          <p class="dek">三个发现值得工程师留意：其一，"多问几遍看一致"恰恰是最弱信号——独立解码改变措辞，不改变共同误解；其二，"自报+一致"固定平均在一个模型上变好、在另一个上变差，说明黑盒置信度没有普适配方；其三，标签审计本身改变了结论——TriviaQA 的 Jimmy Connors 金标准竟是错的，审计使准确率从 0.86 与 0.88 修正到 0.909 与 0.919。本文能力与数据描述全部来自论文与官方来源，未包含作者实测。</p>
+        </div>
+        <div class="signal"><b>先给结论</b>这是一篇实证诊断研究：在只能调 API、拿不到内部输出的黑盒条件下，回答"模型自报的置信度能不能信、怎么用"。论文发现随答案口头自报（一次调用、零额外成本）是强信号但行为因模型而异；事后 P(True) 二次自评在两个模型上表现相反；三样本一致最弱还会全票通过同一个错误；固定平均组合无法跨模型泛化；等价 prompt 改写足以翻转阈值决策。优点：黑盒条件人人可复现、附带完整审计与统计披露。缺点：99 题、研讨会短文（workshop 论文）级别的实验规模，错误样本仅 8-9 个，结论只是描述性统计。客观评价：它没有发明新方法，但给出了一份"黑盒置信度的使用说明书"——把置信度当触发外部验证的信号，而不是当真理的证据。</div>
+      </div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="文章目录">
+    <div class="shell"><a href="#tldr">TL;DR（太长不看）</a><a href="#problem">背景与问题</a><a href="#principle">原理</a><a href="#innovation">创新点</a><a href="#compare">数据与竞品</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+  <main id="content" tabindex="-1">
+    <section class="section" id="tldr" aria-labelledby="h-tldr">
+      <div class="shell">
+        <div class="label">01 / Decision brief</div>
+        <h2 id="h-tldr">TL;DR（太长不看）：最便宜的自报信号赢了最贵的一致性投票</h2>
+        <div class="tldr" role="list">
+          <article role="listitem"><span class="num">01 / WHAT</span><h3>发生了什么</h3><p>论文在 DeepSeek Flash 与 Claude Sonnet 5 上、用同一批 99 道 TriviaQA 题，横测三种免训练置信度信号（自报、P(True)、三样本一致）及其固定平均组合。审计后自报 AUROC 0.956/0.937，是唯一在两个模型上都位居前二的信号；三样本一致 0.765/0.790 最弱；组合信号在两个模型上一好一坏、统计上均不显著。等价 prompt 改写平均改变分数 0.043-0.084，翻转 4.0%-9.1% 的 0.8 阈值决策。</p></article>
+          <article role="listitem"><span class="num">02 / WHY</span><h3>解决谁的问题</h3><p>闭权 API（不开放内部概率与激活、只能进文本出文本的商业模型接口）用户拿不到 logit（词元概率）与内部激活，但产品需要置信度来分配验证精力：高置信直出、低置信复核。此前要么训练专用校准器（贵、跟版本走），要么默认"多采样投票"可靠——这篇论文用受控实验证明后者恰恰是最弱的一环。</p></article>
+          <article role="listitem"><span class="num">03 / HOW</span><h3>怎么做到的</h3><p>严格黑盒约束：只允许 prompting 与固定次数采样，禁止微调、logit 访问、隐藏状态访问与学习校准器。每题先一次调用拿"答案+0-100 置信度"（JSON 格式），再第二次调用对固定答案估 P(True)，再三次独立作答算支持率；组合信号用不调参的固定平均 q=(v+s)/2。全部预测错误逐条人工复审，修正假阴性并剔除争议题后按 99 题计。</p></article>
+          <article role="listitem"><span class="num">04 / SHIP</span><h3>生产判断</h3><p>可立即借鉴三点：黑盒置信度首选"随答案自报"（零额外调用）；把采样一致性当置信度会系统性高估可靠性（错误也能全票）；prompt 措辞要固定并版本化管理（等价改写就能移动 4-9% 的阈值决策）。规模警示：99 题、每模型仅 8-9 个错误样本，结论是描述性的，上生产前必须在自己的任务分布上复测。</p></article>
+        </div>
+        <dl class="factline"><dt class="fact">来源事实</dt><dd>论文全部实验数字（AUROC/Brier/ECE/AURC 四指标八行结果、prompt 敏感性四行结果、审计使准确率从 0.86/0.88 修正到 0.909/0.919、错误全票支持 4/9 与 2/8、传记声明 0.919 对 0.830 的置信差）均来自 arXiv 论文 2609.20541（源 1，2026-09-17 提交）；P(True) 方法起源来自 Kadavath et al. 2022（源 2）；训练式校准路线代表 LoVeC 来自源 3；读出式白盒路线 ZTC 的数字来自 Hugging Face 博客（源 5，2026-09-20）；过度自信普遍性与"校准必幻觉"定理的文献依据来自源 9、源 10；DeepSeek Flash 的市场地位来自 OpenRouter 排行（源 8）。数据截至 2026-09-21，逐项数字与来源的对应关系见文末数据源章节。</dd><dt class="inference">本文推断</dt><dd>"prompt 措辞应作为测量参数入库管理""置信度信号路线应按访问权限分层选型""声明级置信度显示需配自动化偏见防护""0.8 阈值应配 0.72-0.88 缓冲带（宽度依据 prompt 改写最大敏感度 0.084 推导，论文仅测过 0.8 单一阈值）"等为本文分析判断与工程建议，依据在各章节内标注。</dd></dl>
+      </div>
+    </section>
+    <section class="section alt" id="problem" aria-labelledby="h-problem">
+      <div class="shell">
+        <div class="label">02 / Background</div>
+        <h2 id="h-problem">背景与问题：校准的修辞，与三条获取置信度的路线</h2>
+        <p class="intro">LLM（Large Language Model，大语言模型）可以在生成内容的同时报一个数值置信度，但没有人确定这个数字是"内心真实的不确定性"还是"学出来的话术"。论文开篇的第一句话就是这个问题："一个貌似合理的数字，不一定是一个忠实的估计。"</p>
+        <p>为什么这个问题现在变得紧要？因为模型输出越来越多地在人来逐条验证之前就被消费：答案进入 Agent（智能体：能自主规划并调用工具完成多步任务的 AI 程序）工作流的下一步，长回复混着可靠事实、不确定推断和错误。一个可信的置信度分数可以把稀缺的人工验证精力精准投放到最可疑的内容上——高置信直出，低置信检查、限定或者扣下。这正是许多"置信度门控"产品设计的出发点。</p>
+        <p>获取置信度的路线有三条，访问门槛依次升高。<strong>第一条是训练式</strong>：像 <a href="https://arxiv.org/abs/2405.20974">SaySelf</a>、LoVeC（用强化学习训练模型在长文每条声明后附置信分数，<a href="https://arxiv.org/abs/2505.23912">arXiv:2505.23912</a>）、ORCE（解耦答案与置信度的优化，<a href="https://arxiv.org/abs/2605.12446">arXiv:2605.12446</a>）那样改训练流程，把置信度校准（calibration：让模型自报的置信度与实际正确率相吻合）做进权重——效果可以做得很好，但要动权重：闭权 API 用户用不了，且模型每次升级都得重训。<strong>第二条是免训练黑盒</strong>：只用 prompt 和采样（本文路线），人人可用，但信号质量存疑。<strong>第三条是读出式白盒</strong>：读取模型内部隐藏状态再套探针（probe：贴在模型内部状态上、把内部信息读出来的小型分类器），如 9 月 20 日 Hugging Face 博客发布的 <a href="https://huggingface.co/blog/FINAL-Bench/ztc">FINAL-Bench ZTC</a>，零生成 token 读出校准概率，信号强但要求自托管权重、模型一升级就要重新校准。三条路线解决同一个问题，适用人群完全不同。</p>
+        <p>理论背景同样不乐观。Kadavath et al. 2022（<a href="https://arxiv.org/abs/2207.05221">arXiv:2207.05221</a>）最早提出 P(True)：把答案固定、让模型第二次调用自评"这个答案为真的概率"，并发现模型大多"知道自己知道什么"；但后续大评测（如 Xiong et al. 2024 的置信度激发横评，<a href="https://arxiv.org/abs/2306.13063">arXiv:2306.13063</a>）普遍发现系统性过度自信与巨大 prompt 效应，且不存在普适的最优激发策略。更根本地，Kalai 与 Vempala 2024 年在 STOC 证明（<a href="https://arxiv.org/abs/2311.14648">arXiv:2311.14648</a>）：在分布假设下，校准的 next-token 模型必须给某些错误事实分配概率——校准与幻觉可以并存，一个校准分数好的模型照样大量出错。所以这篇论文测的不只是"分数准不准"，还有"分数能不能区分对错"（区分力），以及"分数稳不稳"（测量稳定性）。</p>
+        <p>论文的四个研究问题因此非常聚焦：一、随答案生成的置信度能否区分对错；二、事后自评与重复采样是否更好；三、答案固定时，语义等价的置信度 prompt 是否给出稳定分数；四、短问答上的行为能否延续到长文本的声明级。</p>
+      </div>
+    </section>
+    <section class="section" id="principle" aria-labelledby="h-principle">
+      <div class="shell">
+        <div class="label">03 / How it works</div>
+        <h2 id="h-principle">原理：三种信号怎么算、怎么组合，标签怎么审</h2>
+        <p class="intro">整个协议的设定是"严格黑盒"：允许 prompting 与少量固定次数的采样，禁止微调、logit 访问、隐藏状态访问与任何学习出来的校准器。所有 prompt、参数在评测前固定，不使用任何标注样本做选择。</p>
+        <div class="flow" role="list" aria-label="实验流程">
+          <div class="node" role="listitem"><span class="k">STEP 1</span><b>随答案自报（Verbalized）</b><small>一次调用：模型返回简短答案 + 0-100 置信度，同一 JSON 响应。DeepSeek 用温度 0，Sonnet 用服务端默认。</small></div>
+          <div class="node" role="listitem"><span class="k">STEP 2</span><b>事后自评 P(True)</b><small>第二次调用：答案固定不动，问模型"这个答案正确的概率"，输出 P(True)。与自报信号的差别：分数与答案解耦，可分别测稳定性。</small></div>
+          <div class="node" role="listitem"><span class="k">STEP 3</span><b>三样本一致（Support）</b><small>额外三次独立作答（DeepSeek 温度 0.8），支持率 = 三次中与原答案匹配的比例；匹配用与判分一致的归一化别名规则。</small></div>
+          <div class="node" role="listitem"><span class="k">STEP 4</span><b>固定平均组合</b><small>q = (v + s) / 2，自报与支持率各占一半，权重与样本数都固定、不用开发标签调参。目的：检验一致性是否给自报带来互补信息。</small></div>
+          <div class="node" role="listitem"><span class="k">STEP 5</span><b>人工标签审计</b><small>逐条人工检查每个被算法判错的答案：修正假阴性 4+3 个，剔除 1 道争议题，每模型留 99 题。审计使准确率从 0.86/0.88 升至 0.909/0.919。</small></div>
+          <div class="node" role="listitem"><span class="k">STEP 6</span><b>传记声明审计（长文本）</b><small>20 个实体 × 各 5 条原子传记声明，每条自带置信度；Sonnet 5 作盲评 judge（看不到置信度），依据维基百科前 3 万字符标注支持/矛盾/证据不足。</small></div>
+        </div>
+        <p>数据与判分：题目用种子 20260917 从 TriviaQA 验证集前 1,000 例抽 100 道；判分用归一化别名匹配。评测指标四个：<strong>Brier 分数</strong>（预测概率与对错结果的均方差，越低越好）、<strong>ECE</strong>（Expected Calibration Error，期望校准误差：十等分桶内预测置信度与实际正确率之差的加权平均，越低越好）、<strong>AUROC</strong>（区分对错的排序能力，越高越好）、<strong>AURC</strong>（Area Under Risk-Coverage Curve，风险-覆盖曲线下面积：按置信度从高到低逐步截断时平均错误率，越低越好）。配对比较用 2,000 次百分位自助法（bootstrap：对题目做有放回重采样、看指标差异的分布）并固定随机种子；并列分数组内所有排序取平均，结果不依赖文件顺序。</p>
+        <p>prompt 鲁棒性协议（STEP 2 的延伸）同样克制：99 题与原答案全部固定，只用两个语义等价的措辞重新激发置信度——一个改述（paraphrase），一个反向量表（问"错误的概率"再用 1 减回），与原 P(True) 对比。这一设计把"激发敏感"与"答案变化"解耦：分数动了，只能归因于问法。复现性方面，论文承诺补充仓库包含全部 prompt、样本标识符、人工审计决定、模型端点名、种子与原始输出的哈希。</p>
+      </div>
+    </section>
+    <section class="section alt" id="innovation" aria-labelledby="h-innovation">
+      <div class="shell">
+        <div class="label">04 / Innovation</div>
+        <h2 id="h-innovation">创新点：不是新方法，是一份带证据的"黑盒置信度使用说明书"</h2>
+        <p class="intro">论文自己定位得很清楚：贡献不是新的校准或训练方法，而是一份"可复现的、低成本置信度信号及其失败模式的诊断研究"。四个发现各有独立证据支撑。</p>
+        <h3>发现一：随答案自报是强基线，但行为因模型而异</h3>
+        <p>审计后，自报信号的 AUROC 达 0.956（DeepSeek）与 0.937（Sonnet），是唯一在两个模型上都位居前二的信号——单看单个模型，DeepSeek 的组合信号点估计（0.973）更高，Sonnet 的 P(True)（0.959）更高，但两者都不具备跨模型稳定性。P(True) 的表现恰恰暴露了"信号不可互换"：它在 DeepSeek 上显著欠自信（平均分 0.776 对实际正确率 0.909，Brier 分数 0.1321 为该模型四个信号中最差），在 Sonnet 上却拿下全表最佳 AURC（0.0071）。同一种激发方法，在两个模型上是相反的短板与长板——论文据此明确写道："置信度激发方法不能被当作同一个潜变量的可互换测量。"对工程者的直接含义：换模型时，置信度策略要重新选型，不能沿用。</p>
+        <h3>发现二：共识会复读共同误解</h3>
+        <p>三样本一致在两个模型上都是最弱信号（AUROC 0.765/0.790）。更严重的是错误的结构：DeepSeek 的 9 个错误答案中 4 个、Sonnet 的 8 个错误中 2 个，获得三次采样的<strong>全票支持</strong>——论文给的例子包括错误的拳击手归属与错误的历史救护车起源。独立解码改变措辞，却往往不改变底层的误解。"多问几遍都一样"这个直觉上的可靠性证据，恰恰在错误答案上也会出现。固定平均组合 q=(v+s)/2 也没能带来可靠改善：它让 DeepSeek 的 Brier、AUROC、AURC 点估计变好但 ECE 变差，让 Sonnet 的多数指标变差；对指标变化的 2,000 次自助法 95% 置信区间全部跨零——数据不支持"朴素平均有普遍收益"。</p>
+        <h3>发现三：等价 prompt 是测量程序的一部分，不是格式细节</h3>
+        <p>把答案与题目全部固定，仅改述置信度问法，分数平均移动 0.043-0.084；4.0%-9.1% 的答案仅因问法跨过 0.8 的置信阈值，同样有 4.0%-9.1% 的答案分数变化不小于 0.2。方向还不一致：改述让 DeepSeek 的 P(True) AUROC 从 0.920 升到 0.944，却让 Sonnet 从 0.959 降到 0.927（反向量表则降到 0.909）。如果 0.8 是你的生产阈值，那么换一个"意思完全一样"的问法，就能让一成的边缘决策翻转——论文的结论是"prompt 选择是测量程序的一部分"。</p>
+        <h3>发现四：声明级置信度在错误事实上依然很高</h3>
+        <p>长文本探索性实验里，88 条可判定传记声明的平均置信度：被维基百科支持的 83 条为 0.919，被维基百科矛盾的 5 条为 0.830——差距温和，AUROC 0.884，且 5 条矛盾声明里有 1 条置信度不低于 0.90。论文对这组数字非常克制（5 个负样本，明确标注"描述性而非精确估计"），但指出了核心失败模式：给每条声明都附上置信度，并不保证错误声明拿到低置信。</p>
+        <h3>方法论贡献：标签审计本身改变了结论</h3>
+        <p>精确匹配判分把 "Hazell" 判错（金标准——基准数据集自带的官方标准答案——写的是 "James Hazell"）、把 "Dolenz, The Monkees" 判错（金标准写 "Mickey Dolenz (The Monkees)"）；更具警示性的是 Jimmy Connors 的金标准写着 10 个大满贯，而模型答的 8 个才是对的——基准自己错了。修正后 DeepSeek 准确率从 0.86 升至 0.909、Sonnet 从 0.88 升至 0.919，表观校准质量随之明显改善。论文的警句值得全行业记住："一个被误标的高置信正确答案，看起来恰好在研究'过度自信'现象本身。"</p>
+        <div class="metric-grid">
+          <div class="metric"><b>0.956 / 0.937</b><span>审计后"随答案自报"的对错区分 AUROC（DeepSeek Flash / Claude Sonnet 5），三种基础信号中唯一在两个模型上都位居前二</span></div>
+          <div class="metric"><b>0.765 / 0.790</b><span>三样本一致的 AUROC，两个模型上均为最弱信号——共识投票的信号质量垫底</span></div>
+          <div class="metric"><b>4/9 与 2/8</b><span>DeepSeek 九个错误中四个、Sonnet 八个错误中两个获三次采样全票支持</span></div>
+          <div class="metric"><b>4.0%-9.1%</b><span>等价 prompt 改写下跨过 0.8 置信阈值的固定答案比例；分数平均移动 0.043-0.084</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="section" id="compare" aria-labelledby="h-compare">
+      <div class="shell">
+        <div class="label">05 / Data &amp; competition</div>
+        <h2 id="h-compare">数据与竞品：完整八行主表，与三条路线的成本对照</h2>
+        <p class="intro">论文主表给出两个模型 × 三种信号加一种固定平均组合 × 四个指标的全部数字（99 题、审计后）。加粗为各模型 AUROC 点估计最优行——DeepSeek 是组合行（0.973）、Sonnet 是 P(True) 行（0.959），没有一个信号在两个模型上同时占优，"信号质量"本身是模型相关的。</p>
+        <p class="scroll-hint">下表可左右滑动</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="表 1：审计后 TriviaQA 结果">
+          <table class="compare">
+            <thead><tr><th scope="col">模型 / 信号</th><th scope="col">Brier ↓</th><th scope="col">ECE ↓</th><th scope="col">AUROC ↑</th><th scope="col">AURC ↓</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">DeepSeek · 自报</th><td>0.0422</td><td>0.0286</td><td>0.956</td><td>0.0092</td></tr>
+              <tr><th scope="row">DeepSeek · P(True)</th><td>0.1321</td><td>0.1333</td><td>0.920</td><td>0.0122</td></tr>
+              <tr><th scope="row">DeepSeek · 三样本一致</th><td>0.0572</td><td>0.0640</td><td>0.765</td><td>0.0461</td></tr>
+              <tr><th scope="row">DeepSeek · 固定平均组合</th><td>0.0398</td><td>0.0321</td><td class="win">0.973</td><td>0.0072</td></tr>
+              <tr><th scope="row">Sonnet · 自报</th><td>0.0491</td><td>0.0477</td><td>0.937</td><td>0.0092</td></tr>
+              <tr><th scope="row">Sonnet · P(True)</th><td>0.0611</td><td>0.0745</td><td class="win">0.959</td><td class="win">0.0071</td></tr>
+              <tr><th scope="row">Sonnet · 三样本一致</th><td>0.1481</td><td>0.1440</td><td>0.790</td><td>0.0325</td></tr>
+              <tr><th scope="row">Sonnet · 固定平均组合</th><td>0.0690</td><td>0.0745</td><td>0.926</td><td>0.0102</td></tr>
+            </tbody>
+            <tfoot><tr><td class="tbl-note" colspan="5">表 1：审计后 99 道 TriviaQA 上的完整结果（源 1，论文表 1）。Brier/ECE/AURC 越低越好、AUROC 越高越好；加粗为各模型 AUROC 点估计最高行——DeepSeek 组合行的 0.973 相对自报的提升经 2,000 次自助法检验 95% 区间跨零（[-0.0289, 0.0857]），不能视为统计上可靠的改进。DeepSeek 直接置信与自评用温度 0、重复作答用温度 0.8；Sonnet 端点不接受显式温度设置。</td></tr></tfoot>
+          </table>
+        </div>
+        <p>prompt 敏感性子表同样值得整表过目——注意两个模型对改述与反向量表的反应方向相反：</p>
+        <p class="scroll-hint">下表可左右滑动</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="表 2：prompt 敏感性">
+          <table class="compare">
+            <thead><tr><th scope="col">模型 / 重激发方式</th><th scope="col">分数平均绝对变化</th><th scope="col">变化 ≥ 0.2 的比例</th><th scope="col">跨过 0.8 阈值的比例</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">DeepSeek · 改述</th><td>0.084</td><td>9.1%</td><td>9.1%</td></tr>
+              <tr><th scope="row">DeepSeek · 反向量表</th><td>0.043</td><td>4.0%</td><td>4.0%</td></tr>
+              <tr><th scope="row">Sonnet · 改述</th><td>0.053</td><td>6.1%</td><td>4.0%</td></tr>
+              <tr><th scope="row">Sonnet · 反向量表</th><td>0.066</td><td>7.1%</td><td>6.1%</td></tr>
+            </tbody>
+            <tfoot><tr><td class="tbl-note" colspan="4">表 2：固定 99 题与原答案、仅改变置信度问法后的重激发结果（源 1，论文表 2）。方向不一致的细节：改述使 DeepSeek 的 P(True) AUROC 从 0.920 升至 0.944，却使 Sonnet 从 0.959 降至 0.927；反向量表使 Sonnet 降至 0.909。</td></tr></tfoot>
+          </table>
+        </div>
+        <p>把论文放进置信度信号的路线全景里，成本与门槛一目了然：</p>
+        <p class="scroll-hint">下表可左右滑动</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="表 3：置信度信号路线对照">
+          <table class="compare">
+            <thead><tr><th scope="col">路线</th><th scope="col">代表方法</th><th scope="col">额外模型调用</th><th scope="col">访问门槛</th><th scope="col">关键证据</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">免训练 · 随答案自报</th><td>本文 verbalized confidence</td><td>0 次</td><td>黑盒 API 即可</td><td class="win">审计后 AUROC 0.956/0.937，两个模型上均位居前二，且零额外成本</td></tr>
+              <tr><th scope="row">免训练 · 事后自评</th><td>本文 P(True)，源自 Kadavath 2022</td><td>+1 次</td><td>黑盒 API 即可</td><td>模型相关：DeepSeek 上欠自信（Brier 0.1321 最差）、Sonnet 上最佳 AURC 0.0071</td></tr>
+              <tr><th scope="row">免训练 · 采样一致</th><td>本文 support score；语义熵为其语义聚类加强版</td><td>+3 次</td><td>黑盒 API 即可</td><td>AUROC 0.765/0.790 最弱；错误可获全票支持；组合平均无统计可靠收益</td></tr>
+              <tr><th scope="row">训练式校准</th><td>LoVeC、ADVICE、ORCE、SaySelf</td><td>0 次（部署后）</td><td>需改训练流程</td><td>可优化声明级置信，但闭权 API 用不了、版本升级需重训，与本文黑盒场景正交</td></tr>
+              <tr><th scope="row">读出式白盒</th><td>FINAL-Bench ZTC（2026-09-20 博客）</td><td>0 次且零生成 token</td><td>需自托管权重</td><td>2,018 项 harness 横评 AUC 0.7394 居首、模型自报信号 0.5000 垫底——但该横评的任务分布、基准规模与模型均不同于本文 99 题实验，数字不可直接比较</td></tr>
+            </tbody>
+            <tfoot><tr><td class="tbl-note" colspan="5">表 3：五条获取置信度路线的成本与门槛对照。harness（包裹模型、使其能力可被统一调用与评测的执行环境）。口径警示：ZTC 横评中的"自报 0.5000"是 2,018 项混合任务上的 AUC，本文的"自报 0.956/0.937"是 99 道 TriviaQA 审计后的 AUROC——两者测量的是不同任务分布上的不同模型，不能横向比较大小；一致的是两个来源都指向"自报信号对模型与任务敏感"这一结论。</td></tr></tfoot>
+          </table>
+        </div>
+        <div class="callout"><p><strong>两个来源，一个方向。</strong>本文（黑盒路线）发现自报信号强但对模型与问法敏感；ZTC 博客（白盒路线）发现在 2,018 项混合 harness 上自报信号差到随机水平。两者评测口径完全不同，但工程启示收敛：置信度信号没有"一次测量、处处可用"的配方——要么固定测量程序后逐模型验证，要么直接读内部状态绕开"嘴"。选哪条，取决于你对模型的访问权限。</p></div>
+        <p>顺带一个现实注脚：论文选的 DeepSeek Flash 正是当前消费端用量最大的模型之一（OpenRouter 排行显示其周 token 消耗量居各模型之首，见源 8），Sonnet 5 则是 Anthropic 的闭权旗舰——也就是说，论文测的是"今天真实被大规模调用着的两个黑盒"。</p>
+      </div>
+    </section>
+    <section class="section alt" id="production" aria-labelledby="h-production">
+      <div class="shell">
+        <div class="label">06 / Production view</div>
+        <h2 id="h-production">工程化视角：三个问题过一遍</h2>
+        <div class="split">
+          <article class="panel">
+            <h3><span class="mark">§1</span>能否直接集成进生产环境？</h3>
+            <p>集成难度是本文路线最大的优点：verbalized 自报只要在现有 prompt 里加一句"给出 0-100 置信度"、在解析层多读一个 JSON 字段，零基础设施改动、零额外调用、对闭权 API 与自托管模型同样适用。但要清醒算账：P(True) 每题多一次调用，三样本一致每题多三次——若全部信号都测，调用量是基线的五倍。论文自己也在限制章节承认"这些信号免训练，但不免费"。生产上按需取用：默认只开自报（零成本），阈值边缘的少数样本才追加 P(True) 复核，成本增量可控。</p>
+          </article>
+          <article class="panel">
+            <h3><span class="mark">§2</span>对现有架构有什么影响？</h3>
+            <p>三点直接冲击。<strong>其一，置信度的架构定位是"验证触发器"而非"质量标签"</strong>——论文结论原文：置信度应当用来触发外部验证，而不是把单次激发或模型一致性当作真理证据；落到架构上就是"低置信 → 路由到检索/复核/降级/人工"，而不是"高置信 → 跳过一切检查"。<strong>其二，prompt 措辞要当测量参数管理</strong>：等价改写移动 4.0%-9.1% 的阈值决策，意味着置信度 prompt 必须固定措辞、纳入版本控制，改一个字都算测量仪器变更。<strong>其三，阈值决策要加缓冲带</strong>：0.8 不是物理常数，0.72-0.88 的灰区应触发二次测量而非二值切换（灰区宽度 0.8±0.08 为本文依据 prompt 改写最大敏感度 0.084 推导的工程建议，论文只测过 0.8 单一阈值）。</p>
+          </article>
+          <article class="panel">
+            <h3><span class="mark">§3</span>从 Demo 到生产，还差多少验证？</h3>
+            <p>距离不小。99 题、每模型 8-9 个错误，论文自己标注全部区间"只是描述性的"、不主张有统计功效的等价检验；长文本侧只有 5 条被矛盾声明，只够指出失败模式、不够给出参数。专业域（医疗、法律、金融）的迁移完全未测，论文明确提示校准可能跨域失效。此外自动 judge（盲评用 Sonnet 5）可能与生成模型共享偏见，造成相关误差——论文把它列入局限而非已解决问题。上生产前的最低动作：用自己任务的 100-500 条人工审计样本复测"自报 AUROC + 阈值翻转率"两个数，再决定门控策略。</p>
+          </article>
+          <article class="panel">
+            <h3><span class="mark">附</span>成本与自动化的隐性账单</h3>
+            <p>还有两笔容易被忽略的账。<strong>测量成本</strong>：置信度显示会引发自动化偏见（automation bias：人类倾向于过度信任自动化系统给出的精确数字）——论文 Broader Impact 章节特别警告，即便总体校准良好，用户也可能对一个精确到小数点的分数过度信任，因此低置信过滤"不得被用来系统性压制信息"，系统设计要在分数旁给不确定性留表达空间。<strong>版本成本</strong>：论文所有结论条件于"所记录的模型快照与评估日期"——专有模型一次静默更新就可能同时改变答案质量与校准行为，置信度测量程序需要随版本回归测试。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+    <section class="section" id="risk" aria-labelledby="h-risk">
+      <div class="shell">
+        <div class="label">07 / Risk &amp; Limits</div>
+        <h2 id="h-risk">局限与风险：论文自己承认的，与它没说的</h2>
+        <p class="intro">论文的坦白程度在这类研讨会短文里相当罕见——每个数字旁边都站着它的局限。综合论文自述与本文分析，风险按"是否影响结论可用性"分级如下。</p>
+        <div class="risk-grid">
+          <article class="risk"><h3>样本量与统计功效 <span class="level high">高</span></h3><p>99 题、每模型仅 8-9 个错误答案。AUROC 这类区分力指标由错误样本主导，区间全部为描述性；组合信号的"收益"自助区间跨零。任何把 0.956 当作普适常数的用法都超出了证据支撑范围。</p></article>
+          <article class="risk"><h3>模型覆盖面 <span class="level high">高</span></h3><p>只有两个模型家族、且都是 2026 年 9 月的快照。论文核心发现之一恰恰是"信号行为因模型而异"（P(True) 在两模型上表现相反），这本身就是外推风险：第三个模型上最优信号可能又是另一个。</p></article>
+          <article class="risk"><h3>长文本证据极薄 <span class="level high">高</span></h3><p>传记审计只有 5 条被矛盾声明，矛盾声明的平均置信 0.830、其中 1 条 ≥0.90——足够暴露失败模式，远不足以校准参数。论文明言声明级置信度要当控制信号，需要"更大规模、独立裁决的研究"先行。</p></article>
+          <article class="risk"><h3>自动化偏见 <span class="level mid">中</span></h3><p>论文 Broader Impact 警告：显示置信度可能制造虚假安心，尤其在评测域与部署域不匹配时；建议用途锁定为"分配验证精力"，而非"真理保证"。UI 设计需要刻意对抗"精确数字=权威"的直觉。</p></article>
+          <article class="risk"><h3>自动 judge 的相关误差 <span class="level mid">中</span></h3><p>长文本盲评用 Sonnet 5 对照维基百科打标签，20 个自动"矛盾"标签中 15 个人工复核后推翻——这既证明人工审计必要，也暴露自动裁决的不可靠；若 judge 与生成模型共享训练分布偏见，误差会系统性相关。</p></article>
+          <article class="risk"><h3>结论的条件性 <span class="level low">低</span></h3><p>论文明确把全部结论条件于"记录的模型快照与评估日期"，并披露 Sonnet 端点不支持显式温度控制（重复采样用服务端默认）。这类坦诚降低了误用风险，但把"何时复测"的责任转移给了使用者。</p></article>
+        </div>
+        <div class="callout amber"><p><strong>诚实边界声明：</strong>本文引用的全部数字均来自论文 99 题（短问答）与 100 条声明（长文本）规模的实验；论文为 workshop 论文（投给学术研讨会的小规模研究短文，评审门槛低于主会议），尚未经完整同行评审。论文摘要中"自报是有用的"结论依赖人工审计后的标签质量——论文自己也承认，未经审计的结论会系统性低估模型（表观准确率 0.86/0.88 对审计后 0.909/0.919）。对任何一条具体数字的引用，请回到源 1 核对原始语境。</p></div>
+      </div>
+    </section>
+    <section class="section alt" id="future" aria-labelledby="h-future">
+      <div class="shell">
+        <div class="label">08 / What's next</div>
+        <h2 id="h-future">未来方向：这篇论文打开的三扇门</h2>
+        <p class="intro">论文结论把自己的未来工作说得很清楚，结合路线对照，值得关注的三个方向：</p>
+        <ul>
+          <li><strong>声明级置信度的独立裁决大规模研究。</strong>这是论文结论的最后一句话：在把声明级置信度当作控制信号部署之前，需要更大规模、独立裁决的长文本研究。当前证据（5 条矛盾声明）只够证明"失败模式存在"，不够证明"失败模式多严重"——从"探索性审计"到"可部署参数"之间还隔着数量级规模的数据与人工裁决。</li>
+          <li><strong>置信度测量的标准化。</strong>本文证明等价 prompt 改写就能移动 4.0%-9.1% 的阈值决策且方向因模型而异——这意味着"模型的置信度"不是一个数，而是"某套测量程序下的读数"。下一步自然是社区形成置信度测量规范：固定措辞模板、报告激发敏感性、阈值决策附测量不确定性——把 prompt 当仪器校准，而不是当文案润色。</li>
+          <li><strong>黑盒与白盒路线的分层组合。</strong>黑盒自报（零成本、随处可用）适合作为默认信号与第一道过滤；白盒读出（如 ZTC，信号强但要求自托管）适合作为高价值节点的第二道门。两条路线在本文与 ZTC 博客各自的评测里互为镜像：一个证明"嘴上的数有信息量但不稳定"，一个证明"心里的数更稳但要看得到"。对同时运营闭权 API 调用与自托管集群的团队，按访问权限分层选型是现成的架构模式。</li>
+        </ul>
+      </div>
+    </section>
+    <section class="section" id="takeaways" aria-labelledby="h-takeaways">
+      <div class="shell">
+        <div class="label">09 / Takeaways</div>
+        <h2 id="h-takeaways">工程师可以借鉴：五条带证据的操作建议</h2>
+        <div class="steps">
+          <div class="step"><h3>黑盒置信度首选"随答案自报"，而不是采样投票</h3><p>一次调用带出答案与置信度，零额外成本，且在两种模型上都位居前二（AUROC 0.956/0.937）。把"多问几遍看一致"当默认置信度来源的习惯可以改掉了：它每题贵三次调用，信号却最弱（0.765/0.790）。</p></div>
+          <div class="step"><h3>别把一致性当可靠性——错误也能全票通过</h3><p>DeepSeek 九个错误里四个拿到三票全票。采样一致衡量的是"解码的稳定性"，不是"答案的正确性"；两次采样答案相同，可能只是共同误解的复读。若业务里已有多数投票逻辑，把它当答案选择器用可以，当置信度信号用不行。</p></div>
+          <div class="step"><h3>置信度 prompt 固定措辞、纳入版本管理</h3><p>等价改写平均移动分数 0.043-0.084、翻转 4.0%-9.1% 的 0.8 阈值决策。生产上的置信度问法应当是一个带版本号的常量：改措辞等于换测量仪器，必须走变更流程并重跑阈值校准。</p></div>
+          <div class="step"><h3>阈值决策加缓冲带，模型升级即回归</h3><p>0.72-0.88 的分数灰区触发二次测量而非硬切换（灰区取值为本文依据改写敏感度推导，论文只测过 0.8 单一阈值）；同时论文明确结论条件于模型快照——模型每次更新都可能同时改变答案质量与校准行为，置信度门控要纳入模型升级的回归测试清单。</p></div>
+          <div class="step"><h3>评测置信度之前，先人工审计你的标签</h3><p>TriviaQA 这种老牌基准都有金标准错误（Jimmy Connors 的大满贯数），审计使准确率从 0.86/0.88 修正至 0.909/0.919、校准结论随之改变。任何校准评测上线前，先抽 100 条逐条人工复审——被误标的"高置信错误"会把你正在研究的过度自信现象原样伪装出来。</p></div>
+        </div>
+      </div>
+    </section>
+    <section class="section end alt" id="sources" aria-labelledby="h-sources">
+      <div class="shell">
+        <div class="label">10 / Sources</div>
+        <h2 id="h-sources">数据源</h2>
+        <p class="intro">本报道全部事实性数字与结论均可回溯到下列来源；未列出的推断性表述已在文中标注为本文分析。</p>
+        <div class="sources">
+          <div class="source"><span class="n">1</span><p>An Analysis of Training-Free Self-Reported Confidence in Language Models（Meyer, Rossi, Chen, Laurent, Li；DreamAI；workshop 论文）<br><a href="https://arxiv.org/abs/2609.20541">arxiv.org/abs/2609.20541</a><small>2026-09-17 提交。本文主源：三种基础信号与固定平均组合的定义及全部指标数字（表 1、表 2）、审计协议与前后准确率、错误全票支持计数、传记声明协议与结果、限制与结论。HTML 全文见 <a href="https://arxiv.org/html/2609.20541v1">arxiv.org/html/2609.20541v1</a>。</small></p></div>
+          <div class="source"><span class="n">2</span><p>Language Models (Mostly) Know What They Know（Kadavath et al., 2022）<br><a href="https://arxiv.org/abs/2207.05221">arxiv.org/abs/2207.05221</a><small>P(True) 与 P(IK) 方法的起源论文，本文 P(True) 信号的方法学出处。</small></p></div>
+          <div class="source"><span class="n">3</span><p>LoVeC: Reinforcement Learning for Better Verbalized Confidence in Long-Form Generations（Zhang et al., 2025）<br><a href="https://arxiv.org/abs/2505.23912">arxiv.org/abs/2505.23912</a><small>训练式校准路线代表：用强化学习让长文生成在每条声明后附置信分数，与本文免训练黑盒场景形成路线对照。</small></p></div>
+          <div class="source"><span class="n">4</span><p>ADVICE: Answer-Dependent Verbalized Confidence Estimation（Seo et al., 2025）<br><a href="https://arxiv.org/abs/2510.10913">arxiv.org/abs/2510.10913</a><small>论文引用的相关工作：论证过度自信部分源于置信估计未以生成为条件，代表训练式路线的最新分支。</small></p></div>
+          <div class="source"><span class="n">5</span><p>FINAL-Bench ZTC：Zero-Token Confidence（Hugging Face 博客）<br><a href="https://huggingface.co/blog/FINAL-Bench/ztc">huggingface.co/blog/FINAL-Bench/ztc</a><small>2026-09-20 发布。读出式白盒路线对照：2,018 项 harness 横评 AUC 0.7394、自报信号 0.5000 等数字来源；注意其任务分布与模型均不同于本文 99 题实验，数字不可直接比较（口径说明见表 3 注）。</small></p></div>
+          <div class="source"><span class="n">6</span><p>Self-Evaluation Improves Selective Generation in Large Language Models（Ren et al., 2023）<br><a href="https://arxiv.org/abs/2312.09300">arxiv.org/abs/2312.09300</a><small>论文引用的自评与选择性生成相关工作，采样一致信号的方法学背景。</small></p></div>
+          <div class="source"><span class="n">7</span><p>MMBoundary: Advancing MLLM Knowledge Boundary Awareness through Reasoning Step Confidence Calibration（He et al., ACL 2025）<br><a href="https://aclanthology.org/2025.acl-long.802">aclanthology.org/2025.acl-long.802</a><small>论文引用的步级置信度校准工作，与声明级置信度同属"低于最终答案粒度"的可靠性分析方向。</small></p></div>
+          <div class="source"><span class="n">8</span><p>OpenRouter Rankings（模型消费用量排行）<br><a href="https://openrouter.ai/rankings">openrouter.ai/rankings</a><small>DeepSeek Flash 当前用量地位的参考来源（周 token 消耗居首）；用于说明论文实验对象的市场代表性，数据截至 2026-09-20。</small></p></div>
+          <div class="source"><span class="n">9</span><p>Can LLMs Express Their Uncertainty? An Empirical Evaluation of Confidence Elicitation in LLMs（Xiong et al., ICLR 2024）<br><a href="https://arxiv.org/abs/2306.13063">arxiv.org/abs/2306.13063</a><small>论文引用的置信度激发大横评：五类数据集 × 五个模型的黑盒置信度系统评测，"系统性过度自信""无普适最优激发策略"结论的出处。</small></p></div>
+          <div class="source"><span class="n">10</span><p>Calibrated Language Models Must Hallucinate（Kalai &amp; Vempala, STOC 2024）<br><a href="https://arxiv.org/abs/2311.14648">arxiv.org/abs/2311.14648</a><small>理论支点：在分布假设下，校准的语言模型必然以一定速率幻觉"任意事实"——校准与幻觉可以并存的证明。</small></p></div>
+        </div>
+        <p class="footer"><strong>版权与引用说明：</strong>本文为 AI 工程技术日报（ISSUE 15，2026-09-21），对上列公开来源的解读与评述；引用数字以原始论文与博客为准。数据截至 2026-09-21。</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
