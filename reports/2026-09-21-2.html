@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="解读 FINAL-Bench 零 token 置信度探针 ZTC（Hugging Face 博客 2026-09-20）：自报置信度 AUC 0.5000、读隐藏状态 0.8801；验证器榜单、表面基线 0.7036、置换检验 z=9~13、留一域 0.7572、门控 0.0615 秒、45 KB 四行代码、Gate Arcade 400 场对照，附 arXiv 自报信号任务依赖性对照与工程化视角分析。">
+  <title>FINAL-Bench 开源 ZTC 零 token 置信度探针：模型的自报置信度测出来是抛硬币——别问，直接读隐藏层，0.06 秒、零个 token、45 KB</title>
+  <style>
+    :root{
+      --ink:#1d2430;--ink-2:#3a4350;--muted:#5c6771;--paper:#fbfaf8;--panel:#ffffff;
+      --line:#e0ddd5;--teal:#0c7772;--teal-soft:#e2f1ee;--amber:#b96a1b;--amber-soft:#f6e8d5;
+      --lime:#6f7f2a;--lime-soft:#eef2d9;--navy:#20222b;--plum:#8b6389;
+      --shadow-lg:0 12px 30px rgba(27,36,48,.08);--shadow-sm:0 7px 20px rgba(27,36,48,.05);--teal-bright:#35b3a9;--lime-deep:#4c5a1a;
+    }
+    *{box-sizing:border-box}html{overflow-x:clip}
+    @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+    body{margin:0;background:var(--paper);color:var(--ink-2);font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;line-height:1.82}
+    a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:3px}
+    a:hover{color:#a4502f;text-decoration-thickness:2px}
+    a:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+    .skip{position:absolute;left:-9999px;top:auto}.skip:focus{left:16px;top:16px;z-index:20;background:#fff;padding:8px 12px;border:2px solid var(--teal)}
+    .shell{max-width:1120px;margin:0 auto;padding:0 24px}
+    .masthead{background:var(--navy);color:#f4f5f7;border-bottom:5px solid var(--teal)}
+    .masthead .shell{padding-top:20px;padding-bottom:44px}
+    .meta-row{display:flex;justify-content:space-between;gap:16px;align-items:center;color:#b9c0ca;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+    .meta-row .date{color:#9fd8d2}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:48px;align-items:start;margin-top:38px}
+    h1,h2,h3{color:var(--ink);line-height:1.3;margin:0;font-weight:750}
+    h1,h2{text-wrap:balance}.dek{text-wrap:pretty}
+    h1{color:#f9f8f5;font-size:clamp(2.1rem,4.2vw,3.4rem)}
+    .dek{color:#d3d6db;font-size:1.13rem;max-width:780px;margin:22px 0 0}.dek+.dek{margin-top:10px}
+    .signal{border-left:2px solid var(--teal-bright);padding:4px 0 4px 20px;color:#dcf0ee;font-size:14px;max-width:640px}
+    .signal b{display:block;color:#fff;font-size:17px;margin-bottom:5px}
+    .toc{position:sticky;top:0;z-index:5;background:rgba(251,250,248,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+    .toc .shell{display:flex;gap:20px;overflow:auto;white-space:nowrap;padding-top:12px;padding-bottom:12px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 30px),transparent)}
+    .toc a{font-size:13px;color:var(--muted);text-decoration:none}.toc a:hover{color:var(--teal)}
+    main{padding-bottom:80px}main:focus{outline:none}.section{padding:64px 0;border-bottom:1px solid var(--line)}section[id]{scroll-margin-top:64px}
+    .section.alt{background:#f2f0eb}.section.end{border-bottom:0}
+    .label{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);margin-bottom:10px}
+    h2{font-size:clamp(1.65rem,3vw,2.45rem);max-width:900px}.intro{font-size:1.08rem;max-width:880px;margin:16px 0 30px;color:var(--ink-2)}
+    h3{font-size:1.18rem;margin:28px 0 8px}.section p{max-width:880px;margin:0 0 18px}.section p.intro{margin:16px 0 30px}.section p:last-child{margin-bottom:0}.section ul{max-width:880px;margin:0 0 18px;padding-left:22px}.section li{margin:7px 0}.section ul:last-child{margin-bottom:0}.section h2+ul{margin-top:16px}.section h3{max-width:880px}
+    .tldr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:30px}
+    .tldr article{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--teal);padding:18px 18px 20px;box-shadow:var(--shadow-lg)}
+    .tldr article:nth-child(2){border-top-color:var(--amber)}.tldr article:nth-child(3){border-top-color:var(--lime)}.tldr article:nth-child(4){border-top-color:var(--plum)}
+    .tldr .num{font-size:12px;color:var(--teal);font-weight:800;letter-spacing:.08em}.tldr article:nth-child(2) .num{color:#965512}.tldr article:nth-child(3) .num{color:#5d6b22}.tldr article:nth-child(4) .num{color:var(--plum)}
+    .tldr h3{font-size:17px;margin-top:7px}.tldr p{font-size:14px;line-height:1.65;margin:8px 0 0;color:var(--muted)}
+    .factline{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:start;max-width:880px;margin:22px 0 0;color:var(--ink-2);font-size:14px}
+    .factline dt{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:.05em;justify-self:start}
+    .factline dd{margin:0}.factline dt.fact{background:var(--teal-soft);color:var(--teal)}.factline dt.inference{background:var(--amber-soft);color:#9d4b31}
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:28px}
+    .panel{background:var(--panel);border:1px solid var(--line);padding:24px;box-shadow:var(--shadow-sm)}
+    .panel h3{display:flex;gap:10px;align-items:baseline;margin-top:0}.panel .mark{color:var(--amber);font-family:Georgia,serif;font-size:1.55rem}.panel p{font-size:15px}.panel ul,.panel ol{margin:10px 0 0;padding-left:22px}.panel li{margin:7px 0;font-size:15px}
+    .flow{margin:28px 0 12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:0;border:1px solid var(--line);background:#fff}
+    .flow .node{padding:18px 14px;min-height:125px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);position:relative}
+    .flow .node:nth-child(3n){border-right:0}
+    .flow .node:nth-child(4),.flow .node:nth-child(5),.flow .node:nth-child(6){border-bottom:0}
+    .flow .k{display:block;color:var(--teal);font:700 12px Georgia,serif;letter-spacing:.06em;margin-bottom:9px}
+    .flow b{display:block;color:var(--ink);font-size:15px;line-height:1.4}.flow small{display:block;color:var(--muted);font-size:12px;line-height:1.5;margin-top:7px}
+    .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:25px}
+    .metric{border-top:3px solid var(--teal);padding:14px 15px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-left:1px solid var(--line);box-shadow:var(--shadow-sm)}
+    .metric:nth-child(2){border-top-color:var(--amber)}.metric:nth-child(3){border-top-color:var(--lime)}.metric:nth-child(4){border-top-color:var(--plum)}
+    .metric b{display:block;color:var(--ink);font-size:21px;line-height:1.35;font-weight:800;font-variant-numeric:tabular-nums}
+    .metric span{display:block;color:var(--muted);font-size:13px;line-height:1.6;margin-top:6px}
+    .callout{border-left:5px solid var(--teal);background:var(--teal-soft);padding:20px 24px;margin:28px 0;max-width:880px}
+    .callout strong{color:var(--ink)}.callout p{margin:0;font-size:15px}.callout.amber{border-left-color:var(--amber);background:var(--amber-soft)}
+    .code{background:var(--navy);color:#e8edf4;padding:18px 20px;overflow-x:auto;font:13px/1.75 Consolas,"Courier New",monospace;margin:20px 0 10px;max-width:880px;box-shadow:var(--shadow-sm);white-space:pre}.code pre{margin:0;font:inherit;white-space:pre}.code code{font:inherit;color:inherit;background:none}p code{background:#eceae3;padding:1px 6px;border-radius:4px;font:90% Consolas,"Courier New",monospace;color:var(--ink);overflow-wrap:anywhere}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:26px;border:1px solid var(--line);background:#fff}
+    .table-wrap:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+    .scroll-hint{display:none}
+    .compare{width:100%;min-width:940px;border-collapse:collapse;font-size:14px}
+    .compare th,.compare td{text-align:left;vertical-align:top;padding:14px 15px;border-bottom:1px solid var(--line)}
+    .compare th{background:var(--navy);color:#f5f4f0;font-size:13px}
+    .compare tr:last-child td,.compare tr:last-child th{border-bottom:0}
+    .compare tbody th{text-align:left;font-weight:750;color:var(--ink);width:16%;background:#fff}
+    .compare th:first-child{position:sticky;left:0;z-index:1;box-shadow:inset -1px 0 0 var(--line),6px 0 10px -6px rgba(29,36,48,.14)}
+    .compare td.win{color:var(--ink);font-weight:800;background:#eef7f4}
+    p.tbl-note{font-size:12px;color:var(--muted);padding:10px 15px 12px;border-top:1px solid var(--line);background:#fff;margin:0;max-width:none}p.tbl-cap{margin:26px 0 -12px;font-size:13px;font-weight:700;color:var(--ink);max-width:none}.compare.narrow{min-width:480px;font-size:13.5px}
+    .steps{counter-reset:step;display:grid;gap:14px;margin-top:28px}
+    .step{counter-increment:step;display:grid;grid-template-columns:46px minmax(0,1fr);gap:16px;background:#fff;border:1px solid var(--line);padding:20px 22px;box-shadow:var(--shadow-sm)}
+    .step::before{content:counter(step,decimal-leading-zero);color:var(--amber);font:700 23px Georgia,serif;padding-top:2px}
+    .step h3{font-size:17px;margin:0}.step p{font-size:15px;margin:5px 0 0}
+    .risk-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}
+    .risk{padding:18px 20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-sm)}
+    .risk h3{font-size:16px;margin:0}.risk p{font-size:14px;margin:6px 0 0}
+    .risk .level{display:inline-block;padding:2px 8px;border-radius:4px;background:#e9e2cd;color:#6d5726;font-size:12px;font-weight:700;vertical-align:2px;margin-left:6px}
+    .risk .level.low{background:var(--lime-soft);color:var(--lime-deep)}
+    .risk .level.high{background:#f6dfdb;color:#8f2418}
+    .sources{display:grid;gap:10px;margin-top:25px}
+    .source{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:15px 16px;background:#fff;border:1px solid var(--line);font-size:14px;box-shadow:var(--shadow-sm)}
+    .source .n{color:#9d4b31;font:700 15px Georgia,serif}.source p{margin:0;font-size:14px}
+    .source small{display:block;color:var(--muted);font-size:12px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}.source a{overflow-wrap:anywhere}
+    .footer{color:var(--muted);font-size:13px;padding-top:28px;max-width:880px}.footer strong{color:var(--ink)}
+    @media (max-width:767px),(min-width:901px) and (max-width:987px){.scroll-hint{display:block;text-align:center;color:var(--muted);font-size:12px}.section p.scroll-hint{margin:26px 0 -12px}}
+    @media (max-width:1030px){.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-grid{grid-template-columns:1fr;gap:24px}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:900px){.compare{min-width:720px;font-size:12.5px}.compare th,.compare td{padding:10px 10px}}
+    @media (max-width:820px){.split,.risk-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:nth-child(4),.flow .node:nth-child(5){border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.section{padding:48px 0}}
+    @media (max-width:520px){h1{font-size:clamp(1.8rem,6.2vw,2.1rem)}.shell{padding-left:17px;padding-right:17px}.masthead .shell{padding-bottom:42px}.meta-row{align-items:flex-start;flex-direction:column;gap:4px}.tldr,.metric-grid{grid-template-columns:1fr}.step{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:16px}.toc .shell{gap:16px}}
+    @media print{.toc,.scroll-hint{display:none}p,li,dd{orphans:3;widows:3}.masthead,.compare th,.callout,.section.alt,.factline dt,.metric,.step,.compare td.win,.risk .level,.code{-webkit-print-color-adjust:exact;print-color-adjust:exact}header.masthead{break-inside:avoid}.panel,.risk,.step,.metric,.tldr article,.callout,.flow .node,.source,.code,p.tbl-note{break-inside:avoid}.compare tr{break-inside:avoid}.compare{min-width:0;font-size:11px}.compare th:first-child{position:static}.tldr{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.flow{grid-template-columns:1fr}.flow .node{min-height:auto;border-right:0;border-bottom:1px solid var(--line)}.flow .node:nth-child(4),.flow .node:nth-child(5){border-bottom:1px solid var(--line)}.flow .node:last-child{border-bottom:0}.section{padding:32px 0}h2,h3{break-after:avoid}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">跳到正文</a>
+  <header class="masthead">
+    <div class="shell">
+      <div class="meta-row"><span>人工智能（AI）工程技术日报 / 研究与判断</span><span class="date">2026-09-21 · ISSUE 16</span></div>
+      <div class="hero-grid">
+        <div>
+          <h1>FINAL-Bench 开源 ZTC 零 token 置信度探针：模型的自报置信度测出来是抛硬币——别问，直接读隐藏层，0.06 秒、零个 token、45 KB</h1>
+          <p class="dek">2026 年 9 月 20 日，VIDRAFT 团队以 FINAL-Bench 名义在 Hugging Face 博客发布 Zero-Token Confidence（ZTC，零 token 置信度）：不问、不生成，直接从模型的隐藏状态向量（hidden state：模型逐层处理完输入后，网络最后一层在每个 token 位置留下的数字向量——模型"读完卷子后脑子里剩下的那团印象"，不经过输出层、不变成文字）读出"这个答案是对的"的校准概率（calibration：把原始分数映射成贴近真实发生频率的 0-1 概率）。在 2,018 项共享基准上，模型自报置信度这一信号的判别力只有 AUC（Area Under the ROC Curve，ROC 曲线下面积：衡量信号区分"答案对/错"的能力，0.5 等于随机猜，1.0 为完美）0.5000——精确等于抛硬币；在另一组 539 项保留集实验里，同一个模型被"问出来"是 0.7646、"读出来"是 0.8801。两组数字来自不同题集与评测模式，方向一致：问不如读。配套发布三件东西：自带探针的 397B MoE 模型 Darwin-397B-ZTC（GPQA Diamond 93.43 分（百分制）；MoE 即 Mixture of Experts 混合专家架构，GPQA Diamond 为研究生级专家科学问答基准）、给其他模型答案当判官的 ZTC-Judge-27B（覆盖五个领域）、以及可在线对战的门控演示 Gate Arcade。</p>
+          <p class="dek">真正值得精读的是这份发布里三组"拆台"数据。一、表面基线：只看答案长度与格式、完全不读内容的对照方法拿到 0.7036，而两个已发表的验证器——open-jev 4B（JEV 生态的开源 4B 验证器）与 Lynx 8B（Patronus AI 开源的幻觉检测模型）——双双低于它——等于被量化曝光"没在干活"。二、统计纪律：探针的真实拟合位于打乱标签的零假设分布之上 9~13 个标准差（置换检验），留一域交叉验证（leave-one-domain-out：探针从未见过测试领域，超参数只在训练领域内选取）仍有 0.7572。三、架构反直觉：180B 级模型在探针质量上垫底，预测因子是隐藏层宽度与全注意力占比，不是参数量。门控一次 0.0615 秒、比它守卫的生成工作便宜 26 倍，探针本体是一个 45 KB 的 .npz 文件（NumPy 数组存档格式）、四行代码接入。本文的能力描述均来自官方博客、模型页与公开资料，未包含作者实测数据。</p>
+        </div>
+        <div class="signal"><b>先给结论</b>值得精读的三个理由：一、它把"置信度信号"的成本结构从"再跑一次模型"改成"读一次向量"——当验证比被验证的工作便宜 26 倍，Agent（智能体：能自主规划并执行多步动作的 AI 程序）才能从"抽样验证"升级为"每个动作都过闸"；二、0.5000 这个数字对所有拿"问模型自己"的置信度做路由（routing：按信号决定走哪条路径，如执行/重试/升级人工）的产品是一记直接警告——路由可能建立在噪声上；三、它示范了"论文到生产"的最短路径：四年前的学术结论被压缩成 45 KB、四行代码的即插即用部署物。一句话评价：方向可信、工程干净——数字全部来自单一自建基准、只适用于自托管开源模型；当"便宜的门控初筛"引入可以，当"最终裁决"用不行。</div>
+      </div>
+    </div>
+  </header>
+  <nav class="toc" aria-label="文章目录">
+    <div class="shell"><a href="#tldr">TL;DR（太长不看）</a><a href="#problem">背景与问题</a><a href="#principle">工作原理</a><a href="#innovation">创新点</a><a href="#compare">数据与竞品</a><a href="#production">工程化视角</a><a href="#risk">局限与风险</a><a href="#future">未来方向</a><a href="#takeaways">工程师可以借鉴</a><a href="#sources">数据源</a></div>
+  </nav>
+  <main id="content" tabindex="-1">
+    <section class="section" id="tldr" aria-labelledby="h-tldr">
+      <div class="shell">
+        <div class="label">01 / Decision brief</div>
+        <h2 id="h-tldr">TL;DR（太长不看）：把"问模型"换成"读模型"，置信度从免费的噪声变成免费的信号</h2>
+        <div class="tldr" role="list">
+          <article role="listitem"><span class="num">01 / WHAT</span><h3>发生了什么</h3><p>FINAL-Bench（VIDRAFT）发布零 token 置信度技术 ZTC：用一个线性探针（linear probe：只做一次加权求和加一次概率映射的极小分类器）读模型最后一个 token 的隐藏状态向量，输出"答案正确"的校准概率。零生成 token、单次 0.0615 秒（27B 模型、4×B200 官方实测）、探针 45 KB、四行代码接入。</p></article>
+          <article role="listitem"><span class="num">02 / WHY</span><h3>解决谁的问题</h3><p>Agent 的每个动作（删数据、发起支付、跑部署脚本）都缺一道"要不要执行"的闸门。现有信号两头不讨好：问模型自己——2,018 项多域基准上测出 AUC 0.5000 的噪声；跑生成式验证器——一次完整推理的开销，与被验证的 Agent 抢同一份预算。ZTC 把成本与质量两个死结同时解开。</p></article>
+          <article role="listitem"><span class="num">03 / HOW</span><h3>怎么做到的</h3><p>在模型最后一层的隐藏向量上训练线性探针并预置校准常数；两种工作模式——self-readout（模型读自己刚生成的答案，AUC 0.8801）与 judge（ZTC-Judge-27B 读任意模型的答案，跨五域）。训练数据不随部署走，落地产物只有权重向量、标准化项、校准常数三样东西，装进一个 .npz 文件。</p></article>
+          <article role="listitem"><span class="num">04 / SHIP</span><h3>生产判断</h3><p>只对自托管开源模型可用（闭源 API 不返回内部状态；vLLM 已有隐藏状态提取通路）；探针与模型版本强绑定，模型更新需重训重验；全部核心数字来自单一自建基准，自己的分布上要先重测 AUC 与阈值再上线。</p></article>
+        </div>
+        <dl class="factline"><dt class="fact">来源事实</dt><dd>验证器榜单（2,018 项、同一 harness（包裹模型、使其能力可被使用的执行环境）、judge 模式）、问读对比（539 项保留集、self-readout）、置换检验（问读对比与主实验 z=9~13；架构对比实验 z 值 5.83~9.66）、留一域 0.7572、成本测量（4×B200、27B、2,000 项：生成一个候选答案 1.631 秒 vs ZTC 门控 0.0615 秒；Darwin-397B 在 8×B200 上 270 秒评完 2,018 项）、探针架构对比（同 400 项 judge 模式：0.8228 / 0.8171 / 0.7146；隐藏层宽 2560 维、48 层中 36 层线性注意力）、45 KB 与四行代码、Gate Arcade 400 场（无门 -3.9 / 文本验证器 +13.0 / ZTC +29.1、98% 胜率、执行准确率 49%→65%、同 300 秒 2.2× 动作量）均来自 FINAL-Bench 博客（2026-09-20）；模型信息来自 Hugging Face 模型页（数据截至 2026-09-21）；vLLM extract_hidden_states 来自 v0.29.0 发布说明（2026-09-09，PR #49811）与官方博客（2026-03-30）；自报信号对照数字来自 arXiv:2609.20541（2026-09-17）；验证器生态用量来自 OpenRouter Rankings（聚合各家模型 API 的路由平台，数据截至 2026-09-20）；JEV 生态 13 个验证器的盘点来自 Hugging Face 博客《Inside the JEV Ecosystem》（2026-09-20）。</dd><dt class="inference">本文推断</dt><dd>"自报置信度的失效有任务边界""探针与模型 checkpoint（模型权重存档）强绑定、更新后需重训""闭源 API 结构性用不了此类技术""验证器生态将分化为读出式与生成式两层""探针分数可能被对抗输入操纵"等为本文分析判断，依据在各章节内标注。</dd></dl>
+      </div>
+    </section>
+
+    <section class="section alt" id="problem" aria-labelledby="h-problem">
+      <div class="shell">
+        <div class="label">02 / Background</div>
+        <h2 id="h-problem">背景与问题：Agent 的动作闸门，缺一个又便宜又诚实的信号</h2>
+        <p class="intro">Agent 工程里最贵的错误不是答错一道题，而是把错误答案变成一次真实执行——删掉不该删的行、发起不该发起的支付。所以 harness 的标准设计是给每个"即将执行的动作"配一道闸门：置信度够就放行，不够就 hold（按住不执行）。闸门需要信号，而今天拿信号的三种方式，全都是"问"出来的。</p>
+        <div class="split">
+          <div class="panel"><h3><span class="mark">A</span>三种"问出来"的信号与它们的账单</h3><ul>
+            <li><strong>自报置信度</strong>：在提示词里加一句"给出你的把握（0-100）"。免费，但 ZTC 的测量显示它在 2,018 项多域基准上是 0.5000 的噪声——模型把自信的语气当成了自信本身。另一篇 2026 年 9 月 17 日提交的论文（arXiv:2609.20541，Meyer 等）补上了它的脆弱性：对同一批固定答案换等价措辞重新询问，自报分数平均波动 0.043~0.084，在 0.8 阈值处翻转 4%~9% 的决策。</li>
+            <li><strong>自洽采样（self-consistency）</strong>：同一问题再生成几个答案看一致程度。每个样本都是一次完整生成的成本；而且一致性会放大共识错误——上述论文测到两个模型分别有 4/9 与 2/8 的错误答案获得全部样本的一致支持。</li>
+            <li><strong>生成式验证器</strong>：让另一个模型读答案下判定，如 Jev（本系列 2026-09-17 期介绍过的结构化判断模型，其生态常写作 JEV）。质量可用但贵：一次完整推理，与被验证的 Agent 抢同一份 token 预算。这个生态正在快速膨胀：OpenRouter 新模型榜上 Jev 1.13 在列（数据截至 2026-09-20）、Hugging Face 2026-09-20 盘点 JEV 生态已有 13 个验证器、LangChain 同日发布 Jev-as-a-Judge 评测教程。</li>
+          </ul></div>
+          <div class="panel"><h3><span class="mark">B</span>FINAL-Bench 的赌注：信号本来就在里面</h3><p>2022 年 Kadavath 等人的论文《Language Models (Mostly) Know What They Know》已经证明：模型的内部状态携带"自己答案对错"的信息，可以直接用探针读出。四年里这条学术线基本停在论文与 notebook 里。FINAL-Bench 的赌注是把它压成生产件：不需要随行训练数据、不需要额外服务、不占第二张卡——45 KB、四行代码。于是同一个模型上，"问"与"读"给出了两组平行世界的数字：Darwin-397B 问 0.7646、读 0.8801；Qwen3.5-27B 问 0.6141、读 0.8388。</p></div>
+        </div>
+        <div class="callout"><p><strong>核心问题的重新表述。</strong>"置信度信号"的成本与质量一直被当成二选一：便宜的自报不可靠，可靠的生成式不便宜。ZTC 把这道单选题拆成两道题：信号从哪来（生成的文本 vs 内部的向量）决定质量上限，信号怎么取（采样生成 vs 读出向量）决定成本下限。读出式把两个维度同时解开——这就是榜单上"0 token"那一列的真正含义。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="principle" aria-labelledby="h-principle">
+      <div class="shell">
+        <div class="label">03 / How it works</div>
+        <h2 id="h-principle">工作原理：一次前向传播，读模型"读完卷子那一刻"的内部状态</h2>
+        <p class="intro">ZTC 的完整链路只有六步，全部发生在推理过程内部，不产生任何输出 token：</p>
+        <div class="flow" role="list" aria-label="ZTC 六步链路">
+          <div class="node" role="listitem"><span class="k">STEP 1</span><b>组装输入</b><small>问题 + 候选答案拼成 prompt 喂给模型；judge 模式下读的是其他模型的答案</small></div>
+          <div class="node" role="listitem"><span class="k">STEP 2</span><b>前向传播</b><small>模型逐层处理输入，不做采样、不生成任何文字——"零 token"的来源</small></div>
+          <div class="node" role="listitem"><span class="k">STEP 3</span><b>取出向量</b><small>抓取最后一层在最后一个 token 位置的隐藏状态向量（几千维）</small></div>
+          <div class="node" role="listitem"><span class="k">STEP 4</span><b>标准化</b><small>减均值、除标准差（.npz 里的 mu/sd 两项），消除各维度的量纲差异</small></div>
+          <div class="node" role="listitem"><span class="k">STEP 5</span><b>探针打分</b><small>向量与权重向量 w 做点积，得到原始分数 s——只是一次加权求和</small></div>
+          <div class="node" role="listitem"><span class="k">STEP 6</span><b>校准输出</b><small>用标定常数把 s 映射成 0-1 概率 p，超过阈值放行，否则 hold</small></div>
+        </div>
+        <div class="metric-grid" role="list" aria-label="关键指标">
+          <div class="metric" role="listitem"><b>0.8801</b><span>读出式 AUC（self-readout，539 项保留集）；同一模型"问出来"只有 0.7646</span></div>
+          <div class="metric" role="listitem"><b>0.0615 s</b><span>单次门控耗时（27B、4×B200）；对比生成一个候选答案的 1.631 秒</span></div>
+          <div class="metric" role="listitem"><b>45 KB</b><span>探针部署物：权重向量 + 标准化项 + 校准常数；无训练数据、无依赖、无服务调用</span></div>
+          <div class="metric" role="listitem"><b>26×</b><span>门控比它所守卫的生成工作便宜的倍数——"验证像舍入误差一样便宜"</span></div>
+        </div>
+        <h3>探针本体：四行代码 + 一个 45 KB 文件</h3>
+        <p>部署物是一个 .npz 文件，里面只有三样东西：权重向量、标准化项、校准常数。官方给出的完整接入代码：</p>
+        <div class="code" role="figure" aria-label="ZTC 探针四行接入代码"><pre><code>z = np.load("ztc/ztc_probe_darwin397b.npz")
+h = model.model(**inputs).last_hidden_state[0, -1].float().cpu().numpy()
+s = ((h - z["mu"]) / z["sd"]) @ z["w"]
+p = 1 / (1 + np.exp(-(z["cal_A"] * (s - z["s_mean"]) / z["s_std"] + z["cal_B"])))</code></pre></div>
+        <p>两个值得注意的工程细节：第一，读的是 <code>last_hidden_state[0, -1]</code>——第一条序列、最后一个 token 位置的向量，也就是模型"写完答案那一刻"的内部状态；第二，校准不是裸的 sigmoid（把任意分数压成 0-1 的 S 形函数），而是带两个标定常数的仿射变换——这保证输出的 0.8 尽量对应"真实正确率约 80%"，是一个可解释的概率，而不只是一个能排序的分数。</p>
+        <h3>两种工作模式</h3>
+        <ul>
+          <li><strong>self-readout（自读）</strong>：模型读自己刚生成的答案。这是数字最亮的模式——Darwin-397B 问 0.7646、读 0.8801（+0.116）；Qwen3.5-27B 问 0.6141、读 0.8388（+0.225）。适合"模型对自己输出把关"的场景。</li>
+          <li><strong>judge（判官）</strong>：FINAL-Bench/ZTC-Judge-27B 读其他任意模型的答案，覆盖五个领域。榜单第一名的 0.7394 就是 judge 模式（397B 探针）。适合"给闭源或第三方模型的答案验货"的场景——前提是答案文本能拿到。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section alt" id="innovation" aria-labelledby="h-innovation">
+      <div class="shell">
+        <div class="label">04 / Innovation</div>
+        <h2 id="h-innovation">创新点：信号不新，把信号压成 45 KB 部署物的做法新</h2>
+        <p class="intro">先厘清边界："模型内部状态携带对错信息"是 2022 年就发表的学术结论，ZTC 没有发明这个信号。它的创新在三件别的事上：</p>
+        <ul>
+          <li><strong>工程化压缩：从研究方法到生产件。</strong>Kadavath 等人的探针活在论文与 notebook 里，复现者要自己处理模型加载、层选择、探针训练、校准一整套。ZTC 把产物压到"一个 45 KB 文件 + 四行代码"：训练数据不随行、无额外依赖、无服务调用。一条学术结论要进生产，先要回答"部署物多小、依赖多少、要不要起服务"——这份发布给出了目前见到的最短答案。</li>
+          <li><strong>对照榜单的方法论：表面基线是最狠的一笔。</strong>2,018 项、同一 harness、所有验证器跑同一批题。其中"表面基线"——只看答案长度与格式、完全不读内容的对照组——拿到 0.7036，把两个已发表验证器（open-jev 4B 0.6844、Lynx 8B 0.5157）压在身下。这一笔对所有做验证器评测的人该成为标配：没有表面基线的验证器评测，证明不了验证器在读内容。</li>
+          <li><strong>统计纪律与架构发现。</strong>置换检验（permutation test：把标签打乱重做拟合、看真实结果落在随机分布的什么位置）：探针在 200 次打乱标签的重拟合之上，真实拟合高出 9~13 个标准差——排除了"碰巧拟合"的解释；留一域交叉验证 0.7572，说明信号跨领域可用而不仅在训练分布内有效。再配上"探针质量由隐藏层宽度与全注意力占比预测、与参数量无关"的架构结论（详见下章）——一份社区发布里少见的统计纪律。</li>
+        </ul>
+        <div class="callout"><p><strong>成本经济学的换算。</strong>官方两组实测：27B 模型上，生成一个候选答案 1.631 秒，ZTC 门控 0.0615 秒——便宜 26 倍；Darwin-397B 用 8×B200 在 270 秒内评完 2,018 项（含前向传播，0.13 秒/项）。原文的推论值得整段记住：生成 token 的验证器与你的 Agent 抢同一份预算，读出式的便宜像舍入误差——于是你可以给每个动作都装闸门，而不是只给抽样出来的少数动作装。</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="compare" aria-labelledby="h-compare">
+      <div class="shell">
+        <div class="label">05 / Data &amp; competition</div>
+        <h2 id="h-compare">数据与竞品：0.7394 的榜首、+0.22 的问读差距、垫底的 180B</h2>
+        <p class="intro">三张表看完这份发布的全部关键数字。表一：2,018 项共享基准（同一 harness、judge 模式）上的验证器榜单；表二：539 项保留集上"问 vs 读"的对比；表三：同 400 项 judge 模式下，探针背后的模型换了会怎样。</p>
+        <p class="tbl-cap">表一 · 验证器榜单（2,018 项共享基准，judge 模式）</p>
+        <p class="scroll-hint">下表在窄屏设备上可横向滑动。</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="表一：验证器榜单对比">
+          <table class="compare">
+            <thead><tr><th scope="col">验证器</th><th scope="col">AUC</th><th scope="col">生成 token</th><th scope="col">一句话判读</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">ZTC · Darwin-397B</th><td class="win">0.7394</td><td class="win">0</td><td>读出式，榜首；榜上唯一零 token 的第一名</td></tr>
+              <tr><th scope="row">Jev</th><td>0.7335</td><td>需生成</td><td>结构化判断模型（本系列 2026-09-17 期介绍；榜单原文写作 JEV）</td></tr>
+              <tr><th scope="row">ZTC-Judge-27B</th><td>0.7255</td><td>0</td><td>27B 判官读任意模型的答案，覆盖五个领域</td></tr>
+              <tr><th scope="row">表面基线（只看长度与格式）</th><td>0.7036</td><td>0</td><td>完全不读内容的对照组</td></tr>
+              <tr><th scope="row">open-jev 4B</th><td>0.6844</td><td>需生成</td><td>低于表面基线</td></tr>
+              <tr><th scope="row">Lynx 8B</th><td>0.5157</td><td>需生成</td><td>低于表面基线（Patronus AI 幻觉检测开源模型）</td></tr>
+              <tr><th scope="row">模型自报置信度</th><td>0.5000</td><td>需生成</td><td>恰为随机线——每个按自报置信度路由的产品都在噪声上决策</td></tr>
+              <tr><th scope="row">HHEM</th><td>0.4852</td><td>需生成</td><td>低于随机线（Vectara 的开源幻觉评测模型 HHEM）</td></tr>
+            </tbody>
+          </table>
+          <p class="tbl-note">AUC 越高越好，0.5 为随机，低于 0.5 意味着信号与真实对错不相关甚至反向；绿底加粗为该维度表现占优的方法。数字来自 FINAL-Bench 博客（2026-09-20），"一句话判读"列为本文对数字的解读。两点口径说明：①"模型自报置信度"一行（0.5000）的测量模型与模式，榜单原文未注明，与表二"问=0.7646/0.6141"的 539 项自读实验口径不同，本文按原文分别转述；②榜首 ZTC 与第二名 Jev 只差 0.0059——ZTC 在 judge 模式下的优势是成本结构（零 token、0.06 秒），不是性能幅度，真正拉开问读差距的是 self-readout 模式的 0.8801。</p>
+        </div>
+        <p class="tbl-cap">表二 · 问 vs 读（539 项保留集，self-readout 模式）</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="表二：问与读的对比">
+          <table class="compare narrow">
+            <thead><tr><th scope="col">模型</th><th scope="col">问（自报 AUC）</th><th scope="col">读（探针 AUC）</th><th scope="col">差距</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Darwin-397B-ZTC</th><td>0.7646</td><td class="win">0.8801</td><td>+0.116</td></tr>
+              <tr><th scope="row">Qwen3.5-27B</th><td>0.6141</td><td class="win">0.8388</td><td>+0.225</td></tr>
+            </tbody>
+          </table>
+          <p class="tbl-note">539 项保留集、self-readout 模式；绿底加粗为该行中占优的信号来源（读）。每个数字都通过置换检验（打乱标签重拟合 200 次），真实拟合位于零假设分布之上 9~13 个标准差；留一域交叉验证下 Darwin-397B 仍有 0.7572。数字来自 FINAL-Bench 博客（2026-09-20）。</p>
+        </div>
+        <p class="tbl-cap">表三 · 探针背后的模型对比（同 400 项，judge 模式）</p>
+        <p class="scroll-hint">下表在窄屏设备上可横向滑动。</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="表三：探针架构对比">
+          <table class="compare">
+            <thead><tr><th scope="col">探针背后的模型</th><th scope="col">AUC</th><th scope="col">z 值</th><th scope="col">架构注解</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Darwin-397B-ZTC</th><td class="win">0.8228</td><td>9.66</td><td>397B MoE</td></tr>
+              <tr><th scope="row">Qwen3.5-27B</th><td>0.8171</td><td>9.43</td><td>27B</td></tr>
+              <tr><th scope="row">Qwen3.8-Flash-Next（180B 级）</th><td>0.7146</td><td>5.83</td><td>隐藏层宽 2560 维、48 层中 36 层为线性注意力</td></tr>
+            </tbody>
+          </table>
+          <p class="tbl-note">同 400 项、同一 harness、judge 模式：换探针背后的模型、评同样的题；绿底加粗为该项最高；z 值即真实拟合超出打乱标签零假设分布的标准差倍数（置换检验），前文 9~13 为问读对比与主实验的区间，本表为独立的架构对比实验。180B 级模型垫底。原文解释：探针只读一个向量——窄的隐藏状态装不下判决所需的信息，而线性注意力层（linear attention：用固定大小的压缩状态替代完整注意力矩阵的层结构，长序列更省算力但会丢失全局比较）把判断所需的全局比较压缩掉了。原文结论："预测 ZTC 质量的是隐藏层宽度与全注意力占比——不是参数量。挑你的门控模型时照此办理。"该结论仅基于 3 个模型的对比，属方向性观察（本文判读）。</p>
+        </div>
+        <h3>Gate Arcade：把三套闸门放进同一台街机</h3>
+        <p>三条赛道接收完全相同的动作流（删三行数据、发起一笔支付、跑部署脚本）与相同的 300 秒预算，记分规则：正确动作 +1、错误动作 -1、hold 记 0。一条不设闸门、必须全部执行；一条用文本阅读式验证器；一条用 ZTC。400 场下来：无门 -3.9、文本验证器 +13.0、ZTC +29.1——98% 的场次获胜。门控把执行准确率从 49% 抬到 65%；同一 300 秒里 ZTC 处理了文本验证器 2.2 倍的动作量，因为它的闸门近乎免费。演示还留了个巧思：无门赛道上玩家唯一的提示就是模型的自报置信度——试过的人会直观记住那个数字值多少。</p>
+        <div class="callout amber"><p><strong>一个容易被误读的边界。</strong>"自报置信度 = 0.5000"是这套 2,018 项多域基准上的测量结果，不是普适定律。2026 年 9 月 17 日提交的另一篇论文（arXiv:2609.20541，Meyer 等）在 100 道 TriviaQA（经典琐事问答数据集）上测得：在核查并修正基准答案标注本身的错误之后，口头自报置信度的 AUC（论文写作 AUROC，与 AUC 同一指标）可达 0.956/0.937，分别为两个模型家族的结果——但换等价措辞就波动 0.043~0.084、在 0.8 阈值处翻转 4%~9% 的决策，且自洽采样会一致地支持共享错误。两份证据合起来的图景（本文综合判断）：自报信号在简单事实问答上勉强可用但脆弱，在多域难题上塌成噪声；读出式在测过的场景里稳定得多——但"自报永远没用"与"自报基本可用"都是以偏概全。</p></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="production" aria-labelledby="h-production">
+      <div class="shell">
+        <div class="label">06 / Production view</div>
+        <h2 id="h-production">工程化视角：三道关——状态访问权、版本绑定、阈值运营</h2>
+        <p class="intro">这套东西要进生产环境，绕不开三个问题。以下分析结合 ZTC 的部署形态与 vLLM 的基础设施现状展开。</p>
+        <h3>一、接入生产需要考虑哪些环节？</h3>
+        <ul>
+          <li><strong>hidden state 访问权是硬前提</strong>：闭源 API 不返回内部状态——ZTC 结构性地只适用于自托管开源模型。通路已经存在：vLLM（主流开源推理引擎）2026-03-30 的官方博客给出隐藏状态提取方案；v0.29.0（2026-09-09 发布）把 extract_hidden_states 纳入 Model Runner V2（PR #49811）。自托管团队从今天起具备全部原料。</li>
+          <li><strong>探针与模型版本强绑定（本文推断）</strong>：45 KB 的权重向量是针对特定模型特定 checkpoint 拟合的。模型微调、量化方案变更、推理后端升级都可能改变隐藏状态的语义——需要建立"模型版本 ↔ 探针版本"的配对管理，模型更新后在保留集上回归验证 AUC，并把配对关系写进部署清单。</li>
+          <li><strong>阈值标定与漂移监控</strong>：榜单 AUC 不等于你的分布上的 AUC。上线前用自己的（问题、答案、对错）数据重标阈值；上线后对"门控命中率"（hold 比例）设移动均值告警——命中率的漂移往往先于 AUC 崩塌暴露分布变化。</li>
+          <li><strong>hold 之后的兜底链路</strong>：门控只回答"要不要执行"。hold 之后做什么——重试、换更强模型、检索增强、升级人工——必须预先设计。没有兜底链路的门控只是把错误换成停顿。</li>
+        </ul>
+        <h3>二、对现有 LLM 应用架构有什么影响？</h3>
+        <p>三处。第一，<strong>置信度路由的信号源换代</strong>：cascade 级联选模型、RAG（Retrieval-Augmented Generation，检索增强生成）触发、答案放行——凡靠"问模型自己"拿置信度的环节，都可换成"读状态"，成本从一次额外生成降到一次前向传播的向量读取。第二，<strong>验证器分两层</strong>：读出式探针（近零成本）部署在每个动作上做初筛，生成式验证器（Jev 类）留给高价值决策做复核——Gate Arcade 里 2.2× 的吞吐差距就是这种分层的预演。第三，<strong>自托管的价值权重上升</strong>：需要动作级门控的 Agent 工作负载会向自托管推理迁移，闭源 API 在这个能力维度上是结构性缺席的（本文推断）。</p>
+        <h3>三、从 Demo 到生产可用，主要差距在哪里？</h3>
+        <p>四处。①<strong>泛化面</strong>：所有核心数字来自单一自建基准（2,018 项、一个 harness），judge 模式仅声明五个域，生产分布上的 AUC 未知；②<strong>域外衰减已可见</strong>：留一域 0.7572 对域内 0.8801，约 0.12 的衰减量就是"分布漂移税"的量级参考，上线前应按自己的域做留一验证；③<strong>对抗鲁棒性未验证</strong>：探针是一个线性函数，若攻击者能构造影响输入文本的对抗样本，存在把分数推向"高置信"的理论路径——安全敏感场景需要先做对抗测试（本文推断，原文未涉及）；④<strong>团队与模型透明度</strong>：FINAL-Bench/VIDRAFT 是新团队，Darwin-397B 公开资料有限，成果未经同行评议——把探针当"实验性组件"而非"标准件"引入，配好回归验证再放量。</p>
+      </div>
+    </section>
+
+    <section class="section" id="risk" aria-labelledby="h-risk">
+      <div class="shell">
+        <div class="label">07 / Risk &amp; Limits</div>
+        <h2 id="h-risk">局限与风险：单一基准上的漂亮数字，离普适结论还差三步</h2>
+        <div class="risk-grid" role="list" aria-label="风险清单">
+          <div class="risk" role="listitem"><h3>单一基准外推 <span class="level high">高</span></h3><p>2,018 项、一个自建 harness、一支新团队，全部数字未在任何外部基准复现。AUC 与 Gate Arcade 的 98% 胜率都只代表这套基准的分布，换成你的业务题目先重测。</p></div>
+          <div class="risk" role="listitem"><h3>"自报失效"有任务边界 <span class="level high">高</span></h3><p>arXiv:2609.20541 在简单问答上测出自报 AUC 0.956/0.937（两个模型家族）。0.5000 是多域难题上的结果——把"自报置信度没用"当普适结论引用，会在简单场景误伤一个可用信号（本文综合判断）。</p></div>
+          <div class="risk" role="listitem"><h3>性能领先幅度有限 <span class="level">中</span></h3><p>榜首 0.7394 对 JEV 0.7335 只差 0.0059，对表面基线 0.7036 只差 0.0358。judge 模式下 ZTC 赢在成本结构；真正大幅拉开的是 self-readout 的 0.8801——引用数字时分清模式。</p></div>
+          <div class="risk" role="listitem"><h3>探针绑定模型版本 <span class="level">中</span></h3><p>模型更新即语义漂移风险；多模型 fleet 需要维护探针矩阵。探针本身便宜，探针的版本管理不便宜（本文推断）。</p></div>
+          <div class="risk" role="listitem"><h3>门控的错误代价不对称 <span class="level">中</span></h3><p>阈值偏松，错误动作被放行（演示里 -1 的代价在生产中可能是真实世界损失）；偏紧，频繁 hold 拖慢 Agent。98% 胜率是温和计分规则下的演示数字，生产阈值选择是风险偏好问题而非技术问题。</p></div>
+          <div class="risk" role="listitem"><h3>部署门槛 <span class="level">中</span></h3><p>让 397B MoE 读自己并不轻；现实路径是 27B 判官（0.7255）或对在用模型自训探针——后者需要自己攒（问题、答案、对错）标注集，量级参考 ZTC 使用的 2,018 项基准。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="future" aria-labelledby="h-future">
+      <div class="shell">
+        <div class="label">08 / What's next</div>
+        <h2 id="h-future">未来方向：置信度成为推理引擎的一等返回字段</h2>
+        <ul>
+          <li><strong>推理引擎内置（本文推断）</strong>：vLLM 已有 extract_hidden_states 基础设施，自然终点是 confidence 作为 API 的一等返回字段——模型响应自带校准置信度，门控从"外挂探针"变成"引擎原生能力"。先落地的引擎会给自托管栈加上一个闭源 API 给不了的卖点。</li>
+          <li><strong>验证器预算分层化（本文推断）</strong>：全量探针初筛 + 选择性生成式复核的两层预算架构，会取代"单一验证器包打天下"。Gate Arcade 的 2.2× 吞吐差已预演第一层的价值；第二层（何时值得花一次生成式验证）是新的调度问题。</li>
+          <li><strong>学术侧的统一问题</strong>：自报信号的任务依赖性（arXiv:2609.20541）与读出信号的稳定性（ZTC）需要在同一框架下解释——"问与读的差距"（+0.116/+0.225）本身就是一个值得研究的现象：生成时丢失了什么，读出时读到了什么。</li>
+          <li><strong>结构化判断与读出的融合（本文推断）</strong>：Jev 类验证器的 schema 化产出（结构化字段）与 ZTC 的零成本读出并不互斥——探针当第一道便宜闸门，过闸的少数高价值决策再交给结构化判官，两层共享同一套阈值与监控。</li>
+          <li><strong>模型选型指标的扩容</strong>："探针友好度"（隐藏层宽度、全注意力占比）会成为 Agent 门控场景的选型维度——180B 级模型垫底说明，通用跑分与参数量在这个维度上没有话语权。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="takeaways" aria-labelledby="h-takeaways">
+      <div class="shell">
+        <div class="label">09 / Takeaways</div>
+        <h2 id="h-takeaways">工程师可以借鉴：五条可以直接搬走的做法</h2>
+        <div class="steps">
+          <div class="step"><h3>先审计你正在用的置信度信号</h3><p>产品里凡有"问模型自己把握多大"的路由，先测一次 AUC——对照 0.5 随机线与"答案长度/格式"表面基线 0.7036。两行 pandas 就能算；很多团队会当场发现自己路由在噪声上。</p></div>
+          <div class="step"><h3>给验证器评测配表面基线</h3><p>任何自研或引入的验证器，评测时必须包含"只看长度与格式"的对照组——open-jev 4B 与 Lynx 8B 低于基线的教训：不读内容也能拿 0.70，你的验证器高过它多少才是真本事。</p></div>
+          <div class="step"><h3>把学术信号压成部署物再谈落地</h3><p>线性探针 + 标准化项 + 校准常数 = 45 KB npz + 四行代码。一条学术结论要进生产，先回答"部署物多小、依赖多少、要不要起服务"——ZTC 给出了可复用的压缩模板。</p></div>
+          <div class="step"><h3>需要内部状态的能力只能配自托管</h3><p>extract_hidden_states 是 vLLM 的现成通路。评估闭源与自托管时，把"暴露哪些内部信号"记入决策清单——闭源 API 的能力边界由"愿意暴露什么"决定，而不是由"会什么"决定。</p></div>
+          <div class="step"><h3>便宜的信号会改变架构形态</h3><p>验证成本降到被验证工作的 1/26 时，抽样验证变全量门控。评估任何信号源时多算一步：如果它便宜 26 倍，你的架构会怎么改——这个思考顺序比"先定架构再找信号"更贴近真实演化路径。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt end" id="sources" aria-labelledby="h-sources">
+      <div class="shell">
+        <div class="label">10 / Sources</div>
+        <h2 id="h-sources">数据源</h2>
+        <div class="sources">
+          <div class="source"><span class="n">1</span><p><a href="https://huggingface.co/blog/FINAL-Bench/ztc">FINAL-Bench：<span lang="en">Your model already knows it's wrong. Asking costs 0.06 seconds and zero tokens.</span>（Hugging Face 博客）</a></p><small>用途：主源。全部基准数字（榜单、问读对比、留一域、置换检验、成本测量、架构对比）、45 KB 部署物与四行代码、Gate Arcade 结果。发布于 2026-09-20。</small></div>
+          <div class="source"><span class="n">2</span><p><a href="https://huggingface.co/FINAL-Bench/Darwin-397B-ZTC">FINAL-Bench/Darwin-397B-ZTC 模型页（Hugging Face）</a></p><small>用途：397B MoE（模型页标称 404B 参数）、GPQA Diamond 93.43（百分制）、自带 self-readout 探针。数据截至 2026-09-21。</small></div>
+          <div class="source"><span class="n">3</span><p><a href="https://huggingface.co/FINAL-Bench/ZTC-Judge-27B">FINAL-Bench/ZTC-Judge-27B 模型页（Hugging Face）</a></p><small>用途：judge 模式、读任意模型的答案、覆盖五个领域。数据截至 2026-09-21。</small></div>
+          <div class="source"><span class="n">4</span><p><a href="https://huggingface.co/spaces/FINAL-Bench/gate-tetris">Gate Arcade（Hugging Face Space）</a></p><small>用途：无门 / 文本验证器 / ZTC 三条赛道的实时对比演示，多语言（韩/英/中），400 场记分规则与结果。数据截至 2026-09-21。</small></div>
+          <div class="source"><span class="n">5</span><p><a href="https://arxiv.org/abs/2609.20541">Meyer 等：<span lang="en">An Analysis of Training-Free Self-Reported Confidence in Language Models</span>（arXiv:2609.20541）</a></p><small>用途：自报/自洽信号的可用性与脆弱性对照——TriviaQA 上自报 AUROC 0.956/0.937、措辞敏感性（0.043~0.084、4%~9% 决策翻转）、自洽采样放大共享错误。提交于 2026-09-17。</small></div>
+          <div class="source"><span class="n">6</span><p><a href="https://github.com/vllm-project/vllm/releases/tag/v0.29.0">vLLM v0.29.0 发布说明（GitHub Releases）</a></p><small>用途：extract_hidden_states 进入 Model Runner V2（PR #49811）；对 Qwen3.8-Flash-Next 的支持佐证。发布于 2026-09-09。</small></div>
+          <div class="source"><span class="n">7</span><p><a href="https://blog.vllm.ai/2026-03-30-extract-hidden-states">vLLM 博客：<span lang="en">Extracting hidden states from vLLM</span></a></p><small>用途：隐藏状态提取的生产方案（dummy draft model 与 KV Connector API）。发布于 2026-03-30。</small></div>
+          <div class="source"><span class="n">8</span><p><a href="https://arxiv.org/abs/2207.05221">Kadavath 等：<span lang="en">Language Models (Mostly) Know What They Know</span>（arXiv:2207.05221）</a></p><small>用途：模型内部状态携带对错信息的学术源头，2022 年。</small></div>
+          <div class="source"><span class="n">9</span><p><a href="https://openrouter.ai/rankings">OpenRouter Rankings</a></p><small>用途：Jev 1.13 上新、验证器生态的用量背景。数据截至 2026-09-20。</small></div>
+          <div class="source"><span class="n">10</span><p><a href="https://blog.langchain.com/jev-agent-evals-langsmith">LangChain 博客：<span lang="en">Jev-as-a-Judge for Agent Evals</span></a></p><small>用途：生成式验证器生态扩张的背景（同日发布的评测教程）。发布于 2026-09-20。</small></div>
+          <div class="source"><span class="n">11</span><p><a href="https://huggingface.co/blog/mayafree/jve-ecosystems">mayafree：<span lang="en">Inside the JEV Ecosystem: 13 Answer Verifiers on One Test Set</span>（Hugging Face 博客）</a></p><small>用途：JEV 生态 13 个验证器的盘点背景。发布于 2026-09-20。</small></div>
+        </div>
+        <p class="footer"><strong>诚实边界：</strong>本文的能力与数据描述全部来自 FINAL-Bench 官方博客、Hugging Face 模型页、vLLM 发布说明与 arXiv 论文等公开资料，未包含作者实测数据；ZTC 的全部基准数字来自其自建基准（2,018 项、同一 harness），在读者自己环境中的表现需要独立验证。文中标注"本文推断""本文综合判断"的内容为作者观点，不构成对项目方的转述。</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
